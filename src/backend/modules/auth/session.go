@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func newUUID() string {
+func NewUUID() string {
 	var value [16]byte
 	if _, err := rand.Read(value[:]); err != nil {
 		panic(err)
@@ -21,7 +21,7 @@ func newUUID() string {
 	return fmt.Sprintf("%x-%x-%x-%x-%x", value[:4], value[4:6], value[6:8], value[8:10], value[10:])
 }
 
-func newOpaque(size int) string {
+func NewOpaque(size int) string {
 	value := make([]byte, size)
 	if _, err := rand.Read(value); err != nil {
 		panic(err)
@@ -30,7 +30,7 @@ func newOpaque(size int) string {
 	return base64.RawURLEncoding.EncodeToString(value)
 }
 
-func validOpaque(value string, size int) bool {
+func ValidOpaque(value string, size int) bool {
 	if len(value) != size {
 		return false
 	}
@@ -44,33 +44,33 @@ func validOpaque(value string, size int) bool {
 	return true
 }
 
-func hashToken(value string) []byte {
+func HashToken(value string) []byte {
 	hash := sha256.Sum256([]byte(value))
 
 	return hash[:]
 }
 
-func csrfToken(raw string) string {
+func CSRFToken(raw string) string {
 	hash := sha256.Sum256([]byte("csrf:" + raw))
 
 	return base64.RawURLEncoding.EncodeToString(hash[:])
 }
 
-func newSession(userID string, now time.Time) (session, string, string) {
-	raw := newOpaque(32)
-	csrf := csrfToken(raw)
+func NewSession(userID string, now time.Time) (Session, string, string) {
+	raw := NewOpaque(32)
+	csrf := CSRFToken(raw)
 
-	return session{
-		ID:        newUUID(),
+	return Session{
+		ID:        NewUUID(),
 		UserID:    userID,
-		Hash:      hashToken(raw),
-		CSRFHash:  hashToken(csrf),
-		ExpiresAt: now.Add(sessionTTL),
+		Hash:      HashToken(raw),
+		CSRFHash:  HashToken(csrf),
+		ExpiresAt: now.Add(SessionTTL),
 	}, raw, csrf
 }
 
 func CheckCSRF(sess ResolvedSession, token string) error {
-	if !validOpaque(token, 43) || subtle.ConstantTimeCompare(sess.csrfHash, hashToken(token)) != 1 {
+	if !ValidOpaque(token, 43) || subtle.ConstantTimeCompare(sess.CSRFHash, HashToken(token)) != 1 {
 		return ErrCSRF
 	}
 

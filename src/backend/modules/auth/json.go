@@ -1,71 +1,39 @@
 package auth
 
 import (
-	"bytes"
 	"encoding/json"
+	"github.com/Cricko7/honey-forge/src/backend/internal/platform/httpx"
 	"reflect"
-	"strings"
 )
 
-// Check exact keys, duplicate keys and nulls before Gin's typed binding.
-func strictObject(raw []byte, typ reflect.Type) bool {
-	if typ.Kind() == reflect.Pointer {
-		typ = typ.Elem()
-	}
-
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	first, err := decoder.Token()
-	if err != nil || first != json.Delim('{') {
+func StrictObject(raw []byte, typ reflect.Type) bool {
+	if !httpx.StrictObject(raw, typ) {
 		return false
 	}
-
-	fields := make(map[string]reflect.Type)
-	for i := 0; i < typ.NumField(); i++ {
-		field := typ.Field(i)
-		fields[strings.Split(field.Tag.Get("json"), ",")[0]] = field.Type
+	for typ.Kind() == reflect.Pointer {
+		typ = typ.Elem()
 	}
-
-	seen := make(map[string]bool)
-	values := make(map[string]json.RawMessage)
-	for decoder.More() {
-		token, err := decoder.Token()
-		if err != nil {
-			return false
-		}
-
-		name, ok := token.(string)
-		fieldType, known := fields[name]
-		if !ok || !known || seen[name] {
-			return false
-		}
-
-		seen[name] = true
-		var value json.RawMessage
-		if err := decoder.Decode(&value); err != nil || bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
-			return false
-		}
-		values[name] = value
-
-		if fieldType.Kind() == reflect.Pointer {
-			fieldType = fieldType.Elem()
-		}
-		if fieldType.Kind() == reflect.Struct && !strictObject(value, fieldType) {
+	var values map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &values); err != nil {
+		return false
+	}
+	if typ == reflect.TypeFor[RegisterRequest]() {
+		if org, ok := values["organization"]; ok && !StrictObject(org, reflect.TypeFor[OrganizationInput]()) {
 			return false
 		}
 	}
-
 	if typ == reflect.TypeFor[OrganizationInput]() {
 		var mode string
-		if value, ok := values["mode"]; ok {
-			if err := json.Unmarshal(value, &mode); err != nil {
+		if raw, ok := values["mode"]; ok {
+			if err := json.Unmarshal(raw, &mode); err != nil {
 				return false
 			}
 		}
-
-		if mode == "create" && seen["join_code"] || mode == "join" && seen["name"] {
+		_, hasCode := values["join_code"]
+		_, hasName := values["name"]
+		if mode == "create" && hasCode || mode == "join" && hasName {
 			return false
 		}
 	}
-
 	return true
 }

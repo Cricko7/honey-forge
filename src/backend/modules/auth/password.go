@@ -14,7 +14,7 @@ import (
 
 const passwordPrefix = "$argon2id$v=19$m=65536,t=3,p=4$"
 
-func hashPassword(password string) (string, error) {
+func HashPassword(password string) (string, error) {
 	salt := make([]byte, 16)
 	if _, err := rand.Read(salt); err != nil {
 		return "", fmt.Errorf("generating password salt: %w", err)
@@ -25,7 +25,7 @@ func hashPassword(password string) (string, error) {
 	return passwordPrefix + base64.RawStdEncoding.EncodeToString(salt) + "$" + base64.RawStdEncoding.EncodeToString(hash), nil
 }
 
-func checkPassword(hash, password string) (bool, error) {
+func CheckPassword(hash, password string) (bool, error) {
 	if strings.HasPrefix(hash, "$2") {
 		err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 		if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) || errors.Is(err, bcrypt.ErrPasswordTooLong) {
@@ -55,7 +55,7 @@ func checkPassword(hash, password string) (bool, error) {
 	return subtle.ConstantTimeCompare(actual, want) == 1, nil
 }
 
-func dummyPasswordCheck(password string) {
+func DummyPasswordCheck(password string) {
 	// Same Argon2id cost as real credentials, without a per-process secret.
 	salt := make([]byte, 16)
 	actual := argon2.IDKey([]byte(password), salt, 3, 64*1024, 4, 32)

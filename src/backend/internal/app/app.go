@@ -9,9 +9,12 @@ import (
 	"net/http"
 	"time"
 
+	authrepo "github.com/Cricko7/honey-forge/src/backend/modules/auth/repository"
+	authservice "github.com/Cricko7/honey-forge/src/backend/modules/auth/service"
+	"github.com/Cricko7/honey-forge/src/backend/modules/profiles"
+	profilerepo "github.com/Cricko7/honey-forge/src/backend/modules/profiles/repository"
+	profileservice "github.com/Cricko7/honey-forge/src/backend/modules/profiles/service"
 	"github.com/jackc/pgx/v5/pgxpool"
-
-	"github.com/Cricko7/honey-forge/src/backend/modules/auth"
 )
 
 func Run(ctx context.Context, config Config, logger *slog.Logger) error {
@@ -45,17 +48,25 @@ func Run(ctx context.Context, config Config, logger *slog.Logger) error {
 			AND to_regclass('operator_sessions') IS NOT NULL
 			AND to_regclass('auth_audit') IS NOT NULL
 			AND to_regclass('auth_changes') IS NOT NULL
+			AND to_regclass('profiles') IS NOT NULL
+			AND to_regclass('profile_revisions') IS NOT NULL
+			AND to_regclass('profile_requests') IS NOT NULL
+			AND to_regclass('profile_audit') IS NOT NULL
+			AND to_regclass('profile_changes') IS NOT NULL
 	`).Scan(&schemaReady)
 	if err != nil {
 		return fmt.Errorf("checking auth schema: %w", err)
 	}
 	if !schemaReady {
-		return errors.New("auth schema is missing; apply Goose migrations before starting the API")
+		return errors.New("backend schema is missing; apply Goose migrations before starting the API")
 	}
 
-	repository := auth.NewRepository(pool)
-	service := auth.NewService(repository)
-	router, err := NewRouter(service, logger, config.AllowedOrigin)
+	repository := authrepo.NewRepository(pool)
+	service := authservice.NewService(repository)
+	profileService := profileservice.NewService(profilerepo.NewRepository(pool), profiles.Dependencies{
+		LookupType: lookupProfileType, HasLiveBindings: profilerepo.CheckLiveBindings,
+	})
+	router, err := NewRouter(service, logger, config.AllowedOrigin, profileService)
 	if err != nil {
 		return fmt.Errorf("creating HTTP router: %w", err)
 	}

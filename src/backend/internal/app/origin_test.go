@@ -9,7 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/Cricko7/honey-forge/src/backend/modules/auth"
+	authhttp "github.com/Cricko7/honey-forge/src/backend/modules/auth/http"
 )
 
 func TestOriginMustExactlyMatchConfiguredOrigin(t *testing.T) {
@@ -69,7 +69,7 @@ func TestBearerAndLegacyCookiesDoNotAuthenticate(t *testing.T) {
 	}
 
 	context, _ := gin.CreateTestContext(httptest.NewRecorder())
-	ctx, ok := auth.Context(context)
+	ctx, ok := authhttp.Context(context)
 	if ok || ctx.UserID != "" {
 		t.Fatal("identity without verified middleware must be absent")
 	}

@@ -17,5 +17,18 @@ services:
       retries: 10
       start_period: 10s
 
+  migrate:
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile.migrations
+    restart: "no"
+    environment:
+      GOOSE_DRIVER: postgres
+      GOOSE_DBSTRING: "host=postgres port=5432 user=${POSTGRES_USER:-honey_forge} password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the project .env file} dbname=${POSTGRES_DB:-honey_forge} sslmode=disable"
+      GOOSE_MIGRATION_DIR: /migrations
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   honey_forge_postgres:

@@ -41,8 +41,9 @@ func TestOpenAPIContainsEveryRouteAndResponseReference(t *testing.T) {
 	routes := make(map[string]bool)
 
 	for _, route := range router.Routes() {
-		routes[route.Method+" "+route.Path] = true
-		if _, ok := contract.Paths[route.Path][strings.ToLower(route.Method)]; !ok {
+		contractPath := strings.ReplaceAll(route.Path, ":id", "{id}")
+		routes[route.Method+" "+contractPath] = true
+		if _, ok := contract.Paths[contractPath][strings.ToLower(route.Method)]; !ok {
 			t.Fatalf("route %s %s is missing in OpenAPI", route.Method, route.Path)
 		}
 	}

@@ -18,7 +18,7 @@ var (
 	validationErr  error
 )
 
-func registerValidationRules() error {
+func RegisterValidationRules() error {
 	validationOnce.Do(func() {
 		binding.EnableDecoderDisallowUnknownFields = true
 
@@ -45,7 +45,7 @@ func registerValidationRules() error {
 				return err == nil && address.Name == "" && address.Address == value
 			},
 			"joincode": func(fl validator.FieldLevel) bool {
-				return validOpaque(fl.Field().String(), 32)
+				return ValidOpaque(fl.Field().String(), 32)
 			},
 			"maxbytes": func(fl validator.FieldLevel) bool {
 				maximum, err := strconv.Atoi(fl.Param())

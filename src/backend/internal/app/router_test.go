@@ -3,22 +3,23 @@ package app
 import (
 	"bytes"
 	"encoding/json"
+	authservice "github.com/Cricko7/honey-forge/src/backend/modules/auth/service"
+	"github.com/Cricko7/honey-forge/src/backend/modules/profiles"
+	profileservice "github.com/Cricko7/honey-forge/src/backend/modules/profiles/service"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/Cricko7/honey-forge/src/backend/modules/auth"
 )
 
 func testRouter(t *testing.T, output io.Writer) http.Handler {
 	t.Helper()
 
-	service := auth.NewService(nil)
+	service := authservice.NewService(nil)
 	logger := slog.New(slog.NewJSONHandler(output, nil))
-	router, err := NewRouter(service, logger, "https://example.com")
+	router, err := NewRouter(service, logger, "https://example.com", profileservice.NewService(nil, profiles.Dependencies{}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,6 +43,7 @@ func TestRouterErrorsAndCSRFProtection(t *testing.T) {
 		{name: "trailing slash", method: "GET", path: "/healthz/", status: 404, code: "resource_not_found"},
 		{name: "wrong method", method: "GET", path: "/api/registrations", status: 405, code: "method_not_allowed"},
 		{name: "missing cookie", method: "GET", path: "/api/session", status: 401, code: "unauthenticated"},
+		{name: "profiles require session", method: "GET", path: "/api/profiles", status: 401, code: "unauthenticated"},
 		{name: "cross origin logout", method: "DELETE", path: "/api/session", origin: "https://attacker.example", status: 403, code: "origin_not_allowed"},
 	}
 
@@ -89,7 +91,7 @@ func TestAuthRateLimitIgnoresSpoofedProxyHeaders(t *testing.T) {
 	router := testRouter(t, io.Discard)
 
 	for attempt := range 11 {
-		request := httptest.NewRequest(http.MethodPost, "/api/sessions", nil)
+		request := httptest.NewRequest(http.MethodPost, "/api/sessions", strings.NewReader("{}"))
 		request.Header.Set("Origin", "https://example.com")
 		request.Header.Set("X-Forwarded-For", strings.Repeat("1", attempt+1))
 		response := httptest.NewRecorder()

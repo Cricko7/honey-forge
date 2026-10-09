@@ -1,9 +1,10 @@
 openapi: 3.1.0
 info:
-  title: Operator sessions and organizations
+  title: HoneyForge operator API
   version: 1.0.0
   description: |
-    Implements docs/api/01-common.md and 02-auth-organizations.md.
+    Implements docs/api/01-common.md, 02-auth-organizations.md and 04-profiles.md.
+    Profiles currently support the tcp-banner/1 configuration from 03-catalog.md.
     Same-origin HTTPS frontend and REST API. Opaque __Host-session cookie
     expires in seven days without sliding renewal. No JWT or refresh endpoint.
     All mutations require exactly the configured Origin. Authenticated mutations
@@ -209,6 +210,157 @@ paths:
           $ref: '#/components/responses/InternalError'
         '503':
           $ref: '#/components/responses/Unavailable'
+  /api/profiles:
+    post:
+      operationId: createProfile
+      security: [{sessionCookie: []}]
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CSRF'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateProfileRequest'}
+      responses:
+        '201':
+          $ref: '#/components/responses/ProfileCreated'
+        '200':
+          $ref: '#/components/responses/ProfileReplayed'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+    get:
+      operationId: listProfiles
+      security: [{sessionCookie: []}]
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/TypeID'
+      responses:
+        '200':
+          $ref: '#/components/responses/ProfilePage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/profiles/{id}:
+    get:
+      operationId: readProfile
+      security: [{sessionCookie: []}]
+      parameters:
+        - $ref: '#/components/parameters/ProfileID'
+      responses:
+        '200':
+          $ref: '#/components/responses/Profile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: patchProfile
+      security: [{sessionCookie: []}]
+      parameters:
+        - $ref: '#/components/parameters/ProfileID'
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CSRF'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PatchProfileRequest'}
+      responses:
+        '200':
+          $ref: '#/components/responses/Profile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+    delete:
+      operationId: deleteProfile
+      security: [{sessionCookie: []}]
+      parameters:
+        - $ref: '#/components/parameters/ProfileID'
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CSRF'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          $ref: '#/components/responses/ProfileDeleted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
 components:
   securitySchemes:
     sessionCookie:
@@ -217,6 +369,30 @@ components:
       name: __Host-session
       description: Opaque server-side session. Secure, HttpOnly, SameSite=Strict; no Domain.
   parameters:
+    ProfileID:
+      name: id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      description: 'Exactly one strong ETag from GET Profile; wildcard, weak tags and lists are rejected. Checked atomically with the mutation.'
+      schema: {type: string, pattern: '^"profile:[0-9a-f-]{36}:[1-9][0-9]*"$'}
+    Limit:
+      name: limit
+      in: query
+      schema: {type: integer, minimum: 1, maximum: 100, default: 50}
+    Cursor:
+      name: cursor
+      in: query
+      description: 'Opaque, bound to the organization, profiles list and type_id filter; keeps the first-page creation boundary. Expires on API restart.'
+      schema: {type: string, minLength: 1, maxLength: 2048}
+    TypeID:
+      name: type_id
+      in: query
+      schema: {type: string, pattern: '^[a-z][a-z0-9_.-]{0,63}$'}
     Origin:
       name: Origin
       in: header
@@ -248,6 +424,59 @@ components:
       description: Delay in seconds.
       schema: {type: integer, minimum: 1}
   schemas:
+    CreateProfileRequest:
+      type: object
+      additionalProperties: false
+      required: [request_id, name, type_id, type_version, config]
+      properties:
+        request_id: {type: string, format: uuid}
+        name: {type: string, minLength: 1, maxLength: 100, description: Trimmed before storage and idempotency comparison.}
+        description: {type: string, maxLength: 1000, default: ''}
+        type_id: {type: string, pattern: '^[a-z][a-z0-9_.-]{0,63}$'}
+        type_version: {$ref: '#/components/schemas/Revision'}
+        config: {type: object, description: 'Full config validated by the exact immutable catalog version; maximum 128 KiB of UTF-8 JSON.'}
+    PatchProfileRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      description: 'Replaces all nonsecret config fields; omitted writeOnly values are retained. The same path cannot be cleared and supplied. No commands or trap state changes. Unchanged values keep revision and ETag.'
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+        description: {type: string, maxLength: 1000}
+        config: {type: object}
+        clear_secret_fields:
+          type: array
+          maxItems: 100
+          uniqueItems: true
+          items: {type: string, description: JSON Pointer to a writeOnly field of the current type.}
+    Revision:
+      type: integer
+      minimum: 1
+      maximum: 2147483647
+    Profile:
+      type: object
+      required: [id, name, description, type_id, type_version, interaction_level, config, secret_fields_set, revision, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string, minLength: 1, maxLength: 100}
+        description: {type: string, maxLength: 1000}
+        type_id: {type: string, pattern: '^[a-z][a-z0-9_.-]{0,63}$'}
+        type_version: {$ref: '#/components/schemas/Revision'}
+        interaction_level: {type: string, minLength: 1, maxLength: 32}
+        config: {type: object, description: 'Editable nonsecret config; installed writeOnly values are absent.'}
+        secret_fields_set:
+          type: array
+          uniqueItems: true
+          items: {type: string, description: JSON Pointer of an installed writeOnly field.}
+        revision: {$ref: '#/components/schemas/Revision'}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    ProfilePage:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/Profile'}}
+        next_cursor: {type: [string, 'null'], maxLength: 2048}
     Health:
       type: object
       required: [status]
@@ -346,7 +575,7 @@ components:
           properties:
             code:
               type: string
-              enum: [invalid_json, invalid_query, unauthenticated, invalid_credentials, forbidden, csrf_failed, origin_not_allowed, resource_not_found, method_not_allowed, email_in_use, already_authenticated, join_code_changed, revision_exhausted, body_too_large, unsupported_media_type, validation_failed, invalid_join_code, rate_limited, internal_error, database_unavailable]
+              enum: [invalid_json, invalid_query, unauthenticated, invalid_credentials, forbidden, csrf_failed, origin_not_allowed, resource_not_found, method_not_allowed, email_in_use, already_authenticated, join_code_changed, revision_exhausted, body_too_large, unsupported_media_type, validation_failed, invalid_join_code, rate_limited, internal_error, database_unavailable, service_unavailable, invalid_id, invalid_cursor, invalid_precondition, precondition_required, revision_mismatch, unknown_trap_type, trap_type_unavailable, config_invalid, config_too_large, idempotency_conflict, request_already_used, profile_in_use]
             message: {type: string}
             fields:
               type: array
@@ -359,6 +588,71 @@ components:
                   code: {type: string}
                   message: {type: string}
   responses:
+    ProfileCreated:
+      description: 'Created profile, revision 1.'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestID'}
+        Cache-Control: {$ref: '#/components/headers/CacheControl'}
+        ETag:
+          schema: {type: string}
+        Location:
+          schema: {type: string}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Profile'}
+    ProfileReplayed:
+      description: 'Original created revision; ETag is omitted when that revision is no longer current. Deleted keys return 409.'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestID'}
+        Cache-Control: {$ref: '#/components/headers/CacheControl'}
+        ETag:
+          schema: {type: string}
+        Location:
+          schema: {type: string}
+        Idempotency-Replayed:
+          schema: {type: string, const: 'true'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Profile'}
+    Profile:
+      description: 'Own profile with current ETag.'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestID'}
+        Cache-Control: {$ref: '#/components/headers/CacheControl'}
+        ETag:
+          schema: {type: string}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Profile'}
+    ProfilePage:
+      description: 'Profiles ordered by created_at DESC, id DESC; empty list has items [] and next_cursor null.'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestID'}
+        Cache-Control: {$ref: '#/components/headers/CacheControl'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ProfilePage'}
+    ProfileDeleted:
+      description: 'Profile deleted. Immutable revisions and request IDs retained.'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestID'}
+        Cache-Control: {$ref: '#/components/headers/CacheControl'}
+    PreconditionFailed:
+      description: '412 revision_mismatch.'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestID'}
+        Cache-Control: {$ref: '#/components/headers/CacheControl'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    PreconditionRequired:
+      description: '428 precondition_required.'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestID'}
+        Cache-Control: {$ref: '#/components/headers/CacheControl'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
     Health:
       description: 'API process is alive.'
       headers:
@@ -414,7 +708,7 @@ components:
           schema:
             $ref: '#/components/schemas/JoinCode'
     BadRequest:
-      description: '400 invalid_json or invalid_query.'
+      description: '400 invalid_json, invalid_query, invalid_id, invalid_cursor or invalid_precondition.'
       headers:
         X-Request-ID: {$ref: '#/components/headers/RequestID'}
         Cache-Control: {$ref: '#/components/headers/CacheControl'}
@@ -461,7 +755,7 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
     Conflict:
-      description: '409 email_in_use, already_authenticated, join_code_changed or revision_exhausted.'
+      description: '409 email_in_use, already_authenticated, join_code_changed, revision_exhausted, idempotency_conflict, request_already_used, trap_type_unavailable or profile_in_use.'
       headers:
         X-Request-ID: {$ref: '#/components/headers/RequestID'}
         Cache-Control: {$ref: '#/components/headers/CacheControl'}
@@ -488,7 +782,7 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
     ValidationFailed:
-      description: '422 validation_failed or invalid_join_code; unknown and replaced join codes are indistinguishable.'
+      description: '422 validation_failed, invalid_join_code, unknown_trap_type, config_invalid or config_too_large; fields contain safe JSON Pointer paths.'
       headers:
         X-Request-ID: {$ref: '#/components/headers/RequestID'}
         Cache-Control: {$ref: '#/components/headers/CacheControl'}
@@ -516,7 +810,7 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
     Unavailable:
-      description: '503 database_unavailable; request may be retried after the stated delay.'
+      description: '503 database_unavailable or service_unavailable; request may be retried after the stated delay.'
       headers:
         X-Request-ID: {$ref: '#/components/headers/RequestID'}
         Cache-Control: {$ref: '#/components/headers/CacheControl'}

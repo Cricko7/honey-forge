@@ -2,9 +2,11 @@
 
 Контракт: `docs/api/02-auth-organizations.md` и общие правила `docs/api/01-common.md`.
 
+Модуль [профилей](modules/profiles/README.md) также подключён к API: CRUD, revision/ETag, request_id, снимки конфигурации и встроенный адаптер tcp-banner/1. Docker Compose автоматически применяет все миграции из `migrations/`. Каталог HTTP, ловушки и WSS подключаются отдельными модулями.
+
 ## Архитектура
 
-`cmd/api/main.go → internal/app → modules/auth/http.go → service.go → repository*.go → PostgreSQL`. Go module root: `src/backend`; import path: `github.com/Cricko7/honey-forge/src/backend`.
+`cmd/api/main.go → internal/app → modules/<feature>/http → service → repository → PostgreSQL`. Go module root: `src/backend`; import path: `github.com/Cricko7/honey-forge/src/backend`.
 
 Auth владеет пользователями, организациями, join-code и сессиями. Gin обрабатывает HTTP и binding; service проверяет бизнес-правила и роли; repository содержит параметризованный SQL и транзакции. Общие ответы находятся в `internal/platform/httpx`. Исходный учебный `main.go` оставлен отдельно.
 
@@ -21,14 +23,14 @@ HTTPS завершается на обратном прокси; frontend и RES
 
 ## Миграции
 
-Установить Goose отдельно и применить миграции перед запуском API:
+Из корня репозитория запустить PostgreSQL и применить все миграции:
 
 ```powershell
-go install github.com/pressly/goose/v3/cmd/goose@latest
-goose -dir .\migrations postgres "$env:DATABASE_URL" up
+docker compose up -d
+docker compose ps -a migrate
 ```
 
-API не применяет миграции автоматически. Не передавать полный файл миграции в psql: он содержит и Up, и Down.
+Одноразовый контейнер `migrate` ждёт готовности PostgreSQL и запускает Goose для всего каталога `migrations/`. Перед запуском API проверьте, что его статус — `Exited (0)`. Для повторного применения после добавления миграции выполните `docker compose up -d --build migrate` и проверьте статус снова. Не передавать полный файл миграции в psql: он содержит и Up, и Down.
 
 Миграция `20261009000100_operator_sessions.sql` сохраняет существующих пользователей, организации и bcrypt-хеши; владельцы прежних организаций становятся admin. Каждой организации присваивается новый код. Старые JWT больше не принимаются — нужен login. Таблица refresh_sessions оставлена только для отката и не читается новым auth.
 
@@ -123,7 +125,7 @@ slog JSON: UUID запроса, метод, шаблон маршрута, ст�
 ## Запуск локально
 
 1. В корне HoneyForge скопировать `.env.example` в `.env` и заменить локальный пароль PostgreSQL.
-2. Из корня проекта выполнить `docker compose up -d postgres`.
+2. Из корня проекта выполнить `docker compose up -d`, затем `docker compose ps -a migrate`; к запуску API переходить после статуса `Exited (0)`.
 3. В PowerShell из `src/backend` задать переменные:
 
 ```powershell
@@ -132,14 +134,7 @@ $env:ALLOWED_ORIGIN = "https://localhost:8443"
 $env:HTTP_ADDR = ":8080"
 ```
 
-4. Установить Goose и применить миграции из `src/backend`:
-
-```powershell
-go install github.com/pressly/goose/v3/cmd/goose@latest
-goose -dir .\\migrations postgres "$env:DATABASE_URL" up
-```
-
-5. Запустить API командой `go run .\\cmd\\api`. Он слушает HTTP только внутри сети; HTTPS должен завершаться на прокси того же origin, который указан в `ALLOWED_ORIGIN`.
+4. Запустить API командой `go run .\\cmd\\api`. Он слушает HTTP только внутри сети; HTTPS должен завершаться на прокси того же origin, который указан в `ALLOWED_ORIGIN`.
 
 ## Проверки без запуска API
 

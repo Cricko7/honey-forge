@@ -19,6 +19,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Cricko7/honey-forge/src/backend/modules/auth"
+	authrepo "github.com/Cricko7/honey-forge/src/backend/modules/auth/repository"
+	authservice "github.com/Cricko7/honey-forge/src/backend/modules/auth/service"
+	"github.com/Cricko7/honey-forge/src/backend/modules/profiles"
+	profilerepo "github.com/Cricko7/honey-forge/src/backend/modules/profiles/repository"
+	profileservice "github.com/Cricko7/honey-forge/src/backend/modules/profiles/service"
 )
 
 func TestPostgresCompleteRouterFlow(t *testing.T) {
@@ -76,17 +81,21 @@ func TestPostgresCompleteRouterFlow(t *testing.T) {
 		}
 	}
 
-	router, err := NewRouter(auth.NewService(auth.NewRepository(pool)), slog.New(slog.NewJSONHandler(io.Discard, nil)), "https://example.com")
+	profileService := profileservice.NewService(profilerepo.NewRepository(pool), profiles.Dependencies{LookupType: lookupProfileType, HasLiveBindings: profilerepo.CheckLiveBindings})
+	router, err := NewRouter(authservice.NewService(authrepo.NewRepository(pool)), slog.New(slog.NewJSONHandler(io.Discard, nil)), "https://example.com", profileService)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	send := func(method, path, body, cookie, csrf string, want int) *httptest.ResponseRecorder {
+	send := func(method, path, body, cookie, csrf string, want int, match ...string) *httptest.ResponseRecorder {
 		t.Helper()
 
 		request := httptest.NewRequest(method, "https://example.com"+path, strings.NewReader(body))
 		request.Header.Set("Origin", "https://example.com")
 		request.Header.Set("Content-Type", "application/json")
+		if len(match) > 0 {
+			request.Header.Set("If-Match", match[0])
+		}
 		if cookie != "" {
 			request.AddCookie(&http.Cookie{Name: "__Host-session", Value: cookie})
 		}
@@ -133,6 +142,26 @@ func TestPostgresCompleteRouterFlow(t *testing.T) {
 	if viewer.User.Role != auth.RoleViewer || viewer.Organization.ID != admin.Organization.ID {
 		t.Fatal("viewer organization/role incorrect")
 	}
+	profileBody := `{"request_id":"33333333-3333-4333-8333-333333333333","name":"TCP demo","type_id":"tcp-banner","type_version":1,"config":` + tcpConfig + `}`
+	send("POST", "/api/profiles", profileBody, "", "", 401)
+	send("POST", "/api/profiles", profileBody, adminCookie, "", 403)
+	send("POST", "/api/profiles", profileBody, viewerCookie, viewer.CSRFToken, 403)
+	profileResponse := send("POST", "/api/profiles", profileBody, adminCookie, admin.CSRFToken, 201)
+	profileLocation := profileResponse.Header().Get("Location")
+	profileETag := profileResponse.Header().Get("ETag")
+	send("GET", profileLocation, "", viewerCookie, "", 200)
+	otherResponse := send("POST", "/api/registrations", strings.Replace(create, "Admin@Example.com", "other@example.com", 1), "", "", 201)
+	otherCookie := otherResponse.Result().Cookies()[0].Value
+	send("GET", profileLocation, "", otherCookie, "", 404)
+	changedProfile := send("PATCH", profileLocation, `{"name":"Updated TCP"}`, adminCookie, admin.CSRFToken, 200, profileETag)
+	send("PATCH", profileLocation, `{"name":"Stale TCP"}`, adminCookie, admin.CSRFToken, 412, profileETag)
+	profileReplay := send("POST", "/api/profiles", profileBody, adminCookie, admin.CSRFToken, 200)
+	if profileReplay.Header().Get("Idempotency-Replayed") != "true" || profileReplay.Header().Get("ETag") != "" || !strings.Contains(profileReplay.Body.String(), `"name":"TCP demo"`) {
+		t.Fatal("incorrect profile replay")
+	}
+	send("GET", "/api/profiles?type_id=tcp-banner&limit=1", "", viewerCookie, "", 200)
+	send("DELETE", profileLocation, "", adminCookie, admin.CSRFToken, 204, changedProfile.Header().Get("ETag"))
+	send("POST", "/api/profiles", profileBody, adminCookie, admin.CSRFToken, 409)
 
 	send("GET", "/api/organization/join-code", "", viewerCookie, "", 403)
 	send("POST", "/api/organization/join-code/rotations", `{"expected_revision":1}`, viewerCookie, viewer.CSRFToken, 403)
