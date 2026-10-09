@@ -18,7 +18,13 @@ import (
 
 var ginModeOnce sync.Once
 
-func NewRouter(service *authservice.Service, logger *slog.Logger, allowedOrigin string, profileService *profileservice.Service, catalogService *catalog.Service) (*gin.Engine, error) {
+func NewRouter(
+	service *authservice.Service,
+	logger *slog.Logger,
+	allowedOrigin string,
+	profileService *profileservice.Service,
+	catalogService *catalog.Service,
+) (*gin.Engine, error) {
 	if err := validateOrigin(allowedOrigin); err != nil {
 		return nil, err
 	}

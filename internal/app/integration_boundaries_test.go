@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/gin-gonic/gin"
-	"honey-forge/internal/catalog"
-	"honey-forge/internal/contract"
 	"honey-forge/src/backend/modules/profiles"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/gin-gonic/gin"
+
+	"honey-forge/internal/catalog"
+	"honey-forge/internal/contract"
 )
 
 func TestRouterIgnoresUntrustedProxyIdentity(t *testing.T) {
@@ -28,7 +30,16 @@ func TestRouterIgnoresUntrustedProxyIdentity(t *testing.T) {
 func TestProfileCatalogSecretBoundary(t *testing.T) {
 	definition := catalog.BuiltinDefinitions()[0]
 	definition.Entry.TypeID = "secret-demo"
-	definition.Entry.ConfigSchema = json.RawMessage(`{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","additionalProperties":false,"required":["name"],"properties":{"name":{"type":"string"},"password":{"type":"string","writeOnly":true}}}`)
+	definition.Entry.ConfigSchema = json.RawMessage(`{
+		"$schema": "https://json-schema.org/draft/2020-12/schema",
+		"type": "object",
+		"additionalProperties": false,
+		"required": ["name"],
+		"properties": {
+			"name": {"type": "string"},
+			"password": {"type": "string", "writeOnly": true}
+		}
+	}`)
 	codec, err := contract.NewCursorCodec(make([]byte, 32))
 	if err != nil {
 		t.Fatal(err)
@@ -57,12 +68,40 @@ func TestProfileCatalogSecretBoundary(t *testing.T) {
 		wantSecret bool
 		want       error
 	}{
-		{"preserve", profiles.PatchRequest{Config: profiles.Object{"name": "new"}}, true, nil},
-		{"clear only", profiles.PatchRequest{ClearSecretFields: []string{"/password"}}, false, nil},
-		{"clear replacement", profiles.PatchRequest{Config: profiles.Object{"name": "new"}, ClearSecretFields: []string{"/password"}}, false, nil},
-		{"conflict", profiles.PatchRequest{Config: profiles.Object{"name": "new", "password": "replacement"}, ClearSecretFields: []string{"/password"}}, false, profiles.ErrValidation},
-		{"invalid replacement", profiles.PatchRequest{Config: profiles.Object{"name": 22}}, false, profiles.ErrConfigInvalid},
-		{"clear nonsecret", profiles.PatchRequest{ClearSecretFields: []string{"/name"}}, false, profiles.ErrValidation},
+		{
+			name:       "preserve",
+			patch:      profiles.PatchRequest{Config: profiles.Object{"name": "new"}},
+			wantSecret: true,
+		},
+		{
+			name:  "clear only",
+			patch: profiles.PatchRequest{ClearSecretFields: []string{"/password"}},
+		},
+		{
+			name: "clear replacement",
+			patch: profiles.PatchRequest{
+				Config:            profiles.Object{"name": "new"},
+				ClearSecretFields: []string{"/password"},
+			},
+		},
+		{
+			name: "conflict",
+			patch: profiles.PatchRequest{
+				Config:            profiles.Object{"name": "new", "password": "replacement"},
+				ClearSecretFields: []string{"/password"},
+			},
+			want: profiles.ErrValidation,
+		},
+		{
+			name:  "invalid replacement",
+			patch: profiles.PatchRequest{Config: profiles.Object{"name": 22}},
+			want:  profiles.ErrConfigInvalid,
+		},
+		{
+			name:  "clear nonsecret",
+			patch: profiles.PatchRequest{ClearSecretFields: []string{"/name"}},
+			want:  profiles.ErrValidation,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			value, err := profiles.PatchConfig(typ, p, tc.patch)

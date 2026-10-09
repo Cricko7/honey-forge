@@ -13,7 +13,12 @@ import (
 )
 
 func Run(ctx context.Context, config Config, logger *slog.Logger) error {
-	runtime, err := commonapp.Open(ctx, commonapp.Config{DatabaseURL: config.DatabaseURL, CursorKey: config.CursorKey, BrowserOrigins: []string{config.AllowedOrigin}, Logger: logger})
+	runtime, err := commonapp.Open(ctx, commonapp.Config{
+		DatabaseURL:    config.DatabaseURL,
+		CursorKey:      config.CursorKey,
+		BrowserOrigins: []string{config.AllowedOrigin},
+		Logger:         logger,
+	})
 	if err != nil {
 		return fmt.Errorf("initialize backend: %w", err)
 	}
