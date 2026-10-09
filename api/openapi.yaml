@@ -1,0 +1,1457 @@
+components:
+  headers:
+    CacheControl:
+      description: no-store; catalog uses private, max-age=0, must-revalidate with ETag.
+      schema:
+        type: string
+    Cookie:
+      description: __Host-session=<opaque>; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=604800. Logout uses Max-Age=0.
+      schema:
+        type: string
+    RequestID:
+      description: Server-generated identifier, also included in REST errors.
+      schema:
+        $ref: "#/components/schemas/ID"
+    RetryAfter:
+      description: Retry delay in seconds for 429 and retryable 503.
+      schema:
+        minimum: 1
+        type: integer
+  parameters:
+    CSRF:
+      description: CSRF token from SessionView for the active session.
+      in: header
+      name: X-CSRF-Token
+      required: true
+      schema:
+        type: string
+    Cursor:
+      in: query
+      name: cursor
+      schema:
+        $ref: "#/components/schemas/Cursor"
+    ExpectedRevision:
+      in: header
+      name: X-Expected-Revision
+      required: true
+      schema:
+        $ref: "#/components/schemas/Revision"
+    IfMatch:
+      description: Exact strong profile ETag. Wildcards and repeated values are rejected.
+      in: header
+      name: If-Match
+      required: true
+      schema:
+        type: string
+    Limit:
+      in: query
+      name: limit
+      schema:
+        default: 50
+        maximum: 100
+        minimum: 1
+        type: integer
+    LogoutCSRF:
+      description: Required when the session is active; logout without an active session is 204.
+      in: header
+      name: X-CSRF-Token
+      required: false
+      schema:
+        type: string
+    Origin:
+      description: Exactly ALLOWED_ORIGIN, including scheme and port. Missing, null, duplicated or different values fail.
+      in: header
+      name: Origin
+      required: true
+      schema:
+        type: string
+    ProfileID:
+      in: path
+      name: id
+      required: true
+      schema:
+        format: uuid
+        type: string
+    TypeID:
+      in: query
+      name: type_id
+      schema:
+        pattern: ^[a-z][a-z0-9_.-]{0,63}$
+        type: string
+  responses:
+    BadRequest:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+      description: 400 invalid_json, invalid_query, invalid_id, invalid_cursor or invalid_precondition.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/CacheControl"
+        X-Request-ID:
+          $ref: "#/components/headers/RequestID"
+    Catalog200:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/CatalogPage"
+      description: Catalog snapshot page
+      headers:
+        Cache-Control:
+          schema:
+            const: private, max-age=0, must-revalidate
+            type: string
+        ETag:
+          schema:
+            type: string
+        X-Request-ID:
+          $ref: "#/components/headers/RequestID"
+    Catalog200Detail:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/CatalogEntry"
+      description: Exact catalog entry; contains no profile configuration or credentials.
+      headers:
+        Cache-Control:
+          schema:
+            const: private, max-age=0, must-revalidate
+            type: string
+        ETag:
+          schema:
+            type: string
+        X-Request-ID:
+          $ref: "#/components/headers/RequestID"
+    Catalog304:
+      description: The first-page catalog ETag matches; no response body.
+      headers:
+        Cache-Control:
+          schema:
+            const: private, max-age=0, must-revalidate
+            type: string
+        ETag:
+          schema:
+            type: string
+    Catalog304Detail:
+      description: ETag matches; no response body.
+      headers:
+        Cache-Control:
+          schema:
+            const: private, max-age=0, must-revalidate
+            type: string
+        ETag:
+          schema:
+            type: string
+    Catalog404Detail:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+      description: Unknown pair, resource_not_found.
+    Conflict:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+      description: 409 email_in_use, already_authenticated, join_code_changed, revision_exhausted, idempotency_conflict, request_already_used, trap_type_unavailable or profile_in_use.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/CacheControl"
+        X-Request-ID:
+          $ref: "#/components/headers/RequestID"
+    Error:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+      description: Shared error. Fixed codes and messages are listed in 01-common.md.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/CacheControl"
+        X-Request-ID:
+          $ref: "#/components/headers/RequestID"
+    Forbidden:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+      description: 403 forbidden, origin_not_allowed or csrf_failed.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/CacheControl"
+        X-Request-ID:
+          $ref: "#/components/headers/RequestID"
+    Health:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Health"
+      description: API process is alive.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/CacheControl"
+        X-Request-ID:
+          $ref: "#/components/headers/RequestID"
+    InternalError:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+      description: 500 internal_error; sensitive details are excluded.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/CacheControl"
+        X-Request-ID:
+          $ref: "#/components/headers/RequestID"
+    JoinCode:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/JoinCode"
+      description: Current join code, visible only to admin.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/CacheControl"
+        X-Request-ID:
+          $ref: "#/components/headers/RequestID"
+    LoggedOut:
+      description: Current session revoked, cookie cleared; also succeeds without an active session.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/CacheControl"
+        Set-Cookie:
+          $ref: "#/components/headers/Cookie"
+        X-Request-ID:
+          $ref: "#/components/headers/RequestID"
+    MethodNotAllowed:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+      description: 405 method_not_allowed.
+      headers:
+        Allow:
+          schema:
+            type: string
+        Cache-Control:
+          $ref: "#/components/headers/CacheControl"
+        X-Request-ID:
+          $ref: "#/components/headers/RequestID"
+    NotFound:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+      description: 404 resource_not_found.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/CacheControl"
+        X-Request-ID:
+          $ref: "#/components/headers/RequestID"
+    Organization:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Organization"
+      description: Own organization without the join code.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/CacheControl"
+        X-Request-ID:
+          $ref: "#/components/headers/RequestID"
+    PreconditionFailed:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+      description: 412 revision_mismatch.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/CacheControl"
+        X-Request-ID:
+          $ref: "#/components/headers/RequestID"
+    PreconditionRequired:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+      description: 428 precondition_required.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/CacheControl"
+        X-Request-ID:
+          $ref: "#/components/headers/RequestID"
+    Profile:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Profile"
+      description: Own profile with current ETag.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/CacheControl"
+        ETag:
+          schema:
+            type: string
+        X-Request-ID:
+          $ref: "#/components/headers/RequestID"
+    ProfileCreated:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Profile"
+      description: Created profile, revision 1.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/CacheControl"
+        ETag:
+          schema:
+            type: string
+        Location:
+          schema:
+            type: string
+        X-Request-ID:
+          $ref: "#/components/headers/RequestID"
+    ProfileDeleted:
+      description: Profile deleted. Immutable revisions and request IDs retained.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/CacheControl"
+        X-Request-ID:
+          $ref: "#/components/headers/RequestID"
+    ProfilePage:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ProfilePage"
+      description: Profiles ordered by created_at DESC, id DESC; empty list has items [] and next_cursor null.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/CacheControl"
+        X-Request-ID:
+          $ref: "#/components/headers/RequestID"
+    ProfileReplayed:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Profile"
+      description: Original created revision; ETag is omitted when that revision is no longer current. Deleted keys return 409.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/CacheControl"
+        ETag:
+          schema:
+            type: string
+        Idempotency-Replayed:
+          schema:
+            const: "true"
+            type: string
+        Location:
+          schema:
+            type: string
+        X-Request-ID:
+          $ref: "#/components/headers/RequestID"
+    RateLimited:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+      description: 429 rate_limited; 10 attempts in 60 seconds per client IP, shared by login and registration.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/CacheControl"
+        Retry-After:
+          $ref: "#/components/headers/RetryAfter"
+        X-Request-ID:
+          $ref: "#/components/headers/RequestID"
+    Session:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/SessionView"
+      description: Active session with current role and CSRF token.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/CacheControl"
+        X-Request-ID:
+          $ref: "#/components/headers/RequestID"
+    SessionCreated:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/SessionView"
+      description: Session created. Cookie and secrets are never returned in JSON.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/CacheControl"
+        Location:
+          schema:
+            const: /api/session
+            type: string
+        Set-Cookie:
+          $ref: "#/components/headers/Cookie"
+        X-Request-ID:
+          $ref: "#/components/headers/RequestID"
+    TooLarge:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+      description: 413 body_too_large; maximum request body is 256 KiB.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/CacheControl"
+        X-Request-ID:
+          $ref: "#/components/headers/RequestID"
+    Unauthorized:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+      description: 401 unauthenticated or invalid_credentials.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/CacheControl"
+        X-Request-ID:
+          $ref: "#/components/headers/RequestID"
+    Unavailable:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+      description: 503 database_unavailable or service_unavailable; request may be retried after the stated delay.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/CacheControl"
+        Retry-After:
+          $ref: "#/components/headers/RetryAfter"
+        X-Request-ID:
+          $ref: "#/components/headers/RequestID"
+    UnsupportedMediaType:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+      description: 415 unsupported_media_type; application/json is required.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/CacheControl"
+        X-Request-ID:
+          $ref: "#/components/headers/RequestID"
+    ValidationFailed:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+      description: 422 validation_failed, invalid_join_code, unknown_trap_type, config_invalid or config_too_large; fields contain safe JSON Pointer paths.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/CacheControl"
+        X-Request-ID:
+          $ref: "#/components/headers/RequestID"
+  schemas:
+    Action:
+      $ref: "#/components/schemas/TypeID"
+    ActionDescriptor:
+      additionalProperties: false
+      properties:
+        action:
+          $ref: "#/components/schemas/Action"
+        params_schema:
+          $ref: "#/components/schemas/JSONSchema"
+        result_schema:
+          $ref: "#/components/schemas/JSONSchema"
+        title:
+          maxLength: 100
+          minLength: 1
+          type: string
+      required:
+      - action
+      - title
+      - params_schema
+      - result_schema
+      type: object
+    Bytes:
+      contentEncoding: base64
+      description: Standard alphabet with canonical padding; feature limits apply to decoded bytes.
+      type: string
+    CatalogEntry:
+      additionalProperties: false
+      properties:
+        actions:
+          description: Unique action identifiers; start, stop and apply_config are mandatory. Additional actions need no new route.
+          items:
+            $ref: "#/components/schemas/ActionDescriptor"
+          minItems: 3
+          type: array
+        available_for_new_profiles:
+          type: boolean
+        config_schema:
+          $ref: "#/components/schemas/JSONSchema"
+        description:
+          $ref: "#/components/schemas/Description"
+        event_schemas:
+          description: Unique event_type identifiers; only declared events are accepted for this exact type/version.
+          items:
+            $ref: "#/components/schemas/EventDescriptor"
+          type: array
+        interaction_level:
+          description: Open string, currently low; not a closed enum.
+          maxLength: 32
+          minLength: 1
+          type: string
+        title:
+          maxLength: 100
+          minLength: 1
+          type: string
+        type_id:
+          $ref: "#/components/schemas/TypeID"
+        type_version:
+          $ref: "#/components/schemas/TypeVersion"
+        ui:
+          $ref: "#/components/schemas/UIHints"
+      required:
+      - type_id
+      - type_version
+      - title
+      - description
+      - interaction_level
+      - available_for_new_profiles
+      - config_schema
+      - event_schemas
+      - actions
+      - ui
+      type: object
+    CatalogPage:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/CatalogEntry"
+          type: array
+        next_cursor:
+          oneOf:
+          - $ref: "#/components/schemas/Cursor"
+          - type: "null"
+      required:
+      - items
+      - next_cursor
+      type: object
+    ClearSecretFields:
+      description: Only writeOnly paths in the current schema. Assignment and clearing of the same path fails with 422 validation_failed.
+      items:
+        format: json-pointer
+        type: string
+      type: array
+    CreateOrganizationInput:
+      additionalProperties: false
+      properties:
+        mode:
+          const: create
+          type: string
+        name:
+          description: 1..100 Unicode characters after trimming outer whitespace; names are not unique.
+          type: string
+      required:
+      - mode
+      - name
+      type: object
+    CreateProfileRequest:
+      additionalProperties: false
+      properties:
+        config:
+          description: Full config validated by the exact immutable catalog version; maximum 128 KiB of UTF-8 JSON.
+          type: object
+        description:
+          default: ""
+          maxLength: 1000
+          type: string
+        name:
+          description: Trimmed before storage and idempotency comparison.
+          maxLength: 100
+          minLength: 1
+          type: string
+        request_id:
+          format: uuid
+          type: string
+        type_id:
+          pattern: ^[a-z][a-z0-9_.-]{0,63}$
+          type: string
+        type_version:
+          $ref: "#/components/schemas/Revision"
+      required:
+      - request_id
+      - name
+      - type_id
+      - type_version
+      - config
+      type: object
+    Cursor:
+      description: Opaque; bound to organization, collection, normalized filters and first-page boundary.
+      maxLength: 2048
+      type: string
+    Description:
+      maxLength: 1000
+      type: string
+    Email:
+      description: Valid ASCII email without display name, at most 254 characters after trimming. Compared and returned lowercase.
+      type: string
+    Envelope:
+      additionalProperties: false
+      properties:
+        message_id:
+          $ref: "#/components/schemas/ID"
+        payload:
+          type: object
+        reply_to:
+          oneOf:
+          - $ref: "#/components/schemas/ID"
+          - type: "null"
+        type:
+          maxLength: 64
+          minLength: 1
+          type: string
+      required:
+      - message_id
+      - type
+      - payload
+      type: object
+    Error:
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+        fields:
+          items:
+            $ref: "#/components/schemas/FieldError"
+          maxItems: 20
+          type: array
+        message:
+          type: string
+      required:
+      - code
+      - message
+      type: object
+    ErrorResponse:
+      additionalProperties: false
+      properties:
+        error:
+          $ref: "#/components/schemas/Error"
+        request_id:
+          $ref: "#/components/schemas/ID"
+      required:
+      - error
+      - request_id
+      type: object
+    EventDescriptor:
+      additionalProperties: false
+      properties:
+        data_schema:
+          $ref: "#/components/schemas/JSONSchema"
+        event_type:
+          $ref: "#/components/schemas/EventType"
+        title:
+          maxLength: 100
+          minLength: 1
+          type: string
+      required:
+      - event_type
+      - title
+      - data_schema
+      type: object
+    EventType:
+      $ref: "#/components/schemas/TypeID"
+    FieldError:
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        path:
+          description: JSON Pointer; query paths start with /query/.
+          type: string
+      required:
+      - path
+      - code
+      - message
+      type: object
+    Health:
+      properties:
+        status:
+          const: ok
+          type: string
+      required:
+      - status
+      type: object
+    ID:
+      format: uuid
+      type: string
+    JSONSchema:
+      additionalProperties: true
+      description: Self-contained Draft 2020-12, local $ref/$defs only. Supports recursive objects/arrays, scalars, enum, oneOf, constraints and annotations. Used UUID/IP/date-time/email formats are asserted by the server. Defaults are hints and never fill missing request fields.
+      properties:
+        $schema:
+          const: https://json-schema.org/draft/2020-12/schema
+          type: string
+      required:
+      - $schema
+      type: object
+    JoinCode:
+      properties:
+        code:
+          pattern: ^[A-Za-z0-9_-]{32}$
+          type: string
+        revision:
+          maximum: 2147483647
+          minimum: 1
+          type: integer
+        rotated_at:
+          format: date-time
+          type: string
+      required:
+      - code
+      - revision
+      - rotated_at
+      type: object
+    JoinOrganizationInput:
+      additionalProperties: false
+      properties:
+        join_code:
+          pattern: ^[A-Za-z0-9_-]{32}$
+          type: string
+        mode:
+          const: join
+          type: string
+      required:
+      - mode
+      - join_code
+      type: object
+    LoginRequest:
+      additionalProperties: false
+      properties:
+        email:
+          $ref: "#/components/schemas/Email"
+        password:
+          $ref: "#/components/schemas/Password"
+      required:
+      - email
+      - password
+      type: object
+    Name:
+      description: Bounds apply after trimming surrounding whitespace.
+      maxLength: 100
+      minLength: 1
+      type: string
+    Organization:
+      properties:
+        created_at:
+          format: date-time
+          type: string
+        id:
+          format: uuid
+          type: string
+        name:
+          type: string
+      required:
+      - id
+      - name
+      - created_at
+      type: object
+    Page:
+      additionalProperties: false
+      properties:
+        items:
+          items: {}
+          type: array
+        next_cursor:
+          oneOf:
+          - $ref: "#/components/schemas/Cursor"
+          - type: "null"
+      required:
+      - items
+      - next_cursor
+      type: object
+    Password:
+      description: 12..128 Unicode characters, at most 512 UTF-8 bytes; no trimming or normalization.
+      maxLength: 128
+      minLength: 12
+      type: string
+      writeOnly: true
+      x-maxBytes: 512
+    PatchProfileRequest:
+      additionalProperties: false
+      description: Replaces all nonsecret config fields; omitted writeOnly values are retained. The same path cannot be cleared and supplied. No commands or trap state changes. Unchanged values keep revision and ETag.
+      minProperties: 1
+      properties:
+        clear_secret_fields:
+          items:
+            description: JSON Pointer to a writeOnly field of the current type.
+            type: string
+          maxItems: 100
+          type: array
+          uniqueItems: true
+        config:
+          type: object
+        description:
+          maxLength: 1000
+          type: string
+        name:
+          maxLength: 100
+          minLength: 1
+          type: string
+      type: object
+    Profile:
+      properties:
+        config:
+          description: Editable nonsecret config; installed writeOnly values are absent.
+          type: object
+        created_at:
+          format: date-time
+          type: string
+        description:
+          maxLength: 1000
+          type: string
+        id:
+          format: uuid
+          type: string
+        interaction_level:
+          maxLength: 32
+          minLength: 1
+          type: string
+        name:
+          maxLength: 100
+          minLength: 1
+          type: string
+        revision:
+          $ref: "#/components/schemas/Revision"
+        secret_fields_set:
+          items:
+            description: JSON Pointer of an installed writeOnly field.
+            type: string
+          type: array
+          uniqueItems: true
+        type_id:
+          pattern: ^[a-z][a-z0-9_.-]{0,63}$
+          type: string
+        type_version:
+          $ref: "#/components/schemas/Revision"
+        updated_at:
+          format: date-time
+          type: string
+      required:
+      - id
+      - name
+      - description
+      - type_id
+      - type_version
+      - interaction_level
+      - config
+      - secret_fields_set
+      - revision
+      - created_at
+      - updated_at
+      type: object
+    ProfilePage:
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/Profile"
+          type: array
+        next_cursor:
+          maxLength: 2048
+          type:
+          - string
+          - "null"
+      required:
+      - items
+      - next_cursor
+      type: object
+    RegisterRequest:
+      additionalProperties: false
+      properties:
+        email:
+          $ref: "#/components/schemas/Email"
+        organization:
+          discriminator:
+            propertyName: mode
+          oneOf:
+          - $ref: "#/components/schemas/CreateOrganizationInput"
+          - $ref: "#/components/schemas/JoinOrganizationInput"
+        password:
+          $ref: "#/components/schemas/Password"
+      required:
+      - email
+      - password
+      - organization
+      type: object
+    Revision:
+      maximum: 2147483647
+      minimum: 1
+      type: integer
+    RotateJoinCodeRequest:
+      additionalProperties: false
+      properties:
+        expected_revision:
+          maximum: 2147483647
+          minimum: 1
+          type: integer
+      required:
+      - expected_revision
+      type: object
+    SecretFieldsSet:
+      description: Installed writeOnly paths; secret values are omitted from the public config.
+      items:
+        format: json-pointer
+        type: string
+      type: array
+    SessionView:
+      properties:
+        csrf_token:
+          type: string
+        expires_at:
+          format: date-time
+          type: string
+        organization:
+          $ref: "#/components/schemas/Organization"
+        user:
+          $ref: "#/components/schemas/User"
+      required:
+      - user
+      - organization
+      - expires_at
+      - csrf_token
+      type: object
+    Timestamp:
+      description: RFC 3339 with timezone; responses use UTC Z.
+      format: date-time
+      type: string
+    TypeID:
+      pattern: ^[a-z][a-z0-9_.-]{0,63}$
+      type: string
+    TypeVersion:
+      $ref: "#/components/schemas/Revision"
+    UIHints:
+      additionalProperties: false
+      description: Optional hints for clients. Ignore an unknown widget and use a generic JSON editor. No executable UI code or form-loading URLs.
+      properties:
+        field_order:
+          items:
+            format: json-pointer
+            type: string
+          type: array
+        widgets:
+          additionalProperties:
+            enum:
+            - text
+            - textarea
+            - number
+            - checkbox
+            - select
+            - password
+            - array
+            - object
+            type: string
+          propertyNames:
+            format: json-pointer
+            type: string
+          type: object
+      required:
+      - field_order
+      - widgets
+      type: object
+    User:
+      properties:
+        created_at:
+          format: date-time
+          type: string
+        email:
+          type: string
+        id:
+          format: uuid
+          type: string
+        organization_id:
+          format: uuid
+          type: string
+        role:
+          enum:
+          - admin
+          - viewer
+          type: string
+      required:
+      - id
+      - organization_id
+      - email
+      - role
+      - created_at
+      type: object
+  securitySchemes:
+    OperatorSession:
+      description: Module 02 must resolve the active server session; client roles/organization IDs are never trusted.
+      in: cookie
+      name: __Host-session
+      type: apiKey
+    sessionCookie:
+      description: Opaque server-side session. Secure, HttpOnly, SameSite=Strict; no Domain.
+      in: cookie
+      name: __Host-session
+      type: apiKey
+info:
+  description: Integrated common, authentication, organizations, profiles and immutable trap type catalog. Authenticated mutations require Origin and X-CSRF-Token.
+  title: HoneyForge API
+  version: 0.1.0
+openapi: 3.1.0
+paths:
+  /api/organization:
+    get:
+      operationId: getOrganization
+      responses:
+        "200":
+          $ref: "#/components/responses/Organization"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/TooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+      security:
+      - sessionCookie: []
+      summary: getOrganization
+  /api/organization/join-code:
+    get:
+      operationId: getJoinCode
+      responses:
+        "200":
+          $ref: "#/components/responses/JoinCode"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/TooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+      security:
+      - sessionCookie: []
+      summary: getJoinCode
+  /api/organization/join-code/rotations:
+    post:
+      operationId: rotateJoinCode
+      parameters:
+      - $ref: "#/components/parameters/Origin"
+      - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RotateJoinCodeRequest"
+        required: true
+      responses:
+        "200":
+          $ref: "#/components/responses/JoinCode"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          $ref: "#/components/responses/TooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+      security:
+      - sessionCookie: []
+      summary: rotateJoinCode
+  /api/profiles:
+    get:
+      operationId: listProfiles
+      parameters:
+      - $ref: "#/components/parameters/Limit"
+      - $ref: "#/components/parameters/Cursor"
+      - $ref: "#/components/parameters/TypeID"
+      responses:
+        "200":
+          $ref: "#/components/responses/ProfilePage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/TooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+      security:
+      - sessionCookie: []
+    post:
+      operationId: createProfile
+      parameters:
+      - $ref: "#/components/parameters/Origin"
+      - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProfileRequest"
+        required: true
+      responses:
+        "200":
+          $ref: "#/components/responses/ProfileReplayed"
+        "201":
+          $ref: "#/components/responses/ProfileCreated"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          $ref: "#/components/responses/TooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+      security:
+      - sessionCookie: []
+  /api/profiles/{id}:
+    delete:
+      operationId: deleteProfile
+      parameters:
+      - $ref: "#/components/parameters/ProfileID"
+      - $ref: "#/components/parameters/Origin"
+      - $ref: "#/components/parameters/CSRF"
+      - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "204":
+          $ref: "#/components/responses/ProfileDeleted"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "413":
+          $ref: "#/components/responses/TooLarge"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+      security:
+      - sessionCookie: []
+    get:
+      operationId: readProfile
+      parameters:
+      - $ref: "#/components/parameters/ProfileID"
+      responses:
+        "200":
+          $ref: "#/components/responses/Profile"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/TooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+      security:
+      - sessionCookie: []
+    patch:
+      operationId: patchProfile
+      parameters:
+      - $ref: "#/components/parameters/ProfileID"
+      - $ref: "#/components/parameters/Origin"
+      - $ref: "#/components/parameters/CSRF"
+      - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchProfileRequest"
+        required: true
+      responses:
+        "200":
+          $ref: "#/components/responses/Profile"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "413":
+          $ref: "#/components/responses/TooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+      security:
+      - sessionCookie: []
+  /api/registrations:
+    post:
+      operationId: registerOperator
+      parameters:
+      - $ref: "#/components/parameters/Origin"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+        required: true
+      responses:
+        "201":
+          $ref: "#/components/responses/SessionCreated"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          $ref: "#/components/responses/TooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+      security: []
+      summary: registerOperator
+  /api/session:
+    delete:
+      operationId: deleteSession
+      parameters:
+      - $ref: "#/components/parameters/Origin"
+      - $ref: "#/components/parameters/LogoutCSRF"
+      responses:
+        "204":
+          $ref: "#/components/responses/LoggedOut"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/TooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+      security: []
+      summary: deleteSession
+    get:
+      operationId: getSession
+      responses:
+        "200":
+          $ref: "#/components/responses/Session"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "413":
+          $ref: "#/components/responses/TooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+      security:
+      - sessionCookie: []
+      summary: getSession
+  /api/sessions:
+    post:
+      operationId: createSession
+      parameters:
+      - $ref: "#/components/parameters/Origin"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+        required: true
+      responses:
+        "201":
+          $ref: "#/components/responses/SessionCreated"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/TooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+      security: []
+      summary: createSession
+  /api/trap-types:
+    get:
+      description: Sorted by type_id ASC, type_version ASC. Cursors bind the organization, filters and immutable catalog snapshot. All pages share the full catalog ETag. If-None-Match is applied only to the first page; cursor pages always return 200. Unknown/repeated query parameters are rejected. No catalog CRUD.
+      operationId: listTrapTypes
+      parameters:
+      - $ref: "#/components/parameters/Limit"
+      - $ref: "#/components/parameters/Cursor"
+      - in: query
+        name: type_id
+        schema:
+          $ref: "#/components/schemas/TypeID"
+      - description: Only the literal query values true and false are accepted.
+        in: query
+        name: available_for_new_profiles
+        schema:
+          type: boolean
+      - in: header
+        name: If-None-Match
+        schema:
+          type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Catalog200"
+        "304":
+          $ref: "#/components/responses/Catalog304"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "413":
+          $ref: "#/components/responses/Error"
+        "500":
+          $ref: "#/components/responses/Error"
+      security:
+      - OperatorSession: []
+      summary: Read the installed type catalog (admin or viewer)
+  /api/trap-types/{type_id}/versions/{type_version}:
+    get:
+      operationId: readTrapTypeVersion
+      parameters:
+      - in: path
+        name: type_id
+        required: true
+        schema:
+          $ref: "#/components/schemas/TypeID"
+      - in: path
+        name: type_version
+        required: true
+        schema:
+          $ref: "#/components/schemas/TypeVersion"
+      - in: header
+        name: If-None-Match
+        schema:
+          type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Catalog200Detail"
+        "304":
+          $ref: "#/components/responses/Catalog304Detail"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Catalog404Detail"
+        "413":
+          $ref: "#/components/responses/Error"
+        "500":
+          $ref: "#/components/responses/Error"
+      security:
+      - OperatorSession: []
+      summary: Read one exact immutable type version (admin or viewer)
+  /healthz:
+    get:
+      operationId: health
+      responses:
+        "200":
+          $ref: "#/components/responses/Health"
+      security: []
+      summary: health
+servers:
+- url: https://localhost:8443
+x-limits:
+  effective_config_bytes: 131072
+  field_errors: 20
+  rest_body_bytes: 262144
+  websocket_frame_bytes: 262144
+  websocket_message_bytes: 262144
+x-websockets:
+  agent:
+    path: /assets/stream
+    roles:
+    - agent
+    separate_https_origin: true
+  binary_close_code: 1003
+  compression: false
+  frontend:
+    path: /api/stream
+    roles:
+    - admin
+    - viewer
+  oversize_close_code: 1009
