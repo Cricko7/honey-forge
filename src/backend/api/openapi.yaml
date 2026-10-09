@@ -1,0 +1,527 @@
+openapi: 3.1.0
+info:
+  title: Operator sessions and organizations
+  version: 1.0.0
+  description: |
+    Implements docs/api/01-common.md and 02-auth-organizations.md.
+    Same-origin HTTPS frontend and REST API. Opaque __Host-session cookie
+    expires in seven days without sliding renewal. No JWT or refresh endpoint.
+    All mutations require exactly the configured Origin. Authenticated mutations
+    additionally require X-CSRF-Token, except registration/login.
+    Unknown query keys, unknown JSON keys, duplicate keys and invalid field types
+    are rejected. Every response has X-Request-ID and Cache-Control: no-store.
+    Global missing routes return 404; wrong methods return 405 with Allow.
+paths:
+  /healthz:
+    get:
+      operationId: health
+      summary: health
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/Health'
+  /api/registrations:
+    post:
+      operationId: registerOperator
+      summary: registerOperator
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/SessionCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/sessions:
+    post:
+      operationId: createSession
+      summary: createSession
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/SessionCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/session:
+    get:
+      operationId: getSession
+      summary: getSession
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          $ref: '#/components/responses/Session'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+    delete:
+      operationId: deleteSession
+      summary: deleteSession
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/LogoutCSRF'
+      responses:
+        '204':
+          $ref: '#/components/responses/LoggedOut'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/organization:
+    get:
+      operationId: getOrganization
+      summary: getOrganization
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          $ref: '#/components/responses/Organization'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/organization/join-code:
+    get:
+      operationId: getJoinCode
+      summary: getJoinCode
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          $ref: '#/components/responses/JoinCode'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/organization/join-code/rotations:
+    post:
+      operationId: rotateJoinCode
+      summary: rotateJoinCode
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CSRF'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RotateJoinCodeRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/JoinCode'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-session
+      description: Opaque server-side session. Secure, HttpOnly, SameSite=Strict; no Domain.
+  parameters:
+    Origin:
+      name: Origin
+      in: header
+      required: true
+      description: Exactly ALLOWED_ORIGIN, including scheme and port. Missing, null, duplicated or different values fail.
+      schema: {type: string}
+    CSRF:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      description: CSRF token from SessionView for the active session.
+      schema: {type: string}
+    LogoutCSRF:
+      name: X-CSRF-Token
+      in: header
+      required: false
+      description: Required when the session is active; logout without an active session is 204.
+      schema: {type: string}
+  headers:
+    RequestID:
+      description: Server-generated UUID, identical to request_id in error JSON.
+      schema: {type: string, format: uuid}
+    CacheControl:
+      schema: {type: string, const: no-store}
+    Cookie:
+      description: '__Host-session=<opaque>; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=604800. Logout uses Max-Age=0.'
+      schema: {type: string}
+    RetryAfter:
+      description: Delay in seconds.
+      schema: {type: integer, minimum: 1}
+  schemas:
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status: {type: string, const: ok}
+    RegisterRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password, organization]
+      properties:
+        email: {$ref: '#/components/schemas/Email'}
+        password: {$ref: '#/components/schemas/Password'}
+        organization:
+          oneOf:
+            - $ref: '#/components/schemas/CreateOrganizationInput'
+            - $ref: '#/components/schemas/JoinOrganizationInput'
+          discriminator: {propertyName: mode}
+    CreateOrganizationInput:
+      type: object
+      additionalProperties: false
+      required: [mode, name]
+      properties:
+        mode: {type: string, const: create}
+        name:
+          type: string
+          description: 1..100 Unicode characters after trimming outer whitespace; names are not unique.
+    JoinOrganizationInput:
+      type: object
+      additionalProperties: false
+      required: [mode, join_code]
+      properties:
+        mode: {type: string, const: join}
+        join_code: {type: string, pattern: '^[A-Za-z0-9_-]{32}$'}
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email: {$ref: '#/components/schemas/Email'}
+        password: {$ref: '#/components/schemas/Password'}
+    Email:
+      type: string
+      description: Valid ASCII email without display name, at most 254 characters after trimming. Compared and returned lowercase.
+    Password:
+      type: string
+      minLength: 12
+      maxLength: 128
+      writeOnly: true
+      x-maxBytes: 512
+      description: 12..128 Unicode characters, at most 512 UTF-8 bytes; no trimming or normalization.
+    User:
+      type: object
+      required: [id, organization_id, email, role, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        organization_id: {type: string, format: uuid}
+        email: {type: string}
+        role: {type: string, enum: [admin, viewer]}
+        created_at: {type: string, format: date-time}
+    Organization:
+      type: object
+      required: [id, name, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        created_at: {type: string, format: date-time}
+    SessionView:
+      type: object
+      required: [user, organization, expires_at, csrf_token]
+      properties:
+        user: {$ref: '#/components/schemas/User'}
+        organization: {$ref: '#/components/schemas/Organization'}
+        expires_at: {type: string, format: date-time}
+        csrf_token: {type: string}
+    JoinCode:
+      type: object
+      required: [code, revision, rotated_at]
+      properties:
+        code: {type: string, pattern: '^[A-Za-z0-9_-]{32}$'}
+        revision: {type: integer, minimum: 1, maximum: 2147483647}
+        rotated_at: {type: string, format: date-time}
+    RotateJoinCodeRequest:
+      type: object
+      additionalProperties: false
+      required: [expected_revision]
+      properties:
+        expected_revision: {type: integer, minimum: 1, maximum: 2147483647}
+    ErrorResponse:
+      type: object
+      required: [error, request_id]
+      properties:
+        request_id: {type: string, format: uuid}
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum: [invalid_json, invalid_query, unauthenticated, invalid_credentials, forbidden, csrf_failed, origin_not_allowed, resource_not_found, method_not_allowed, email_in_use, already_authenticated, join_code_changed, revision_exhausted, body_too_large, unsupported_media_type, validation_failed, invalid_join_code, rate_limited, internal_error, database_unavailable]
+            message: {type: string}
+            fields:
+              type: array
+              maxItems: 20
+              items:
+                type: object
+                required: [path, code, message]
+                properties:
+                  path: {type: string, description: JSON Pointer}
+                  code: {type: string}
+                  message: {type: string}
+  responses:
+    Health:
+      description: 'API process is alive.'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestID'}
+        Cache-Control: {$ref: '#/components/headers/CacheControl'}
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Health'
+    SessionCreated:
+      description: 'Session created. Cookie and secrets are never returned in JSON.'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestID'}
+        Cache-Control: {$ref: '#/components/headers/CacheControl'}
+        Set-Cookie: {$ref: '#/components/headers/Cookie'}
+        Location:
+          schema: {type: string, const: /api/session}
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SessionView'
+    Session:
+      description: 'Active session with current role and CSRF token.'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestID'}
+        Cache-Control: {$ref: '#/components/headers/CacheControl'}
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SessionView'
+    LoggedOut:
+      description: 'Current session revoked, cookie cleared; also succeeds without an active session.'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestID'}
+        Cache-Control: {$ref: '#/components/headers/CacheControl'}
+        Set-Cookie: {$ref: '#/components/headers/Cookie'}
+    Organization:
+      description: 'Own organization without the join code.'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestID'}
+        Cache-Control: {$ref: '#/components/headers/CacheControl'}
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Organization'
+    JoinCode:
+      description: 'Current join code, visible only to admin.'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestID'}
+        Cache-Control: {$ref: '#/components/headers/CacheControl'}
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/JoinCode'
+    BadRequest:
+      description: '400 invalid_json or invalid_query.'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestID'}
+        Cache-Control: {$ref: '#/components/headers/CacheControl'}
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: '401 unauthenticated or invalid_credentials.'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestID'}
+        Cache-Control: {$ref: '#/components/headers/CacheControl'}
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: '403 forbidden, origin_not_allowed or csrf_failed.'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestID'}
+        Cache-Control: {$ref: '#/components/headers/CacheControl'}
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: '404 resource_not_found.'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestID'}
+        Cache-Control: {$ref: '#/components/headers/CacheControl'}
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    MethodNotAllowed:
+      description: '405 method_not_allowed.'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestID'}
+        Cache-Control: {$ref: '#/components/headers/CacheControl'}
+        Allow:
+          schema: {type: string}
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: '409 email_in_use, already_authenticated, join_code_changed or revision_exhausted.'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestID'}
+        Cache-Control: {$ref: '#/components/headers/CacheControl'}
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    TooLarge:
+      description: '413 body_too_large; maximum request body is 256 KiB.'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestID'}
+        Cache-Control: {$ref: '#/components/headers/CacheControl'}
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    UnsupportedMediaType:
+      description: '415 unsupported_media_type; application/json is required.'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestID'}
+        Cache-Control: {$ref: '#/components/headers/CacheControl'}
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ValidationFailed:
+      description: '422 validation_failed or invalid_join_code; unknown and replaced join codes are indistinguishable.'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestID'}
+        Cache-Control: {$ref: '#/components/headers/CacheControl'}
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    RateLimited:
+      description: '429 rate_limited; 10 attempts in 60 seconds per client IP, shared by login and registration.'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestID'}
+        Cache-Control: {$ref: '#/components/headers/CacheControl'}
+        Retry-After: {$ref: '#/components/headers/RetryAfter'}
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: '500 internal_error; sensitive details are excluded.'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestID'}
+        Cache-Control: {$ref: '#/components/headers/CacheControl'}
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unavailable:
+      description: '503 database_unavailable; request may be retried after the stated delay.'
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestID'}
+        Cache-Control: {$ref: '#/components/headers/CacheControl'}
+        Retry-After: {$ref: '#/components/headers/RetryAfter'}
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
