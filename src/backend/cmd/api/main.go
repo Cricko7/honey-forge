@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"honey-forge/internal/app"
+	"honey-forge/modules/events"
 )
 
 func main() {
@@ -42,7 +43,21 @@ func run() error {
 		return fmt.Errorf("BROWSER_ORIGINS is required")
 	}
 	startup, cancelStartup := context.WithTimeout(context.Background(), 15*time.Second)
-	runtime, err := app.Open(startup, app.Config{DatabaseURL: os.Getenv("DATABASE_URL"), CursorKey: keyBytes, BrowserOrigins: origins, AgentWSURL: os.Getenv("AGENT_WS_URL")})
+	defer cancelStartup()
+	brokers := strings.Split(os.Getenv("KAFKA_BROKERS"), ",")
+	for i := range brokers {
+		brokers[i] = strings.TrimSpace(brokers[i])
+	}
+	topic := os.Getenv("KAFKA_TELEMETRY_TOPIC")
+	if topic == "" {
+		topic = "honey-forge.telemetry"
+	}
+	publisher, err := events.NewKafkaPublisher(brokers, topic)
+	if err != nil {
+		return err
+	}
+	defer publisher.Close()
+	runtime, err := app.Open(startup, app.Config{DatabaseURL: os.Getenv("DATABASE_URL"), CursorKey: keyBytes, BrowserOrigins: origins, AgentWSURL: os.Getenv("AGENT_WS_URL"), EventPublisher: publisher})
 	cancelStartup()
 	if err != nil {
 		return err

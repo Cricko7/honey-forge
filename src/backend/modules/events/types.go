@@ -1,4 +1,4 @@
-// Package events provides the persistence and history needed by trap deletion.
+// Package events validates, journals, persists and reads attack telemetry.
 package events
 
 import (
@@ -36,6 +36,33 @@ type Event struct {
 	TrapID           string      `json:"trap_id"`
 	ReceivedAt       time.Time   `json:"received_at"`
 	SourceEnrichment *Enrichment `json:"source_enrichment,omitempty"`
+}
+
+// EventSummary is safe to place on REST lists and event.created notifications:
+// attacker credentials and input are available only through Event details.
+type EventSummary struct {
+	EventID         string      `json:"event_id"`
+	EventType       string      `json:"event_type"`
+	TypeID          string      `json:"type_id"`
+	TypeVersion     int64       `json:"type_version"`
+	ProfileRevision int64       `json:"profile_revision"`
+	OccurredAt      string      `json:"occurred_at"`
+	SessionID       string      `json:"session_id"`
+	SessionSequence int64       `json:"session_sequence"`
+	Source          Source      `json:"source"`
+	Destination     Destination `json:"destination"`
+	TrapID          string      `json:"trap_id"`
+	ReceivedAt      time.Time   `json:"received_at"`
+}
+
+func (e Event) Summary() EventSummary {
+	return EventSummary{e.EventID, e.EventType, e.TypeID, e.TypeVersion, e.ProfileRevision, e.OccurredAt, e.SessionID, e.SessionSequence, e.Source, e.Destination, e.TrapID, e.ReceivedAt}
+}
+
+type EventPage struct {
+	Items        []EventSummary `json:"items"`
+	NextCursor   *string        `json:"next_cursor"`
+	StreamCursor string         `json:"stream_cursor"`
 }
 type Query struct {
 	Limit                                  int

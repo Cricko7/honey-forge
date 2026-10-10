@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin/binding"
@@ -204,10 +205,11 @@ func validateBatch(batch TelemetryBatch) error {
 
 	seen := make(map[string]bool, len(batch.Events))
 	for _, event := range batch.Events {
-		if !contract.ValidID(event.EventID) || len(event.Raw) > 16*1024 || seen[event.EventID] {
+		id := strings.ToLower(event.EventID)
+		if !contract.ValidID(id) || len(event.Raw) > 16*1024 || seen[id] {
 			return contract.NewError("validation_failed")
 		}
-		seen[event.EventID] = true
+		seen[id] = true
 	}
 
 	return nil

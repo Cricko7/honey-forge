@@ -35,6 +35,10 @@ type operatorSession struct {
 
 // Each fixture boots the production composition root on a fresh migrated schema.
 func openIntegrationRuntime(t *testing.T) *Runtime {
+	return openIntegrationRuntimeWithDefinitions(t, nil)
+}
+
+func openIntegrationRuntimeWithDefinitions(t *testing.T, definitions []catalog.Definition) *Runtime {
 	t.Helper()
 
 	dsn := os.Getenv("TEST_DATABASE_URL")
@@ -75,11 +79,12 @@ func openIntegrationRuntime(t *testing.T) *Runtime {
 	}
 
 	runtime, err := Open(t.Context(), Config{
-		DatabaseURL:    schemaDSN,
-		CursorKey:      []byte("integration-cursor-key-32-bytes!"),
-		BrowserOrigins: []string{integrationOrigin},
-		MigrationsPath: "../../../../migrations",
-		Logger:         slog.New(slog.NewTextHandler(io.Discard, nil)),
+		DatabaseURL:        schemaDSN,
+		CursorKey:          []byte("integration-cursor-key-32-bytes!"),
+		BrowserOrigins:     []string{integrationOrigin},
+		MigrationsPath:     "../../../../migrations",
+		Logger:             slog.New(slog.NewTextHandler(io.Discard, nil)),
+		CatalogDefinitions: definitions,
 	})
 	if err != nil {
 		t.Fatal(err)

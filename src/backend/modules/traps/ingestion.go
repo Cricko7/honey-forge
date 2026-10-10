@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -86,7 +88,7 @@ func (g *Gateway) Ingest(ctx context.Context, identity agentws.Identity, connect
 		// the batch. Only definitive validation/conflict errors can release it.
 		var api *contract.Error
 		if errors.As(err, &api) && (api.Status == 400 || api.Status == 422 || api.Code == "batch_conflict" || api.Code == "event_id_conflict") {
-			if finishErr := g.repository.FinishIngestion(ctx, identity, batch.BatchID); finishErr != nil {
+			if finishErr := g.finishIngestion(ctx, identity, batch.BatchID); finishErr != nil {
 				return ack, errors.Join(err, finishErr)
 			}
 		}
@@ -96,12 +98,19 @@ func (g *Gateway) Ingest(ctx context.Context, identity agentws.Identity, connect
 		return ack, contract.NewError("ingestion_pending")
 	}
 	for i, event := range batch.Events {
-		if ack.AcknowledgedEventIDs[i] != event.EventID {
+		if !strings.EqualFold(ack.AcknowledgedEventIDs[i], event.EventID) {
 			return ack, contract.NewError("ingestion_pending")
 		}
 	}
-	if err := g.repository.FinishIngestion(ctx, identity, batch.BatchID); err != nil {
+	if err := g.finishIngestion(ctx, identity, batch.BatchID); err != nil {
 		return ack, err
 	}
 	return ack, nil
+}
+
+func (g *Gateway) finishIngestion(ctx context.Context, identity agentws.Identity, batchID string) error {
+	// Definitive rejection/commit must release its fence even if the socket closed.
+	finishCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	return g.repository.FinishIngestion(finishCtx, identity, batchID)
 }

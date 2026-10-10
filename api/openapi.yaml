@@ -1293,6 +1293,7 @@ components:
       - active
       - issued_at
     EventSummary:
+      description: Summary for REST lists and event.created. Does not contain data or source_enrichment.
       type: object
       additionalProperties: false
       properties:
@@ -1417,7 +1418,7 @@ components:
           $ref: '#/components/schemas/Timestamp'
         data:
           type: object
-          description: Original captured values; exact type catalog validates data.
+          description: Original captured values; exact type catalog validates data. Supported service types preserve username/password/input without trimming or masking. Captured text must be displayed as text, never executed. UTF-8 limits are 1024 bytes per username/password and 4096 bytes per input; null credentials differ from empty strings.
         source_enrichment:
           type: object
           additionalProperties: false
@@ -1425,6 +1426,7 @@ components:
             country_code:
               anyOf:
               - type: string
+                pattern: '^[A-Z]{2}$'
               - type: 'null'
             asn:
               anyOf:

@@ -15,39 +15,136 @@
 `src/backend/modules` подключены к тому же серверу. Каталог использует настоящую
 cookie-сессию; профили проверяются его точной версией схемы.
 
-## Запуск
+## 1. Стек и зависимости
 
-Go 1.26+, PostgreSQL 17+, TLS-сертификат и ключ. Docker Compose запускает
-только PostgreSQL; процесс Go запускается локально.
+- Go 1.26.1; единственный Go-модуль находится в `src/backend`. Версии библиотек
+  закреплены в `src/backend/go.mod` и `src/backend/go.sum`.
+- Gin — HTTP API, `pgx/v5` — доступ к PostgreSQL 17, Goose — SQL-миграции.
+- `validator/v10` и JSON Schema Draft 2020-12 — проверка входных данных и
+  конфигураций; `gorilla/websocket` — WSS, `franz-go` — Kafka.
+- Для запуска нужны PostgreSQL, Kafka и TLS-сертификат с закрытым ключом.
+  Локальные версии инфраструктуры указаны в `compose.yaml`.
+
+## 2. Как проект собирается
+
+Из корня репозитория перейдите в каталог Go-модуля:
 
 ```powershell
-# Первичная локальная настройка. Сохраните секреты вне Git и повторно используйте
-# те же значения при перезапуске; особенно CURSOR_KEY и POSTGRES_PASSWORD.
+Set-Location src/backend
+go mod download
+go build ./...
+go build -o honey-forge-api.exe ./cmd/api
+```
+
+На Linux последняя команда может создавать файл без расширения:
+`go build -o honey-forge-api ./cmd/api`. Запускайте бинарный файл с рабочим
+каталогом `src/backend`: приложение ищет миграции в `../../migrations`.
+
+## 3. Тесты
+
+Из `src/backend` доступны обычные проверки:
+
+```powershell
+go fmt ./...
+go vet ./...
+go test ./...
+go build ./...
+```
+
+Интеграционные тесты с тегом `integration` используют отдельную PostgreSQL
+базу, в которой разрешено создавать схемы. Тест Kafka запускается при наличии
+`TEST_KAFKA_BROKERS`; без соответствующих переменных внешние проверки
+пропускаются.
+
+```powershell
+$env:TEST_DATABASE_URL = 'postgres://user:password@127.0.0.1:5432/honey_forge_test?sslmode=disable'
+$env:TEST_KAFKA_BROKERS = '127.0.0.1:29092'
+go test -tags=integration ./... -count=1
+go test -race -tags=integration ./... -count=1
+```
+
+Для `-race` на Windows нужен C-компилятор и `CGO_ENABLED=1`. Подробные проверки
+по модулям описаны в [backend README](src/backend/README.md).
+
+## 4. Конфигурация и переменные окружения
+
+| Переменная | Назначение |
+|---|---|
+| `POSTGRES_PASSWORD` | Обязательный пароль PostgreSQL для Docker Compose. |
+| `DATABASE_URL` | Обязательная строка подключения API к PostgreSQL. |
+| `CURSOR_KEY` | Обязательный постоянный ключ: 32 байта в Base64; сохраните его между перезапусками. |
+| `BROWSER_ORIGINS` | Обязательные разрешённые HTTPS-origin браузера, через запятую. |
+| `TLS_CERT_FILE`, `TLS_KEY_FILE` | Обязательные пути к сертификату и закрытому ключу HTTPS. |
+| `KAFKA_BROKERS` | Обязательные адреса брокеров Kafka, через запятую. |
+| `KAFKA_TELEMETRY_TOPIC` | Тема телеметрии; по умолчанию `honey-forge.telemetry`. |
+| `AGENT_WS_URL` | Необязательный внешний WSS URL вида `wss://host/assets/stream`; по умолчанию строится из первого `BROWSER_ORIGINS`. |
+| `API_ADDR` | Адрес API; по умолчанию `:8443`. |
+| `GIN_MODE` | Для развёрнутого сервера задайте `release`. |
+| `TEST_DATABASE_URL`, `TEST_KAFKA_BROKERS` | Только для интеграционных тестов. |
+
+Секреты передаются через окружение и не сохраняются в Git. Для удалённой
+PostgreSQL используйте TLS вместо локального `sslmode=disable` из примера ниже.
+
+## 5. Базы данных
+
+PostgreSQL хранит пользователей, сессии, каталог, профили, ловушки, команды,
+события и журнал изменений. Goose применяет SQL-файлы из корневого
+`migrations/` при запуске API. Kafka служит журналом приёма телеметрии;
+подтверждение агенту выдаётся после фиксации события в PostgreSQL.
+Docker Compose сохраняет данные PostgreSQL и Kafka в именованных томах
+`postgres_data` и `kafka_data`.
+
+## 6. Запуск приложения локально или на сервере
+
+Пример для PowerShell из корня репозитория. Подставьте реальные пути к
+TLS-файлам. Значения `POSTGRES_PASSWORD` и `CURSOR_KEY` сгенерируйте один раз,
+сохраните вне Git и повторно используйте после перезапуска:
+
+```powershell
 $env:POSTGRES_PASSWORD = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
 $env:CURSOR_KEY = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
 $env:DATABASE_URL = "postgres://honey_forge:$([Uri]::EscapeDataString($env:POSTGRES_PASSWORD))@127.0.0.1:5432/honey_forge?sslmode=disable"
 $env:BROWSER_ORIGINS = 'https://localhost:3000'
+$env:KAFKA_BROKERS = '127.0.0.1:29092'
+$env:AGENT_WS_URL = 'wss://localhost:8443/assets/stream'
 $env:TLS_CERT_FILE = 'C:\certs\localhost.crt'
 $env:TLS_KEY_FILE = 'C:\certs\localhost.key'
 $env:API_ADDR = ':8443'
 $env:GIN_MODE = 'release'
-docker compose up -d postgres
+docker compose up -d postgres kafka
 Set-Location src/backend
 go run ./cmd/api
 ```
 
-`sslmode=disable` в примере относится только к локальному соединению PostgreSQL.
-HTTP-сервер работает исключительно по HTTPS. При запуске создаются pgx pool,
-Goose migrations, браузерная политика, cursor codec, журнал изменений и
-координатор записей. Отсутствующие настройки останавливают запуск.
+Сервер слушает HTTPS на `API_ADDR`. На сервере задайте те же переменные,
+соберите бинарный файл из `src/backend` и запускайте его с этой же рабочей
+директорией через менеджер процессов. Нужны доступ к PostgreSQL и Kafka и
+действующие TLS-файлы. Отсутствующие обязательные настройки останавливают запуск.
 
-Go-модуль и единственный API entrypoint находятся в `src/backend/`.
-Миграции находятся в корневом `migrations/`, полный контракт — в
-`api/openapi.yaml`. API запускает auth/organizations, profiles и catalog. Регистрация создаёт
-реальную сессию; viewer читает каталог и профили, admin также изменяет профили.
-Ловушки, реквизиты агента, команды и durable-приём событий подключены к API;
-состояние и проверки описаны в [модуле traps](src/backend/modules/traps/README.md).
-Отдельный TCP runtime агента и frontend WSS остаются отдельными компонентами.
+Go-модуль и единственный API entrypoint находятся в `src/backend/`; полный
+контракт — в `api/openapi.yaml`. API подключает auth/organizations, catalog,
+profiles, ловушки, команды и приём событий. Состояние ловушек описано в
+[модуле traps](src/backend/modules/traps/README.md). Отдельный TCP runtime
+агента и frontend WSS остаются отдельными компонентами.
+
+## 7. Докеризация
+
+`compose.yaml` поднимает только PostgreSQL 17 и Kafka 4.1.2:
+
+```powershell
+# Из корня репозитория
+docker compose up -d postgres kafka
+docker compose ps
+```
+
+Порты PostgreSQL `5432` и Kafka `29092` опубликованы только на `127.0.0.1`.
+Процесс Go запускается отдельно; Dockerfile для API сейчас нет.
+
+## 8. Ветка Git для продакшена
+
+Основная ветка репозитория — `main` (`origin/main`). Отдельная ветка
+`production` и автоматическое развёртывание в репозитории не настроены;
+для текущего развёртывания используйте проверенный коммит из `main`.
 
 ## Подключение feature
 
@@ -115,23 +212,3 @@ Go-модуль и единственный API entrypoint находятся в
 - `stream.NewAgentEndpoint` задаёт неизменяемые HTTPS-origin/path установки
   агента. Profile config не используется для формирования этого endpoint;
   управляющий origin должен быть отдельным от операторского.
-
-## Проверки
-
-```powershell
-Set-Location src/backend
-go fmt ./...
-go vet ./...
-go test ./...
-go build ./...
-# Для SQL-проверок укажите отдельную тестовую PostgreSQL БД:
-$env:TEST_DATABASE_URL = '<test PostgreSQL connection string>'
-go test ./... -count=1
-# На Windows требуется C-компилятор в PATH:
-$env:CGO_ENABLED = '1'
-go test -race ./... -count=1
-```
-
-Без TEST_DATABASE_URL SQL-тесты явно пропускаются. При разработке выполнены
-полный прогон с настоящим PostgreSQL, миграции на свежей схеме и race-проверка.
-Готовность общих компонентов не объявляет готовой сборку модулей 02–11.

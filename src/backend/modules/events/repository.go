@@ -14,27 +14,26 @@ import (
 	"honey-forge/internal/contract"
 	"honey-forge/internal/mutation"
 	"honey-forge/modules/agentws"
+	"honey-forge/modules/catalog"
 	"honey-forge/modules/profiles"
 	"honey-forge/modules/traps"
 )
 
 type Repository struct {
-	pool  *pgxpool.Pool
-	traps *traps.Repository
+	pool    *pgxpool.Pool
+	traps   *traps.Repository
+	catalog *catalog.Service
 }
 
-func NewRepository(pool *pgxpool.Pool, traps *traps.Repository) *Repository {
-	return &Repository{pool, traps}
+func NewRepository(pool *pgxpool.Pool, traps *traps.Repository, cat *catalog.Service) *Repository {
+	return &Repository{pool, traps, cat}
 }
 func (r *Repository) Ingest(ctx context.Context, identity agentws.Identity, connection, batchID string, events []AgentEvent) (agentws.TelemetryAck, error) {
 	var ack agentws.TelemetryAck
-	batchRaw, err := json.Marshal(struct {
-		Events []AgentEvent `json:"events"`
-	}{events})
-	if err != nil {
-		return ack, fmt.Errorf("encode events: %w", err)
+	if err := r.Prepare(ctx, identity, connection, batchID, events); err != nil {
+		return ack, err
 	}
-	batchHash, err := mutation.Fingerprint(batchRaw)
+	batchHash, err := batchFingerprint(events)
 	if err != nil {
 		return ack, err
 	}
@@ -69,16 +68,9 @@ func (r *Repository) Ingest(ctx context.Context, identity agentws.Identity, conn
 		for _, event := range events {
 			snapshot, ok := snapshots[event.ProfileRevision]
 			if !ok {
-				var raw []byte
-				err := tx.QueryRow(ctx, `SELECT configuration FROM commands WHERE trap_id=$1 AND action='apply_config' AND target_profile_revision=$2 AND started_at IS NOT NULL ORDER BY created_at DESC LIMIT 1`, trap.ID, event.ProfileRevision).Scan(&raw)
-				if errors.Is(err, pgx.ErrNoRows) {
-					return contract.NewError("telemetry_invalid")
-				}
+				snapshot, err = issuedSnapshot(ctx, tx, trap.ID, event.ProfileRevision)
 				if err != nil {
-					return fmt.Errorf("read event snapshot: %w", err)
-				}
-				if err := json.Unmarshal(raw, &snapshot); err != nil {
-					return fmt.Errorf("decode event snapshot: %w", err)
+					return err
 				}
 				snapshots[event.ProfileRevision] = snapshot
 			}
@@ -112,11 +104,20 @@ func (r *Repository) Ingest(ctx context.Context, identity agentws.Identity, conn
 			if reused {
 				return contract.NewError("telemetry_invalid")
 			}
+			if err := r.checkPayload(ctx, tx, trap.ID, event, snapshot, true); err != nil {
+				return err
+			}
 			at, err := time.Parse(time.RFC3339Nano, event.OccurredAt)
 			if err != nil {
 				return err
 			}
-			inserted, err := tx.Exec(ctx, `INSERT INTO trap_events(event_id,trap_id,organization_id,session_id,session_sequence,occurred_at,received_at,fingerprint,envelope) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb) ON CONFLICT(event_id) DO NOTHING`, event.EventID, trap.ID, org, event.SessionID, event.SessionSequence, at, stored, hash[:], string(raw))
+			metadata := event
+			metadata.Data = nil
+			envelope, err := json.Marshal(metadata)
+			if err != nil {
+				return fmt.Errorf("encode event metadata: %w", err)
+			}
+			inserted, err := tx.Exec(ctx, `INSERT INTO trap_events(event_id,trap_id,organization_id,session_id,session_sequence,occurred_at,received_at,fingerprint,envelope,occurred_at_submicro,event_data) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11::json) ON CONFLICT(event_id) DO NOTHING`, event.EventID, trap.ID, org, event.SessionID, event.SessionSequence, at, stored, hash[:], string(envelope), at.Nanosecond()%1000, string(event.Data))
 			if err != nil {
 				return fmt.Errorf("store event: %w", err)
 			}
@@ -132,7 +133,11 @@ func (r *Repository) Ingest(ctx context.Context, identity agentws.Identity, conn
 			if err := tx.QueryRow(ctx, `UPDATE organization_changes SET sequence=sequence+1 WHERE organization_id=$1 RETURNING sequence`, org).Scan(&sequence); err != nil {
 				return fmt.Errorf("advance event journal: %w", err)
 			}
-			if _, err := tx.Exec(ctx, `INSERT INTO mutation_changes(organization_id,sequence,type,resource_id,metadata) VALUES($1,$2,'event.created',$3,'{}')`, org, sequence, event.EventID); err != nil {
+			summary, err := json.Marshal((Event{AgentEvent: event, TrapID: trap.ID, ReceivedAt: stored}).Summary())
+			if err != nil {
+				return fmt.Errorf("encode event summary: %w", err)
+			}
+			if _, err := tx.Exec(ctx, `INSERT INTO mutation_changes(organization_id,sequence,type,resource_id,metadata) VALUES($1,$2,'event.created',$3,$4::jsonb)`, org, sequence, event.EventID, string(summary)); err != nil {
 				return fmt.Errorf("publish event: %w", err)
 			}
 		}

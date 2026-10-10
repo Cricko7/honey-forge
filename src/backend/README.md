@@ -10,8 +10,10 @@ Auth/organizations и profiles подключены к общей сборке c
 Миграции: `../../migrations/`; полный OpenAPI: [../../api/openapi.yaml](../../api/openapi.yaml).
 
 Основной запуск с TLS описан в [корневом README](../../README.md):
-`go run ./cmd/api` из `src/backend`. Docker Compose поднимает PostgreSQL;
+`go run ./cmd/api` из `src/backend`. Docker Compose поднимает PostgreSQL и Kafka;
 Goose-миграции применяются при запуске API.
+Kafka требует `KAFKA_BROKERS`; подтверждение телеметрии выдаётся после commit
+PostgreSQL, а не после Kafka ACK. Подробности: [events](modules/events/README.md).
 
 Единственный entrypoint использует `internal/app.Open`, реальные PostgreSQL repositories
 и одну точную версию каталога. Cookie имеет Secure, HttpOnly, SameSite=Strict,

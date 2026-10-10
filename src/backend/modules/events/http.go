@@ -18,13 +18,13 @@ import (
 )
 
 type Handler struct {
-	repository *Repository
-	cursors    *contract.CursorCodec
-	logger     *slog.Logger
+	service *HistoryService
+	cursors *contract.CursorCodec
+	logger  *slog.Logger
 }
 
 func NewHandler(repository *Repository, cursors *contract.CursorCodec, logger *slog.Logger) *Handler {
-	return &Handler{repository, cursors, logger}
+	return &Handler{NewHistoryService(repository), cursors, logger}
 }
 func (h *Handler) RegisterRoutes(router *gin.Engine, session gin.HandlerFunc) {
 	group := router.Group("/api/events", session, func(c *gin.Context) {
@@ -51,7 +51,7 @@ func (h *Handler) read(c *gin.Context) {
 	if _, ok := contract.RequestQuery(c); !ok {
 		return
 	}
-	event, err := h.repository.Read(c.Request.Context(), string(id))
+	event, err := h.service.Read(c.Request.Context(), string(id))
 	if err != nil {
 		h.fail(c, err)
 		return
@@ -130,7 +130,7 @@ func (h *Handler) list(c *gin.Context) {
 		q.AfterTime = &at
 		q.AfterID = after[1]
 	}
-	items, more, boundary, stream, readErr := h.repository.List(c.Request.Context(), q)
+	items, more, boundary, stream, readErr := h.service.List(c.Request.Context(), q)
 	if readErr != nil {
 		h.fail(c, readErr)
 		return
@@ -152,12 +152,7 @@ func (h *Handler) list(c *gin.Context) {
 		}
 		next = &cursor
 	}
-	page := struct {
-		contract.Page[Event]
-		StreamCursor string `json:"stream_cursor"`
-	}{contract.NewPage(items, next), streamCursor}
-	// Page's MarshalJSON cannot be embedded: serialize the complete envelope.
-	c.JSON(200, gin.H{"items": page.Items, "next_cursor": page.NextCursor, "stream_cursor": page.StreamCursor})
+	c.JSON(200, EventPage{Items: items, NextCursor: next, StreamCursor: streamCursor})
 }
 func (h *Handler) fail(c *gin.Context, err error) {
 	var api *contract.Error

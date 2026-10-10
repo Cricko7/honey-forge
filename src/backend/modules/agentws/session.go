@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -322,7 +323,7 @@ func (h *Handler) ingest(entry *sessionEntry, session *agentSession, message con
 		return
 	}
 	for i, event := range batch.Events {
-		if ack.AcknowledgedEventIDs[i] != event.EventID {
+		if !strings.EqualFold(ack.AcknowledgedEventIDs[i], event.EventID) {
 			_ = session.replyError(message, contract.NewError("ingestion_pending"))
 			return
 		}

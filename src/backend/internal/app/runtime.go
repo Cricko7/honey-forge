@@ -31,15 +31,17 @@ import (
 )
 
 type Config struct {
-	DatabaseURL    string
-	CursorKey      []byte
-	BrowserOrigins []string
-	MigrationsPath string
-	Logger         *slog.Logger
-	AgentGateway   agentws.Gateway
-	AgentCommands  agentws.CommandService
-	AgentWSURL     string
-	Ingester       traps.Ingester
+	DatabaseURL        string
+	CursorKey          []byte
+	BrowserOrigins     []string
+	MigrationsPath     string
+	Logger             *slog.Logger
+	AgentGateway       agentws.Gateway
+	AgentCommands      agentws.CommandService
+	AgentWSURL         string
+	Ingester           traps.Ingester
+	EventPublisher     events.BatchPublisher
+	CatalogDefinitions []catalog.Definition
 }
 type Runtime struct {
 	Router    *gin.Engine
@@ -75,7 +77,11 @@ func Open(ctx context.Context, config Config) (*Runtime, error) {
 	if err != nil {
 		return nil, fmt.Errorf("configure browser policy: %w", err)
 	}
-	catalogService, err := catalog.NewService(catalog.BuiltinDefinitions(), cursors)
+	definitions := config.CatalogDefinitions
+	if definitions == nil {
+		definitions = catalog.BuiltinDefinitions()
+	}
+	catalogService, err := catalog.NewService(definitions, cursors)
 	if err != nil {
 		return nil, fmt.Errorf("initialize catalog: %w", err)
 	}
@@ -107,11 +113,14 @@ func Open(ctx context.Context, config Config) (*Runtime, error) {
 		return nil, err
 	}
 	trapRepository := traps.NewRepository(pool)
-	eventRepository := events.NewRepository(pool, trapRepository)
+	eventRepository := events.NewRepository(pool, trapRepository, catalogService)
 	commandRepository := commandrepo.New(pool, trapRepository)
 	ingester := config.Ingester
 	if ingester == nil {
 		ingester = events.NewService(eventRepository, catalogService)
+		if config.EventPublisher != nil {
+			ingester = events.NewJournalService(eventRepository, catalogService, config.EventPublisher)
+		}
 	}
 	agents := traps.NewGateway(trapRepository, catalogService, ingester)
 	gateway := config.AgentGateway

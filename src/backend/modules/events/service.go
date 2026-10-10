@@ -2,6 +2,7 @@ package events
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"honey-forge/internal/contract"
@@ -9,16 +10,22 @@ import (
 	"honey-forge/modules/catalog"
 )
 
+type eventStore interface {
+	Ingest(context.Context, agentws.Identity, string, string, []AgentEvent) (agentws.TelemetryAck, error)
+}
 type Service struct {
-	repository *Repository
+	repository eventStore
 	catalog    *catalog.Service
 }
 
-func NewService(repository *Repository, cat *catalog.Service) *Service {
+func NewService(repository eventStore, cat *catalog.Service) *Service {
 	return &Service{repository, cat}
 }
 func (s *Service) Ingest(ctx context.Context, identity agentws.Identity, connection string, batch agentws.TelemetryBatch) (agentws.TelemetryAck, error) {
 	if err := contract.RequireAgentTrap(ctx, contract.ID(identity.TrapID)); err != nil {
+		return agentws.TelemetryAck{}, err
+	}
+	if err := contract.RequireOrganization(ctx, contract.ID(identity.OrganizationID)); err != nil {
 		return agentws.TelemetryAck{}, err
 	}
 	if !contract.ValidID(batch.BatchID) || len(batch.Events) == 0 || len(batch.Events) > 100 {
@@ -32,7 +39,7 @@ func (s *Service) Ingest(ctx context.Context, identity agentws.Identity, connect
 		if err != nil {
 			return agentws.TelemetryAck{}, err
 		}
-		if event.EventID != raw.EventID || seen[event.EventID] {
+		if !strings.EqualFold(event.EventID, raw.EventID) || seen[event.EventID] {
 			return agentws.TelemetryAck{}, contract.NewError("validation_failed")
 		}
 		seen[event.EventID] = true

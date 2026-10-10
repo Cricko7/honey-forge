@@ -21,6 +21,8 @@ func parseEvent(raw json.RawMessage, now time.Time) (AgentEvent, error) {
 	if len(raw) > 16*1024 || contract.CheckJSON(raw) != nil || !httpx.StrictObject(raw, reflect.TypeFor[AgentEvent]()) || json.Unmarshal(raw, &e) != nil {
 		return e, invalid
 	}
+	e.EventID = strings.ToLower(e.EventID)
+	e.SessionID = strings.ToLower(e.SessionID)
 	if binding.Validator.ValidateStruct(e) != nil {
 		return e, invalid
 	}
@@ -36,8 +38,6 @@ func parseEvent(raw json.RawMessage, now time.Time) (AgentEvent, error) {
 	if json.Unmarshal(e.Data, &object) != nil || object == nil {
 		return e, invalid
 	}
-	e.EventID = strings.ToLower(e.EventID)
-	e.SessionID = strings.ToLower(e.SessionID)
 	e.Source.IP = ip.Unmap().String()
 	e.OccurredAt = at.UTC().Format(time.RFC3339Nano)
 	return e, nil
@@ -48,6 +48,9 @@ func checkSnapshot(e AgentEvent, snapshot profiles.Snapshot) error {
 		return invalid
 	}
 	if e.TypeID != "tcp-banner" {
+		if e.EventType == "service.auth_attempt" || e.EventType == "service.action" {
+			return checkServiceSnapshot(e, snapshot)
+		}
 		return nil
 	}
 	if e.Destination.Protocol != "tcp" {

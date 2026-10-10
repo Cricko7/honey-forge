@@ -81,6 +81,9 @@ func (s *Service) CheckEvent(ctx context.Context, id string, version contract.Ty
 	if id == "tcp-banner" && version == 1 && event == "tcp.payload_received" {
 		return checkTCPPayload(data)
 	}
+	if event == "service.auth_attempt" || event == "service.action" {
+		return checkStructuredBytes(event, data)
+	}
 	return nil
 }
 

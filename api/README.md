@@ -13,7 +13,7 @@
 | 04 | [Профили](../src/backend/docs/api/04-profiles.md) | `src/backend/modules/profiles`; CRUD, каталог, revision/ETag и snapshots подключены; [границы](../src/backend/modules/profiles/README.md) |
 | 05 | [Ловушки](../src/backend/docs/api/05-traps.md) | Подключён: CRUD, heartbeat/state_version, generation/token, безопасный DELETE и tombstone |
 | 06 | [Команды](../src/backend/docs/api/06-commands.md) | Подключён к TrapBoundary: apply/start/stop, snapshots, expiry, lease/result и история |
-| 07 | [События](../src/backend/docs/api/07-events.md) | Подключена необходимая для 05 граница: PostgreSQL ingestion/ACK, REST, дедупликация и история tombstone; отдельная Kafka-материализация не вводилась |
+| 07 | [События](../src/backend/docs/api/07-events.md) | Kafka-журнал → атомарный PostgreSQL ingestion/ACK, REST/snapshot cursors, дедупликация, tombstone и структурированные auth/action для поддерживающих типов; [проверки и границы](07-acceptance.md) |
 | 08 | [WSS агента](../src/backend/docs/api/08-agent-ws.md) | Backend hello/heartbeat, dispatch/result, telemetry/ack подключён; отдельный агент/Redis-буфер вне backend |
 | 09 | [WSS фронтенда](../src/backend/docs/api/09-frontend-ws.md) | Есть общий транспорт и хранилища изменений; replay/live и доставка уведомлений ещё не подключены |
 | 10 | [Аудит](../src/backend/docs/api/10-audit.md) | Запись audit выполняется в транзакциях 02/04/05/06; единое чтение AuditEntry и audit.created ещё не подключены |
