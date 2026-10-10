@@ -47,6 +47,7 @@ func validationError(err error, code string) error {
 	}
 	return result
 }
+
 func (s *Service) CheckConfig(ctx context.Context, id string, version contract.TypeVersion, config json.RawMessage) error {
 	e, err := s.lookup(ctx, id, version)
 	if err != nil {
@@ -63,6 +64,7 @@ func (s *Service) CheckConfig(ctx context.Context, id string, version contract.T
 	}
 	return nil
 }
+
 func (s *Service) CheckEvent(ctx context.Context, id string, version contract.TypeVersion, event string, data json.RawMessage) error {
 	e, err := s.lookup(ctx, id, version)
 	if err != nil {
@@ -80,6 +82,7 @@ func (s *Service) CheckEvent(ctx context.Context, id string, version contract.Ty
 	}
 	return nil
 }
+
 func (s *Service) CheckAction(ctx context.Context, id string, version contract.TypeVersion, action string, params json.RawMessage) (ActionDescriptor, error) {
 	e, err := s.lookup(ctx, id, version)
 	if err != nil {
@@ -103,6 +106,7 @@ func (s *Service) CheckAction(ctx context.Context, id string, version contract.T
 	}
 	return ActionDescriptor{}, contract.NewError("internal_error")
 }
+
 func (s *Service) CheckActionResult(ctx context.Context, id string, version contract.TypeVersion, action string, result json.RawMessage) error {
 	e, err := s.lookup(ctx, id, version)
 	if err != nil {

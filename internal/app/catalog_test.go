@@ -2,8 +2,8 @@ package app
 
 import (
 	"encoding/json"
-	"honey-forge/internal/catalog"
 	"honey-forge/internal/contract"
+	"honey-forge/src/backend/modules/catalog"
 	"net/http/httptest"
 	"testing"
 

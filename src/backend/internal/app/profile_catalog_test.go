@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	commonapp "honey-forge/internal/app"
-	"honey-forge/internal/catalog"
 	"honey-forge/internal/contract"
+	"honey-forge/src/backend/modules/catalog"
 	"strings"
 	"testing"
 

@@ -9,10 +9,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"honey-forge/internal/catalog"
 	"honey-forge/internal/contract"
 	authhttp "honey-forge/src/backend/modules/auth/http"
 	authservice "honey-forge/src/backend/modules/auth/service"
+	"honey-forge/src/backend/modules/catalog"
 	profilehttp "honey-forge/src/backend/modules/profiles/http"
 	profileservice "honey-forge/src/backend/modules/profiles/service"
 )

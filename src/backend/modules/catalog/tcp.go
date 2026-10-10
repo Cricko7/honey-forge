@@ -44,6 +44,7 @@ func checkTCPConfig(raw json.RawMessage) error {
 	}
 	return nil
 }
+
 func checkTCPPayload(raw json.RawMessage) error {
 	var payload tcpPayload
 	if err := json.Unmarshal(raw, &payload); err != nil {

@@ -92,6 +92,7 @@ func compileEntry(def Definition) (*compiledEntry, error) {
 	}
 	return e, nil
 }
+
 func compileSchema(raw json.RawMessage) (*configschema.Schema, error) {
 	var root map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &root); err != nil {
@@ -103,6 +104,7 @@ func compileSchema(raw json.RawMessage) (*configschema.Schema, error) {
 	}
 	return configschema.Compile(raw)
 }
+
 func jsonPointer(path string) bool {
 	if path == "" {
 		return true

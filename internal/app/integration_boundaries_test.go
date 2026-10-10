@@ -10,8 +10,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"honey-forge/internal/catalog"
 	"honey-forge/internal/contract"
+	"honey-forge/src/backend/modules/catalog"
 )
 
 func TestRouterIgnoresUntrustedProxyIdentity(t *testing.T) {

@@ -13,7 +13,7 @@ import (
 )
 
 func TestOpenAPIResponse(t *testing.T) {
-	raw, err := os.ReadFile("../../api/openapi.yaml")
+	raw, err := os.ReadFile("../../../../api/openapi.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,6 +61,7 @@ func testRouter(t *testing.T, defs ...Definition) *gin.Engine {
 	r.GET("/api/trap-types/:type_id/versions/:type_version", h.Read)
 	return r
 }
+
 func TestHandler(t *testing.T) {
 	r := testRouter(t)
 	for _, tt := range []struct {
@@ -109,6 +110,7 @@ func TestHandler(t *testing.T) {
 		})
 	}
 }
+
 func TestHandlerConditionalRead(t *testing.T) {
 	defs := BuiltinDefinitions()
 	second := BuiltinDefinitions()[0]

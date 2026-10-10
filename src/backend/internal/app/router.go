@@ -3,8 +3,8 @@ package app
 import (
 	"fmt"
 	commonapp "honey-forge/internal/app"
-	"honey-forge/internal/catalog"
 	"honey-forge/internal/contract"
+	"honey-forge/src/backend/modules/catalog"
 	"log/slog"
 	"net/http"
 	"sync"

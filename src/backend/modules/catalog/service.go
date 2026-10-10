@@ -15,6 +15,7 @@ type typeKey struct {
 	id      string
 	version contract.TypeVersion
 }
+
 type compiledEntry struct {
 	entry           CatalogEntry
 	raw             []byte
@@ -60,6 +61,7 @@ func NewService(definitions []Definition, cursors *contract.CursorCodec) (*Servi
 	s.etag = fmt.Sprintf(`"catalog-%x"`, hash.Sum(nil))
 	return s, nil
 }
+
 func (s *Service) lookup(ctx context.Context, id string, version contract.TypeVersion) (*compiledEntry, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -79,6 +81,7 @@ func (s *Service) LookupType(ctx context.Context, id string, version contract.Ty
 	}
 	return cloneEntry(e)
 }
+
 func cloneEntry(e *compiledEntry) (CatalogEntry, error) {
 	var entry CatalogEntry
 	if err := json.Unmarshal(e.raw, &entry); err != nil {
@@ -86,6 +89,7 @@ func cloneEntry(e *compiledEntry) (CatalogEntry, error) {
 	}
 	return entry, nil
 }
+
 func (s *Service) Read(ctx context.Context, id string, version contract.TypeVersion) (CatalogEntry, string, error) {
 	if err := contract.Authorize(ctx, contract.Admin, contract.Viewer); err != nil {
 		return CatalogEntry{}, "", err
@@ -93,6 +97,7 @@ func (s *Service) Read(ctx context.Context, id string, version contract.TypeVers
 	e, err := s.LookupType(ctx, id, version)
 	return e, s.etag, err
 }
+
 func (s *Service) List(ctx context.Context, q Query) (contract.Page[CatalogEntry], string, error) {
 	if err := contract.Authorize(ctx, contract.Admin, contract.Viewer); err != nil {
 		return contract.Page[CatalogEntry]{}, "", err

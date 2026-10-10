@@ -9,7 +9,7 @@ import (
 )
 
 func TestBuiltinSchemasMatchSpecification(t *testing.T) {
-	document, err := os.ReadFile("../../api/03-catalog.md")
+	document, err := os.ReadFile("../../../../api/03-catalog.md")
 	if err != nil {
 		t.Fatal(err)
 	}

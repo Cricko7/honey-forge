@@ -5,9 +5,9 @@ package app
 import (
 	"context"
 	"encoding/json"
-	"honey-forge/internal/catalog"
 	"honey-forge/internal/contract"
 	"honey-forge/internal/postgres"
+	"honey-forge/src/backend/modules/catalog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"

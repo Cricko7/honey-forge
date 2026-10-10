@@ -25,9 +25,11 @@ func testService(t *testing.T, defs ...Definition) *Service {
 	}
 	return s
 }
+
 func operatorContext(role contract.Role) context.Context {
 	return contract.WithPrincipal(context.Background(), contract.Principal{Role: role, OrganizationID: "11111111-1111-4111-8111-111111111111"})
 }
+
 func wantCode(t *testing.T, err error, code string) {
 	t.Helper()
 	if code == "" {

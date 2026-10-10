@@ -1,8 +1,8 @@
 package app
 
 import (
-	"honey-forge/internal/catalog"
 	"honey-forge/internal/contract"
+	"honey-forge/src/backend/modules/catalog"
 
 	"github.com/gin-gonic/gin"
 )
