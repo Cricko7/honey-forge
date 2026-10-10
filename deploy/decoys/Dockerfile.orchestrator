@@ -1,0 +1,11 @@
+FROM golang:1.26-alpine AS build
+WORKDIR /src
+COPY src/backend/go.mod src/backend/go.sum ./
+RUN go mod download
+COPY src/backend ./
+RUN CGO_ENABLED=0 go build -p 1 -trimpath -o /out/orchestrator ./cmd/orchestrator
+
+FROM alpine:3.20
+RUN apk add --no-cache ca-certificates docker-cli
+COPY --from=build /out/orchestrator /orchestrator
+ENTRYPOINT ["/orchestrator"]

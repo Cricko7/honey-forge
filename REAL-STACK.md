@@ -16,7 +16,7 @@
 - Установлен **Docker Desktop** (на WSL2-бэкенде нужен установленный дистрибутив и
   `wsl --set-default-version 2`, иначе движок не стартует).
 - Образ `golang:1.26-alpine` существует для версии из `src/backend/go.mod` (1.26.1).
-  Если тега нет — поправить на доступный патч в `Dockerfile.api`/`Dockerfile.agent`.
+  Если тега нет — поправить на доступный патч в `Dockerfile.api`, `deploy/decoys/Dockerfile` и `deploy/decoys/Dockerfile.orchestrator`.
 
 ## 1. Секреты и сертификаты (из корня репозитория)
 ```powershell
@@ -51,27 +51,11 @@ docker compose -f docker-compose.real.yml up --build
 Настоящих событий атак нет, пока нет запущенной ловушки, которую кто-то «атакует»:
 1. **Профиль** — «Профили» → «Новый профиль» (тип + config по схеме).
 2. **Ловушка** — «Конструктор сети» → «Добавить ловушку».
-3. **Реквизиты агента** — на странице ловушки выдать credentials (token + agent_ws_url).
-4. **Запустить агент** — runtime ловушки (без него `start` даёт 409
-   `configuration_not_applied`: порт приманки открывает агент, не бэкенд).
-   Готовый docker-сервис `agent` (profile `agent`, собирается из `Dockerfile.agent`):
-   ```powershell
-   # token/trap_id из ответа POST /api/traps/{id}/agent-credentials {"expected_generation":0}
-   $env:AGENT_TRAP_ID = "<trap_id>"; $env:AGENT_TOKEN = "<token>"
-   docker compose -f docker-compose.real.yml --profile agent up --build -d agent
-   ```
-   Агент коннектится к `wss://api:8443/assets/stream` (api в SAN серта), журнал в redis БД 1,
-   порт приманки 2222 проброшен на хост. Альтернатива — нативно: `src/backend/cmd/agent`
-   (см. `src/backend/internal/agent/README.md`); Redis Medium — `src/redis-trap`.
-5. **Применить и запустить** — после online-агента:
-   `POST /api/traps/{id}/commands` `apply_config {profile_revision:1}` → дождаться
-   `succeeded` (`GET .../commands/{cid}`) → `start {}` → `runtime_state: running`.
-6. **Сгенерировать трафик** — подключиться к порту ловушки (напр. `2222`) →
-   появятся настоящие события `tcp.connection_opened/payload_received/connection_closed`
-   в дашборде и `GET /api/events?trap_id={id}`.
+3. **Дождаться запуска** — основной Compose сам создаёт контейнер ловушки,
+   применяет конфигурацию и запускает listener. Статус виден в карточке ловушки.
+4. **Сгенерировать трафик** — подключиться к порту ловушки → появятся настоящие события.
 
-> Один агент обслуживает одну ловушку (отдельные реквизиты + журнал). Авто-провижининг
-> N приманок на разных портах с проверкой и сбором статистики в дашборд — отдельная задача.
+Размещение на одном или нескольких хостах описано в [руководстве оркестратора](deploy/decoys/README.md).
 
 ## 5. Остановка / сброс
 ```powershell

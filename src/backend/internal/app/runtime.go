@@ -41,6 +41,7 @@ type Config struct {
 	AgentGateway       agentws.Gateway
 	AgentCommands      agentws.CommandService
 	AgentWSURL         string
+	AutoDeployTraps    bool
 	Ingester           traps.Ingester
 	EventPublisher     events.BatchPublisher
 	CatalogDefinitions []catalog.Definition
@@ -146,7 +147,7 @@ func Open(ctx context.Context, config Config) (*Runtime, error) {
 		agentCommands = commandservice.NewAgent(commandRepository, CommandResultCheck(catalogService))
 	}
 	agentHandler := agentws.NewHandler(gateway, agentCommands)
-	trapService := traps.NewService(trapRepository, catalogService, config.AgentWSURL, agentHandler.Revoke)
+	trapService := traps.NewService(trapRepository, catalogService, config.AgentWSURL, agentHandler.Revoke).WithAutoDeploy(config.AutoDeployTraps)
 	session := authhttp.NewHandler(authService, logger).RequireSession()
 	audit.NewHandler(audit.NewService(audit.NewRepository(pool)), cursors, logger).RegisterRoutes(router, session)
 	traps.NewHandler(trapService, cursors, logger).RegisterRoutes(router, session)

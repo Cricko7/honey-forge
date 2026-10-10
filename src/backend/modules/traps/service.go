@@ -28,16 +28,22 @@ type typeCatalog interface {
 	LookupType(context.Context, string, contract.TypeVersion) (catalog.CatalogEntry, error)
 }
 type Service struct {
-	store   store
-	catalog typeCatalog
-	wsURL   string
-	revoke  func(string, int64)
-	now     func() time.Time
+	store      store
+	catalog    typeCatalog
+	wsURL      string
+	revoke     func(string, int64)
+	now        func() time.Time
+	autoDeploy bool
 }
 
 func NewService(storage store, cat typeCatalog, wsURL string, revoke func(string, int64)) *Service {
 	contract.Configure()
-	return &Service{storage, cat, wsURL, revoke, func() time.Time { return time.Now().UTC().Truncate(time.Microsecond) }}
+	return &Service{store: storage, catalog: cat, wsURL: wsURL, revoke: revoke, now: func() time.Time { return time.Now().UTC().Truncate(time.Microsecond) }}
+}
+
+func (s *Service) WithAutoDeploy(enabled bool) *Service {
+	s.autoDeploy = enabled
+	return s
 }
 func access(ctx context.Context, admin bool) (string, error) {
 	roles := []contract.Role{contract.Admin, contract.Viewer}
@@ -73,6 +79,11 @@ func (s *Service) Create(ctx context.Context, req CreateRequest) (CreateResult, 
 	req.Name = strings.TrimSpace(req.Name)
 	req.RequestID = strings.ToLower(req.RequestID)
 	req.ProfileID = strings.ToLower(req.ProfileID)
+	req.AutoDeploy = s.autoDeploy
+	if req.AutoDeploy {
+		principal, _ := contract.PrincipalFrom(ctx)
+		req.AutoDeployActorID = string(principal.UserID)
+	}
 	return s.store.Create(ctx, org, req, func(ctx context.Context, p profiles.Profile) error {
 		entry, err := s.catalog.LookupType(ctx, p.TypeID, contract.TypeVersion(p.TypeVersion))
 		if err != nil {
@@ -144,6 +155,14 @@ func fmtCredentialsETag(id string, generation int64) string {
 	return fmt.Sprintf(`"agent-credentials:%s:%d"`, id, generation)
 }
 func (s *Service) IssueCredentials(ctx context.Context, id string, expected int64) (AgentCredentials, error) {
+	return s.issueCredentials(ctx, id, expected, false)
+}
+
+func (s *Service) IssueManagedCredentials(ctx context.Context, id string, expected int64) (AgentCredentials, error) {
+	return s.issueCredentials(ctx, id, expected, true)
+}
+
+func (s *Service) issueCredentials(ctx context.Context, id string, expected int64, managed bool) (AgentCredentials, error) {
 	org, err := access(ctx, true)
 	if err != nil {
 		return AgentCredentials{}, err
@@ -161,6 +180,9 @@ func (s *Service) IssueCredentials(ctx context.Context, id string, expected int6
 	token := base64.RawURLEncoding.EncodeToString(secret)
 	hash := sha256.Sum256([]byte(token))
 	r, err := s.store.Update(ctx, org, id, func(r *Record) (string, error) {
+		if r.AutoDeploy != managed {
+			return "", contract.NewError("agent_credentials_managed")
+		}
 		if r.Generation != expected {
 			return "", contract.NewError("agent_credentials_changed")
 		}
@@ -191,6 +213,9 @@ func (s *Service) RevokeCredentials(ctx context.Context, id, etag string) error 
 		return contract.NewError("service_unavailable")
 	}
 	r, err := s.store.Update(ctx, org, id, func(r *Record) (string, error) {
+		if r.AutoDeploy {
+			return "", contract.NewError("agent_credentials_managed")
+		}
 		if etag == "" {
 			return "", contract.NewError("precondition_required")
 		}

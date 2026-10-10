@@ -1743,7 +1743,7 @@ paths:
       - $ref: '#/components/parameters/CSRF'
       responses:
         '201':
-          description: Registers an offline/unknown/stopped trap at revision=state_version=1; no token or implicit configuration/start.
+          description: Registers an offline/unknown/stopped trap at revision=state_version=1. In the main Docker Compose installation, an isolated agent container is scheduled asynchronously and apply_config/start commands are queued automatically; the response does not wait for the listener to open.
           content:
             application/json:
               schema:
@@ -1970,7 +1970,7 @@ paths:
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
         '409':
-          description: 'Conflict: idempotency_conflict, request_already_used, revision_exhausted, trap_type_unavailable, agent_credentials_changed, command_in_progress, trap_offline, trap_not_stopped or trap_buffer_not_empty.'
+          description: 'Conflict: idempotency_conflict, request_already_used, revision_exhausted, trap_type_unavailable, agent_credentials_changed, agent_credentials_managed, command_in_progress, trap_offline, trap_not_stopped or trap_buffer_not_empty.'
           content:
             application/json:
               schema:
@@ -2014,7 +2014,7 @@ paths:
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
         '409':
-          description: 'Conflict: idempotency_conflict, request_already_used, revision_exhausted, trap_type_unavailable, agent_credentials_changed, command_in_progress, trap_offline, trap_not_stopped or trap_buffer_not_empty.'
+          description: 'Conflict: idempotency_conflict, request_already_used, revision_exhausted, trap_type_unavailable, agent_credentials_changed, agent_credentials_managed, command_in_progress, trap_offline, trap_not_stopped or trap_buffer_not_empty.'
           content:
             application/json:
               schema:

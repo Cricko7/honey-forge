@@ -21,12 +21,12 @@ type Repository struct {
 
 func NewRepository(pool *pgxpool.Pool) *Repository { return &Repository{pool, mutation.NewStore(pool)} }
 
-const columns = `id::text,organization_id::text,profile_id::text,type_id,type_version,interaction_level,name,description,revision,state_version,created_at,updated_at,connectivity,last_seen_at,runtime_state,desired_state,desired_profile_revision,applied_profile_revision,agent,active_command_id::text,generation,token_hash,issued_at,connection_id::text,applied_configuration,(SELECT count(*) FROM trap_ingestions i WHERE i.trap_id=traps.id AND NOT i.finished)`
+const columns = `id::text,organization_id::text,profile_id::text,type_id,type_version,interaction_level,name,description,revision,state_version,created_at,updated_at,connectivity,last_seen_at,runtime_state,desired_state,desired_profile_revision,applied_profile_revision,agent,active_command_id::text,generation,token_hash,issued_at,connection_id::text,applied_configuration,(SELECT count(*) FROM trap_ingestions i WHERE i.trap_id=traps.id AND NOT i.finished),auto_deploy`
 
 func scan(row pgx.Row) (Record, error) {
 	var r Record
 	var agent, configuration []byte
-	err := row.Scan(&r.ID, &r.OrganizationID, &r.ProfileID, &r.TypeID, &r.TypeVersion, &r.InteractionLevel, &r.Name, &r.Description, &r.Revision, &r.StateVersion, &r.CreatedAt, &r.UpdatedAt, &r.Connectivity, &r.LastSeenAt, &r.RuntimeState, &r.DesiredState, &r.DesiredProfileRevision, &r.AppliedProfileRevision, &agent, &r.ActiveCommandID, &r.Generation, &r.TokenHash, &r.IssuedAt, &r.ConnectionID, &configuration, &r.PendingIngestions)
+	err := row.Scan(&r.ID, &r.OrganizationID, &r.ProfileID, &r.TypeID, &r.TypeVersion, &r.InteractionLevel, &r.Name, &r.Description, &r.Revision, &r.StateVersion, &r.CreatedAt, &r.UpdatedAt, &r.Connectivity, &r.LastSeenAt, &r.RuntimeState, &r.DesiredState, &r.DesiredProfileRevision, &r.AppliedProfileRevision, &agent, &r.ActiveCommandID, &r.Generation, &r.TokenHash, &r.IssuedAt, &r.ConnectionID, &configuration, &r.PendingIngestions, &r.AutoDeploy)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return r, contract.NewError("resource_not_found")
 	}

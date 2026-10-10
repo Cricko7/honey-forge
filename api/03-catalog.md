@@ -136,4 +136,4 @@ tcp-banner/1 остаётся Low: не извлекает пароли/кома
 проверяет service name и destination port по выданному snapshot. Сырые RESP
 кадры целиком не сохраняются: действия нормализуются в текст команды с
 ограничением 4096 UTF-8 байт. Протокол и демонстрационный сценарий описаны в
-`src/redis-trap/README.md`.
+`src/backend/internal/decoys/redistrap/README.md`.

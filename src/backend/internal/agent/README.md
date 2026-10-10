@@ -89,8 +89,9 @@ $env:AGENT_CA_FILE = 'C:\certs\localhost-ca.crt'
 
 Medium-ловушка Redis использует те же четыре `AGENT_*` переменные и те же
 команды `apply_config`, `start`, `stop`. Меняются только `type_id` и `config`
-профиля; сам эмулятор собирается как отдельное приложение из `src/redis-trap`.
-Пример взаимодействия и событий — в [README эмулятора](../../../redis-trap/README.md).
+профиля; тот же бинарник агента выбирает эмулятор по snapshot.
+Пример взаимодействия и событий — в [README эмулятора](../decoys/redistrap/README.md).
+Автоматическое размещение из API описано в [руководстве оркестратора](../../../../deploy/decoys/README.md).
 
 ## Доставка и восстановление
 
@@ -126,7 +127,7 @@ snapshot и результаты. Lease запрещает двум процес
 ## Проверки
 
 ```powershell
-go test ./internal/agent ./internal/tcptrap
+go test ./internal/agent ./internal/decoys/...
 go test -tags=integration ./internal/agent -run TestDemoTrapToBackend -count=1
 go test -tags=integration ./internal/app -run '^TestDemoRegistrationToTCPStop' -count=1 -v
 go fmt ./...

@@ -63,4 +63,7 @@ func TestFreshConcurrentMigrations(t *testing.T) {
 	if err := pool.QueryRow(t.Context(), "SELECT count(*) FROM information_schema.tables WHERE table_schema=$1 AND table_name IN ('mutation_requests','mutation_audit','mutation_changes','organization_changes','schema_versions')", schema).Scan(&count); err != nil || count != 5 {
 		t.Fatalf("fresh tables %d %v", count, err)
 	}
+	if err := pool.QueryRow(t.Context(), "SELECT count(*) FROM information_schema.columns WHERE table_schema=$1 AND table_name='traps' AND column_name IN ('auto_deploy','auto_deploy_actor_id')", schema).Scan(&count); err != nil || count != 2 {
+		t.Fatalf("automatic deployment columns %d %v", count, err)
+	}
 }

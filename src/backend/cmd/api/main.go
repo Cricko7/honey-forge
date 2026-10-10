@@ -63,7 +63,7 @@ func run() error {
 		return err
 	}
 	defer publisher.Close()
-	runtime, err := app.Open(startup, app.Config{DatabaseURL: os.Getenv("DATABASE_URL"), CursorKey: keyBytes, BrowserOrigins: origins, AgentWSURL: os.Getenv("AGENT_WS_URL"), EventPublisher: publisher, TrustedProxies: trustedProxies})
+	runtime, err := app.Open(startup, app.Config{DatabaseURL: os.Getenv("DATABASE_URL"), CursorKey: keyBytes, BrowserOrigins: origins, AgentWSURL: os.Getenv("AGENT_WS_URL"), AutoDeployTraps: os.Getenv("AUTO_DEPLOY_TRAPS") == "true", EventPublisher: publisher, TrustedProxies: trustedProxies})
 	cancelStartup()
 	if err != nil {
 		return err
