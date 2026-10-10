@@ -257,8 +257,63 @@ docker compose ps
 ## 8. Ветка Git для продакшена
 
 Основная ветка репозитория — `main` (`origin/main`). Отдельная ветка
-`production` и автоматическое развёртывание в репозитории не настроены;
-для текущего развёртывания используйте проверенный коммит из `main`.
+`production` не используется. Workflow `.github/workflows/ci-cd.yml` проверяет
+PR в `main` и push в `main`: форматирование, зависимости, vet, сборку, unit и
+интеграционные тесты с race detector для обоих Go-модулей. PostgreSQL и Kafka
+поднимаются как временные сервисы CI; тесты стартуют после их healthcheck.
+
+После успешных проверок push в `main` запускает деплой API на Linux amd64.
+Запуски `main` выполняются последовательно; новый push не прерывает текущий
+деплой. PR не получает доступ к шагам деплоя.
+
+Перед первым деплоем в GitHub Settings → Secrets and variables → Actions
+задайте:
+
+| Настройка | Тип | Значение |
+|---|---|---|
+| `SSH_HOST` | Secret | Адрес сервера. |
+| `SSH_USER` | Secret | Пользователь для загрузки и установки релиза. |
+| `SSH_PRIVATE_KEY` | Secret | Закрытый SSH-ключ этого пользователя без passphrase. |
+| `SSH_FINGERPRINT` | Secret | SHA256 fingerprint SSH host key, полученный через доверенный доступ к серверу. |
+| `SSH_PORT` | Variable | Необязательный порт SSH; по умолчанию `22`. |
+| `API_BASE_URL` | Variable | Публичный HTTPS origin API, например `https://api.your-domain.ru`, без пути. |
+
+Fingerprint можно узнать на сервере командой
+`ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub -E sha256`; сохраните значение
+`SHA256:...` ключа, который использует SSH-сервер. Проверка host key обязательна
+для загрузки и выполнения команд. Если обязательная настройка отсутствует,
+деплой завершится до подключения к серверу.
+
+На сервере заранее подготовьте PostgreSQL, Kafka, TLS и nginx по разделу 6.
+Настроенный nginx устанавливается отдельно: workflow не заменяет домен и
+сертификаты шаблоном из Git. Пользователь `SSH_USER` должен иметь право записи
+в `/opt/honeyforge` и право без пароля выполнить
+`sudo -n systemctl restart honeyforge`. Создайте systemd unit `honeyforge.service`
+со следующими путями и окружением из раздела 4, сохранённым вне Git:
+
+```ini
+[Service]
+WorkingDirectory=/opt/honeyforge/src/backend
+ExecStart=/opt/honeyforge/src/backend/honey-forge-api
+EnvironmentFile=/etc/honey-forge/api.env
+Restart=on-failure
+```
+
+Пользователя сервиса, права на environment-файл и TLS-файлы задайте при настройке
+хоста. API должен слушать `127.0.0.1:8443`, сертификат иметь SAN `DNS:localhost`,
+а CA быть доступен пользователю SSH в `/etc/nginx/certs/backend-ca.crt`.
+
+Workflow загружает бинарник и миграции в уникальный каталог
+`/opt/honeyforge/incoming/<run_id>-<attempt>`, устанавливает миграции в
+`/opt/honeyforge/migrations` и атомарно заменяет исполняемый файл API перед
+перезапуском. Goose применяет миграции при старте приложения. Затем проверяется
+локальный `/healthz` с проверкой TLS и публичные ответы `401` для `/api/session`
+и `/assets/stream`, `404` для `/`. Публичная проверка выполняется с GitHub runner.
+Деплой не обновляет отдельные приложения агентов.
+
+При неуспешном запуске workflow сообщает ошибку; автоматического отката БД и
+бинарника нет. Диагностика на сервере: `journalctl -u honeyforge`. Каталоги
+`incoming` сохраняются после деплоя; удаляйте старые релизы при обслуживании хоста.
 
 ## Подключение feature
 

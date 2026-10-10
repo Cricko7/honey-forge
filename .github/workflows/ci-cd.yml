@@ -6,10 +6,19 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+# Serialize main runs so a deployment is never interrupted by the next push.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   # ── 1. Проверки и тесты ─────────────────────────────────
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:17
@@ -23,38 +32,86 @@ jobs:
       kafka:
         image: apache/kafka:4.1.2
         ports: ["29092:29092"]
+        env:
+          KAFKA_NODE_ID: 1
+          KAFKA_PROCESS_ROLES: broker,controller
+          KAFKA_LISTENERS: PLAINTEXT://:29092,CONTROLLER://:29093
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://127.0.0.1:29092
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+          KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:29093
+          CLUSTER_ID: 4L6g3nShT-eMCtK--X86sw
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+          KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+          KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+        options: >-
+          --health-cmd "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:29092 --list"
+          --health-interval 10s --health-timeout 10s --health-retries 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.26.1'
-          cache-dependency-path: src/backend/go.sum
+          go-version-file: src/backend/go.mod
+          cache-dependency-path: |
+            src/backend/go.sum
+            src/redis-trap/go.sum
       - name: gofmt
-        working-directory: src/backend
-        run: test -z "$(gofmt -l .)"
-      - name: go vet
-        working-directory: src/backend
-        run: go vet ./...
+        run: |
+          files=$(gofmt -l src/backend src/redis-trap)
+          if [ -n "$files" ]; then
+            printf '%s\n' "$files"
+            exit 1
+          fi
+      - name: Verify dependencies, vet and build both modules
+        run: |
+          for module in src/backend src/redis-trap; do
+            (cd "$module" && go mod verify && go vet ./... && go build ./...)
+          done
       - name: Unit tests
-        working-directory: src/backend
-        run: go test ./... -count=1
+        run: |
+          for module in src/backend src/redis-trap; do
+            (cd "$module" && go test ./... -count=1)
+          done
       - name: Integration + race
-        working-directory: src/backend
         env:
           TEST_DATABASE_URL: postgres://postgres:test@127.0.0.1:5432/honey_forge_test?sslmode=disable
           TEST_KAFKA_BROKERS: 127.0.0.1:29092
-        run: go test -race -tags=integration ./... -count=1
+        run: |
+          for module in src/backend src/redis-trap; do
+            (cd "$module" && go test -race -tags=integration ./... -count=1)
+          done
 
   # ── 2. Деплой на сервер ─────────────────────────────────
   deploy:
     needs: test
-    if: github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      API_BASE_URL: ${{ vars.API_BASE_URL }}
     steps:
+      - name: Check deployment configuration
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_FINGERPRINT: ${{ secrets.SSH_FINGERPRINT }}
+        run: |
+          for name in SSH_HOST SSH_USER SSH_PRIVATE_KEY SSH_FINGERPRINT API_BASE_URL; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing deployment setting: $name"
+              exit 1
+            fi
+          done
+          if [[ ! "$API_BASE_URL" =~ ^https://[a-zA-Z0-9.-]+(:[0-9]+)?/?$ ]]; then
+            echo "::error::API_BASE_URL must be an HTTPS origin without a path"
+            exit 1
+          fi
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.26.1'
+          go-version-file: src/backend/go.mod
           cache-dependency-path: src/backend/go.sum
 
       - name: Build static binary
@@ -65,29 +122,40 @@ jobs:
           GOARCH: amd64
         run: go build -trimpath -ldflags="-s -w" -o honey-forge-api ./cmd/api
 
-      - name: Upload binary, migrations and nginx config
+      - name: Upload binary and migrations to staging
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "src/backend/honey-forge-api,migrations/,deploy/nginx/honey-forge.conf"
-          target: "/opt/honeyforge/"
+          fingerprint: ${{ secrets.SSH_FINGERPRINT }}
+          port: ${{ vars.SSH_PORT || '22' }}
+          source: "src/backend/honey-forge-api,migrations/"
+          target: "/opt/honeyforge/incoming/${{ github.run_id }}-${{ github.run_attempt }}/"
           strip_components: 0
           overwrite: true
 
-      - name: Restart API
+      - name: Install release and restart API
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          fingerprint: ${{ secrets.SSH_FINGERPRINT }}
+          port: ${{ vars.SSH_PORT || '22' }}
           script: |
             set -e
-            sudo systemctl restart honeyforge
+            staging=/opt/honeyforge/incoming/${{ github.run_id }}-${{ github.run_attempt }}
+            test -s "$staging/src/backend/honey-forge-api"
+            test -d "$staging/migrations"
+            mkdir -p /opt/honeyforge/src/backend /opt/honeyforge/migrations
+            cp -R "$staging/migrations/." /opt/honeyforge/migrations/
+            install -m 0755 "$staging/src/backend/honey-forge-api" /opt/honeyforge/src/backend/honey-forge-api.new
+            mv -f /opt/honeyforge/src/backend/honey-forge-api.new /opt/honeyforge/src/backend/honey-forge-api
+            sudo -n systemctl restart honeyforge
             # ждём готовности healthz
             for i in $(seq 1 15); do
-              if curl --fail --silent \
+              if curl --fail --silent --show-error --connect-timeout 3 --max-time 5 \
                   --cacert /etc/nginx/certs/backend-ca.crt \
                   --resolve localhost:8443:127.0.0.1 \
                   https://localhost:8443/healthz | grep -q '"status":"ok"'; then
@@ -97,37 +165,17 @@ jobs:
               sleep 2
             done
             echo "API failed to become healthy"
-            journalctl -u honeyforge -n 100 --no-pager
             exit 1
 
-      - name: Update nginx config (if changed)
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            set -e
-            sudo install -m 0644 /opt/honeyforge/deploy/nginx/honey-forge.conf \
-                                /etc/nginx/conf.d/honey-forge.conf
-            sudo nginx -t
-            sudo systemctl reload nginx
-
       - name: External smoke test
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            set -e
-            # без cookie → 401
-            code=$(curl -s -o /dev/null -w "%{http_code}" https://api.example.org/api/session)
-            [ "$code" = "401" ] || (echo "expected 401, got $code"; exit 1)
-            # /assets/stream без токена агента → 401
-            code=$(curl -s -o /dev/null -w "%{http_code}" https://api.example.org/assets/stream)
-            [ "$code" = "401" ] || (echo "expected 401, got $code"; exit 1)
-            # / → 404
-            code=$(curl -s -o /dev/null -w "%{http_code}" https://api.example.org/)
-            [ "$code" = "404" ] || (echo "expected 404, got $code"; exit 1)
-            echo "Smoke test passed"
+        run: |
+          for check in '/api/session 401' '/assets/stream 401' '/ 404'; do
+            read -r path expected <<< "$check"
+            code=$(curl --silent --show-error --connect-timeout 5 --max-time 15 \
+              -o /dev/null -w '%{http_code}' "${API_BASE_URL%/}$path")
+            if [ "$code" != "$expected" ]; then
+              echo "::error::$path: expected $expected, got $code"
+              exit 1
+            fi
+          done
+          echo "Smoke test passed"
