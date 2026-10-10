@@ -15,7 +15,7 @@
 | 06 | [Команды](../src/backend/docs/api/06-commands.md) | Подключён к TrapBoundary: apply/start/stop, snapshots, expiry, lease/result и история |
 | 07 | [События](../src/backend/docs/api/07-events.md) | Kafka-журнал → атомарный PostgreSQL ingestion/ACK, REST/snapshot cursors, дедупликация, tombstone и структурированные auth/action для поддерживающих типов; [проверки и границы](07-acceptance.md) |
 | 08 | [WSS агента](../src/backend/docs/api/08-agent-ws.md) | Backend hello/heartbeat, dispatch/result, telemetry/ack подключён; отдельный агент/Redis-буфер вне backend |
-| 09 | [WSS фронтенда](../src/backend/docs/api/09-frontend-ws.md) | Есть общий транспорт и хранилища изменений; replay/live и доставка уведомлений ещё не подключены |
+| 09 | [WSS фронтенда](../src/backend/docs/api/09-frontend-ws.md) | `/api/stream`, replay/ready/live, безопасные DTO, session checks, backpressure; [проверки и границы](09-acceptance.md) |
 | 10 | [Аудит](../src/backend/docs/api/10-audit.md) | Запись audit выполняется в транзакциях 02/04/05/06; единое чтение AuditEntry и audit.created ещё не подключены |
 | 11 | [Сквозная приёмка](../src/backend/docs/api/11-happy-path.md) | Проверена связка session → catalog → profile; полные сценарии A–G требуют 05–10 и агента/frontend |
 

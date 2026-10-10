@@ -14,6 +14,7 @@ import (
 	"honey-forge/internal/contract"
 	"honey-forge/internal/platform/httpx"
 	"honey-forge/internal/postgres"
+	"honey-forge/internal/stream"
 	authhttp "honey-forge/modules/auth/http"
 )
 
@@ -130,13 +131,13 @@ func (h *Handler) list(c *gin.Context) {
 		q.AfterTime = &at
 		q.AfterID = after[1]
 	}
-	items, more, boundary, stream, readErr := h.service.List(c.Request.Context(), q)
+	items, more, boundary, streamSequence, readErr := h.service.List(c.Request.Context(), q)
 	if readErr != nil {
 		h.fail(c, readErr)
 		return
 	}
 	if streamCursor == "" {
-		streamCursor, readErr = h.cursors.Encode(contract.CursorScope{OrganizationID: p.OrganizationID, Collection: "frontend-stream"}, contract.CursorPosition{Boundary: strconv.FormatInt(stream, 10), After: strconv.FormatInt(stream, 10)})
+		streamCursor, readErr = stream.EncodeCursor(h.cursors, p.OrganizationID, streamSequence, time.Now())
 		if readErr != nil {
 			h.fail(c, readErr)
 			return

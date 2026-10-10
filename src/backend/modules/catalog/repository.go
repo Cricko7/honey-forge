@@ -64,6 +64,47 @@ func (r *Repository) Install(ctx context.Context, service *Service) (result erro
 			return fmt.Errorf("published catalog version %s/%d is immutable; publish a new version", id, version)
 		}
 	}
+	// Publication is durable and ordered with each organization's other changes.
+	// A restart with an identical catalog produces no duplicate invalidation.
+	var previous string
+	err = tx.QueryRow(ctx, `SELECT etag FROM frontend_catalog_state WHERE singleton`).Scan(&previous)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("read catalog stream state: %w", err)
+	}
+	if previous != service.etag {
+		if _, err := tx.Exec(ctx, `INSERT INTO frontend_catalog_state(singleton,etag) VALUES(true,$1) ON CONFLICT(singleton) DO UPDATE SET etag=EXCLUDED.etag`, service.etag); err != nil {
+			return fmt.Errorf("update catalog stream state: %w", err)
+		}
+		rows, err := tx.Query(ctx, `SELECT id::text FROM organizations ORDER BY id`)
+		if err != nil {
+			return fmt.Errorf("list catalog recipients: %w", err)
+		}
+		var organizations []string
+		for rows.Next() {
+			var org string
+			if err := rows.Scan(&org); err != nil {
+				rows.Close()
+				return fmt.Errorf("scan catalog recipient: %w", err)
+			}
+			organizations = append(organizations, org)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf("iterate catalog recipients: %w", err)
+		}
+		for _, org := range organizations {
+			if _, err := tx.Exec(ctx, `INSERT INTO organization_changes(organization_id) VALUES($1) ON CONFLICT DO NOTHING`, org); err != nil {
+				return fmt.Errorf("initialize catalog journal: %w", err)
+			}
+			var seq int64
+			if err := tx.QueryRow(ctx, `UPDATE organization_changes SET sequence=sequence+1 WHERE organization_id=$1 RETURNING sequence`, org).Scan(&seq); err != nil {
+				return fmt.Errorf("advance catalog journal: %w", err)
+			}
+			if _, err := tx.Exec(ctx, `INSERT INTO mutation_changes(organization_id,sequence,type,resource_id,metadata,data,created_at) VALUES($1,$2,'catalog.changed',$1,'{}',jsonb_build_object('etag',$3::text),clock_timestamp())`, org, seq, service.etag); err != nil {
+				return fmt.Errorf("publish catalog change: %w", err)
+			}
+		}
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit catalog installation: %w", err)
 	}

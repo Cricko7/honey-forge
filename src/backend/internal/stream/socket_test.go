@@ -3,6 +3,7 @@ package stream
 import (
 	"crypto/tls"
 	"errors"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -39,8 +40,8 @@ func TestTransport(t *testing.T) {
 			})
 			server := httptest.NewTLSServer(r)
 			defer server.Close()
-			dialer := websocket.Dialer{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, EnableCompression: true}
-			client, response, err := dialer.Dial("wss"+strings.TrimPrefix(server.URL, "https")+"/api/stream", nil)
+			dialer := websocket.Dialer{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, EnableCompression: true, Subprotocols: []string{"dashboard-stream.v1"}}
+			client, response, err := dialer.Dial("wss"+strings.TrimPrefix(server.URL, "https")+"/api/stream", http.Header{"Origin": []string{server.URL}})
 			if err != nil {
 				t.Fatal(err)
 			}

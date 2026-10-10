@@ -239,7 +239,7 @@ profiles, ловушки, команды и приём событий. Сост�
 агента реализован в `cmd/agent`: [запуск TCP-ловушки](src/backend/internal/agent/README.md).
 Отдельное приложение [Redis Medium](src/redis-trap/README.md)
 использует тот же контракт управления и доставки телеметрии.
-Frontend WSS остаётся отдельным компонентом.
+Frontend WSS `/api/stream` подключён: [replay/live, безопасные DTO и reconnect](src/backend/modules/frontendws/README.md).
 
 ## 7. Докеризация
 

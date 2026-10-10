@@ -204,10 +204,16 @@ func catalogProfileRequest(t *testing.T, runtime *Runtime, session operatorSessi
 
 	listed := sendOperator(t, runtime, "GET", "/api/trap-types", "", session, 200)
 	page := decodeIntegration[contract.Page[catalog.CatalogEntry]](t, listed)
-	if len(page.Items) != 1 || page.Items[0].TypeID != "tcp-banner" {
-		t.Fatalf("unexpected built-in catalog: %s", listed.Body.String())
+	var entry catalog.CatalogEntry
+	for _, candidate := range page.Items {
+		if candidate.TypeID == "tcp-banner" && candidate.TypeVersion == 1 {
+			entry = candidate
+			break
+		}
 	}
-	entry := page.Items[0]
+	if entry.TypeID == "" {
+		t.Fatal("tcp-banner/1 missing from built-in catalog")
+	}
 	path := fmt.Sprintf("/api/trap-types/%s/versions/%d", entry.TypeID, entry.TypeVersion)
 	detail := sendOperator(t, runtime, "GET", path, "", session, 200)
 	typ := decodeIntegration[catalog.CatalogEntry](t, detail)

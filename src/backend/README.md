@@ -140,5 +140,6 @@ go test -tags=integration ./internal/app -run '^TestReal' -count=1
 репозитория, а `go test -race -tags=integration ./... -count=1` дополнительно
 проверяет конкурентный код детектором гонок.
 
-Журналы auth_changes/profile_changes транзакционны; их доставка по WSS,
-агентский TCP runtime и frontend replay/live пока требуют отдельных компонентов.
+Frontend replay/live подключён к транзакционному журналу: [модуль 09](modules/frontendws/README.md).
+Агентский TCP runtime находится в `cmd/agent`; UI и полный модуль аудита остаются
+отдельными компонентами.

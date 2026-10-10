@@ -462,6 +462,110 @@ components:
         X-Request-ID:
           $ref: "#/components/headers/RequestID"
   schemas:
+    StreamSubscribe:
+      type: object
+      additionalProperties: false
+      required: [after]
+      properties:
+        after:
+          oneOf:
+          - $ref: "#/components/schemas/Cursor"
+          - type: "null"
+      description: First stream.subscribe payload within five seconds. Null starts live; an organization-scoped REST/WS cursor resumes replay. No organization_id or subscription changes.
+    StreamReady:
+      type: object
+      additionalProperties: false
+      required: [cursor, server_time, replayed]
+      properties:
+        cursor:
+          $ref: "#/components/schemas/Cursor"
+        server_time:
+          $ref: "#/components/schemas/Timestamp"
+        replayed:
+          type: boolean
+      description: Correlated stream.ready after replay through a fixed boundary, before live delivery.
+    StreamChange:
+      type: object
+      additionalProperties: false
+      required: [cursor, occurred_at, data]
+      properties:
+        cursor:
+          $ref: "#/components/schemas/Cursor"
+        occurred_at:
+          $ref: "#/components/schemas/Timestamp"
+        data:
+          type: object
+      description: occurred_at is server change time. Cursor advances in durable commit order; preserve after applying locally, including unknown notification types.
+    StreamEventCreated:
+      type: object
+      additionalProperties: false
+      required: [event]
+      properties:
+        event:
+          $ref: "#/components/schemas/EventSummary"
+    StreamTrapChanged:
+      type: object
+      additionalProperties: false
+      required: [trap]
+      properties:
+        trap:
+          $ref: "#/components/schemas/Trap"
+    StreamTrapDeleted:
+      type: object
+      additionalProperties: false
+      required: [trap_id]
+      properties:
+        trap_id:
+          $ref: "#/components/schemas/ID"
+    StreamCommandChanged:
+      type: object
+      additionalProperties: false
+      required: [trap_id, command]
+      properties:
+        trap_id:
+          $ref: "#/components/schemas/ID"
+        command:
+          $ref: "#/components/schemas/Command"
+    StreamProfileChanged:
+      type: object
+      additionalProperties: false
+      required: [profile_id, revision]
+      properties:
+        profile_id:
+          $ref: "#/components/schemas/ID"
+        revision:
+          $ref: "#/components/schemas/Revision"
+    StreamProfileDeleted:
+      type: object
+      additionalProperties: false
+      required: [profile_id]
+      properties:
+        profile_id:
+          $ref: "#/components/schemas/ID"
+    StreamCatalogChanged:
+      type: object
+      additionalProperties: false
+      required: [etag]
+      properties:
+        etag:
+          type: string
+    StreamAuditCreated:
+      type: object
+      additionalProperties: false
+      required: [audit_id]
+      properties:
+        audit_id:
+          $ref: "#/components/schemas/ID"
+    StreamError:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          $ref: "#/components/schemas/Error"
+        retry_after_seconds:
+          type: integer
+          minimum: 1
     Command:
       additionalProperties: false
       properties:
@@ -1487,6 +1591,42 @@ info:
   version: 0.1.0
 openapi: 3.1.0
 paths:
+  /api/stream:
+    get:
+      operationId: subscribeFrontendStream
+      summary: Upgrade the current organization's dashboard notification stream
+      description: Exact configured HTTPS Origin, __Host-session and dashboard-stream.v1 are mandatory. Commands use REST with CSRF. Text JSON only, no compression, 256 KiB maximum. First stream.subscribe within 5 seconds; replay then correlated ready then live. Replay retention 24 hours. No changes to subscription; reconnect with a new after. Session/role checked before every delivery and every server ping.
+      security:
+      - OperatorSession: []
+      parameters:
+      - in: header
+        name: Origin
+        required: true
+        schema:
+          type: string
+          format: uri
+      - in: header
+        name: Sec-WebSocket-Protocol
+        required: true
+        schema:
+          type: string
+          const: dashboard-stream.v1
+      responses:
+        "101":
+          description: WebSocket established using dashboard-stream.v1
+          headers:
+            Sec-WebSocket-Protocol:
+              schema:
+                type: string
+                const: dashboard-stream.v1
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/Unavailable"
   /api/traps:
     get:
       operationId: listTraps
@@ -2447,6 +2587,54 @@ x-websockets:
   compression: false
   frontend:
     path: /api/stream
+    subprotocol: dashboard-stream.v1
+    origin_required: true
+    subscribe_timeout_seconds: 5
+    replay_retention_seconds: 86400
+    pending_notifications: 1000
+    pending_bytes: 4194304
+    ping_interval_seconds: 15
+    pong_timeout_seconds: 10
+    envelope:
+      $ref: "#/components/schemas/Envelope"
+    messages:
+      stream.subscribe:
+        $ref: "#/components/schemas/StreamSubscribe"
+      stream.ready:
+        $ref: "#/components/schemas/StreamReady"
+      error:
+        $ref: "#/components/schemas/StreamError"
+    notification_payload:
+      $ref: "#/components/schemas/StreamChange"
+    notification_data:
+      event.created:
+        $ref: "#/components/schemas/StreamEventCreated"
+      trap.changed:
+        $ref: "#/components/schemas/StreamTrapChanged"
+      trap.deleted:
+        $ref: "#/components/schemas/StreamTrapDeleted"
+      command.changed:
+        $ref: "#/components/schemas/StreamCommandChanged"
+      profile.changed:
+        $ref: "#/components/schemas/StreamProfileChanged"
+      profile.deleted:
+        $ref: "#/components/schemas/StreamProfileDeleted"
+      catalog.changed:
+        $ref: "#/components/schemas/StreamCatalogChanged"
+      audit.created:
+        $ref: "#/components/schemas/StreamAuditCreated"
+    close_codes:
+      "1000": normal
+      "1003": unsupported_data
+      "1009": message_too_large
+      "1011": internal_error
+      "1013": service_unavailable
+      "4400": invalid_subscribe
+      "4401": unauthenticated
+      "4403": forbidden
+      "4408": timeout
+      "4410": slow_consumer
+    client_rules: Apply Trap only when state_version increases; deletion creates a tombstone. Deduplicate Event by event_id and Command by id/status. Fetch captured auth/action event data through REST. Resynchronize REST on cursor_expired; check session/login on 4401. Preserve unknown-type cursors. Delivery does not acknowledge browser application.
     roles:
     - admin
     - viewer

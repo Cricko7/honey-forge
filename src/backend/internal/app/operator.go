@@ -48,7 +48,7 @@ func operatorMiddleware(browser *contract.BrowserPolicy, logger *slog.Logger) gi
 	return func(c *gin.Context) {
 		c.Set("request_id", c.Writer.Header().Get("X-Request-ID"))
 		c.Header("X-Content-Type-Options", "nosniff")
-		if c.Request.URL.Path == stream.AgentPath {
+		if c.Request.URL.Path == stream.AgentPath || c.Request.URL.Path == stream.FrontendPath {
 			c.Next()
 			return
 		}

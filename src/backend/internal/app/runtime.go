@@ -21,6 +21,7 @@ import (
 	commandrepo "honey-forge/modules/commands/repository"
 	commandservice "honey-forge/modules/commands/service"
 	"honey-forge/modules/events"
+	"honey-forge/modules/frontendws"
 	"honey-forge/modules/profiles"
 	profilerepo "honey-forge/modules/profiles/repository"
 	profileservice "honey-forge/modules/profiles/service"
@@ -53,6 +54,7 @@ type Runtime struct {
 	pool      *pgxpool.Pool
 	Traps     *traps.Service
 	Agents    *traps.Gateway
+	Frontend  *frontendws.Handler
 	stop      context.CancelFunc
 	done      chan struct{}
 }
@@ -139,6 +141,8 @@ func Open(ctx context.Context, config Config) (*Runtime, error) {
 	commandhttp.NewHandler(commandservice.New(commandRepository, CommandActionCheck(catalogService)), cursors, logger).RegisterRoutes(router, session)
 	agentHandler.Register(router)
 	background, stop := context.WithCancel(context.WithoutCancel(ctx))
+	frontend := frontendws.NewHandler(frontendws.NewRepository(pool), authService, cursors, browser, logger, background)
+	frontend.Register(router)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -160,6 +164,6 @@ func Open(ctx context.Context, config Config) (*Runtime, error) {
 			}
 		}
 	}()
-	return &Runtime{Router: router, Mutations: mutation.NewStore(pool), Schemas: configschema.NewSchemaStore(pool), Cursors: cursors, Browser: browser, Catalog: catalogService, pool: pool, Traps: trapService, Agents: agents, stop: stop, done: done}, nil
+	return &Runtime{Router: router, Mutations: mutation.NewStore(pool), Schemas: configschema.NewSchemaStore(pool), Cursors: cursors, Browser: browser, Catalog: catalogService, pool: pool, Traps: trapService, Agents: agents, Frontend: frontend, stop: stop, done: done}, nil
 }
-func (r *Runtime) Close() { r.stop(); <-r.done; r.pool.Close() }
+func (r *Runtime) Close() { r.stop(); r.Frontend.Wait(); <-r.done; r.pool.Close() }

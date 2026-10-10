@@ -29,7 +29,8 @@
 в `config.services[].name`. tcp-banner/1 сохраняет исходную immutable-схему.
 
 Границы: агент с локальным журналом и Low/Medium ловушками реализован;
-frontend WSS replay/live и отображение данных относятся к модулю 09.
+frontend WSS replay/live реализован [модулем 09](09-acceptance.md), отображение
+данных требует отдельного frontend.
 Сквозная проверка Medium с реальным backend/БД не выполнялась.
 
 ## Аудит 2026-10-10
@@ -43,7 +44,7 @@ frontend WSS replay/live и отображение данных относятс
 | Kafka publisher | Реализован; реальные broker protocol/key/record требуют отдельного стенда |
 | Самостоятельное восстановление PostgreSQL из Kafka | Consumer отсутствует; восстановление требует retry того же batch агентом |
 | Сохранение событий агентом до продолжения взаимодействия, local buffer, quarantine, producer truncation | Агент сохраняет события в файловом журнале до локального ACK; полный стенд для Medium не запускался |
-| Доставка frontend event.created, replay/live по stream_cursor | Есть транзакционный журнал, frontend WSS отсутствует |
+| Доставка frontend event.created, replay/live по stream_cursor | Реализована модулем 09; проверена с PostgreSQL и WSS |
 | Отображение details с безопасным текстовым выводом | Frontend отсутствует |
 
 Исправлены воспроизведённые тестами ошибки: отказ PostgreSQL на допустимом NUL,
