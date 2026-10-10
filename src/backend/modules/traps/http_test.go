@@ -132,3 +132,17 @@ func TestCredentialsLifecycle(t *testing.T) {
 		t.Fatal("no-op bumped generation")
 	}
 }
+
+func TestManagedCredentialsCannotBeReplacedByOperator(t *testing.T) {
+	f := &fakeStore{record: Record{OrganizationID: testOrg, AutoDeploy: true, Trap: Trap{ID: testID, Revision: 1, StateVersion: 1, Connectivity: "offline"}}}
+	ctx := contract.WithPrincipal(t.Context(), contract.Principal{UserID: contract.NewID(), OrganizationID: contract.ID(testOrg), Role: contract.Admin})
+	s := NewService(f, nil, "wss://center.example/assets/stream", nil)
+	_, err := s.IssueCredentials(ctx, testID, 0)
+	requireCode(t, err, "agent_credentials_managed")
+	issued, err := s.IssueManagedCredentials(ctx, testID, 0)
+	requireCode(t, err, "")
+	if issued.Generation != 1 {
+		t.Fatalf("generation=%d", issued.Generation)
+	}
+	requireCode(t, s.RevokeCredentials(ctx, testID, CredentialsETag(testID, 1)), "agent_credentials_managed")
+}

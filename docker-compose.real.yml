@@ -66,6 +66,7 @@ services:
       KAFKA_BROKERS: kafka:19092
       AGENT_WS_URL: wss://localhost:8443/assets/stream
       AGENT_REDIS_URL: redis://redis:6379/0
+      AUTO_DEPLOY_TRAPS: "true"
       TLS_CERT_FILE: /certs/localhost.crt
       TLS_KEY_FILE: /certs/localhost.key
       API_ADDR: ":8443"
@@ -93,6 +94,74 @@ services:
       - ./certs:/etc/nginx/certs:ro
     depends_on:
       - api
+    restart: unless-stopped
+
+  # Необязательный ручной агент для ловушек, созданных без AUTO_DEPLOY_TRAPS.
+  # Для автоматически управляемых ловушек используется orchestrator ниже.
+  agent:
+    profiles: ["agent"]
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    environment:
+      AGENT_WS_URL: wss://api:8443/assets/stream
+      AGENT_TRAP_ID: ${AGENT_TRAP_ID:-}
+      AGENT_TOKEN: ${AGENT_TOKEN:-}
+      AGENT_REDIS_URL: redis://redis:6379/1
+      AGENT_CA_FILE: /certs/localhost.crt
+    volumes:
+      - ./certs:/certs:ro
+    ports:
+      - "2222:2222"
+    depends_on:
+      - api
+      - redis
+    restart: unless-stopped
+
+  decoy-tcp-image:
+    build:
+      context: .
+      dockerfile: deploy/decoys/Dockerfile
+      target: tcp
+    image: ${DECOY_TCP_IMAGE:-honeyforge/tcp-decoy:local}
+    entrypoint: ["/bin/true"]
+    restart: "no"
+
+  decoy-redis-image:
+    build:
+      context: .
+      dockerfile: deploy/decoys/Dockerfile
+      target: redis
+    image: ${DECOY_REDIS_IMAGE:-honeyforge/redis-decoy:local}
+    entrypoint: ["/bin/true"]
+    restart: "no"
+
+  orchestrator:
+    build:
+      context: .
+      dockerfile: deploy/decoys/Dockerfile.orchestrator
+    environment:
+      DATABASE_URL: postgres://honey_forge:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/honey_forge?sslmode=disable
+      AGENT_WS_URL: wss://api:8443/assets/stream
+      AGENT_REDIS_URL: redis://redis:6379/0
+      AGENT_CA_FILE: /certs/localhost.crt
+      DECOY_NETWORK: ${DECOY_NETWORK:-hf-decoys}
+      DECOY_TCP_IMAGE: ${DECOY_TCP_IMAGE:-honeyforge/tcp-decoy:local}
+      DECOY_REDIS_IMAGE: ${DECOY_REDIS_IMAGE:-honeyforge/redis-decoy:local}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./certs:/certs:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_started
+      redis:
+        condition: service_healthy
+      decoy-tcp-image:
+        condition: service_completed_successfully
+      decoy-redis-image:
+        condition: service_completed_successfully
     restart: unless-stopped
 
 volumes:

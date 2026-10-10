@@ -8,7 +8,7 @@ COPY src/backend/go.mod src/backend/go.sum ./
 RUN go mod download
 COPY src/backend ./
 # Статический бинарник (pgx/franz-go — чистый Go, CGO не нужен)
-RUN CGO_ENABLED=0 go build -trimpath -o /out/honey-forge-api ./cmd/api
+RUN CGO_ENABLED=0 go build -p 1 -trimpath -o /out/honey-forge-api ./cmd/api
 
 # ------- stage 2: рантайм -------
 FROM alpine:3.20

@@ -9,10 +9,12 @@ import (
 )
 
 type CreateRequest struct {
-	RequestID   string `json:"request_id" validate:"required,uuid"`
-	Name        string `json:"name" validate:"required,name"`
-	Description string `json:"description" validate:"max=1000"`
-	ProfileID   string `json:"profile_id" validate:"required,uuid"`
+	RequestID         string `json:"request_id" validate:"required,uuid"`
+	Name              string `json:"name" validate:"required,name"`
+	Description       string `json:"description" validate:"max=1000"`
+	ProfileID         string `json:"profile_id" validate:"required,uuid"`
+	AutoDeploy        bool   `json:"-"`
+	AutoDeployActorID string `json:"-"`
 }
 type PatchRequest struct {
 	Name        *string `json:"name" validate:"omitempty,name"`
@@ -70,6 +72,7 @@ type CredentialsStatus struct {
 type Record struct {
 	Trap
 	OrganizationID       string
+	AutoDeploy           bool
 	Generation           int64
 	TokenHash            []byte
 	IssuedAt             *time.Time

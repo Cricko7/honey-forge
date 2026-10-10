@@ -36,6 +36,7 @@ func (p *Process) Start(ctx context.Context, snapshot profiles.Snapshot) error {
 	}
 	cmd := exec.Command(p.Executable, "--worker")
 	hideWindow(cmd)
+	isolateChild(cmd)
 	for _, entry := range os.Environ() {
 		key, _, _ := strings.Cut(entry, "=")
 		if strings.HasPrefix(strings.ToUpper(key), "AGENT_") || strings.HasPrefix(strings.ToUpper(key), "TRAP_") {

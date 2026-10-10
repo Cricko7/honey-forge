@@ -28,6 +28,7 @@ var errorsByCode = map[string]struct {
 	"cursor_expired":            {400, "Stream cursor has expired"},
 	"trap_type_unavailable":     {409, "Trap type is unavailable for new traps"},
 	"agent_credentials_changed": {409, "Agent credentials have changed"},
+	"agent_credentials_managed": {409, "Agent credentials are managed by the deployment orchestrator"},
 	"command_in_progress":       {409, "Another command is in progress"},
 	"trap_offline":              {409, "Trap must be online before deletion"},
 	"trap_not_stopped":          {409, "Trap must be stopped before deletion"},

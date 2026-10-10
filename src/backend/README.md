@@ -141,5 +141,5 @@ go test -tags=integration ./internal/app -run '^TestReal' -count=1
 проверяет конкурентный код детектором гонок.
 
 Frontend replay/live подключён к транзакционному журналу: [модуль 09](modules/frontendws/README.md).
-Агентский TCP runtime находится в `cmd/agent`; UI и полный модуль аудита остаются
-отдельными компонентами.
+Оба runtime находятся в `internal/decoys`; `cmd/agent` запускает нужный тип по
+snapshot, а `cmd/orchestrator` разворачивает отдельные Swarm-контейнеры.

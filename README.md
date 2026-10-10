@@ -18,8 +18,8 @@ cookie-сессию; профили проверяются его точной �
 
 ## 1. Стек и зависимости
 
-- Go 1.26.1; модули API и отдельной Medium-ловушки находятся в `src/backend`
-  и `src/redis-trap`. Версии библиотек закреплены в их `go.mod` и `go.sum`.
+- Go 1.26.1; API, агент, оркестратор и обе приманки находятся в одном модуле
+  `src/backend`. Приманки собраны в `src/backend/internal/decoys`.
 - Gin — HTTP API, `pgx/v5` — доступ к PostgreSQL 17, Goose — SQL-миграции.
 - `validator/v10` и JSON Schema Draft 2020-12 — проверка входных данных и
   конфигураций; `gorilla/websocket` — WSS, `franz-go` — Kafka.
@@ -49,14 +49,6 @@ go build -o honey-forge-api.exe ./cmd/api
 ```powershell
 go fmt ./...
 go vet ./...
-go test ./...
-go build ./...
-```
-
-Отдельное приложение Medium собирается и проверяется из `src/redis-trap`:
-
-```powershell
-Set-Location ../redis-trap
 go test ./...
 go build ./...
 ```
@@ -241,9 +233,11 @@ Go-модуль и единственный API entrypoint находятся в
 контракт — в `api/openapi.yaml`. API подключает auth/organizations, catalog,
 profiles, ловушки, команды и приём событий. Состояние ловушек описано в
 [модуле traps](src/backend/modules/traps/README.md). Отдельный TCP runtime
-агента реализован в `cmd/agent`: [запуск TCP-ловушки](src/backend/internal/agent/README.md).
-Отдельное приложение [Redis Medium](src/redis-trap/README.md)
-использует тот же контракт управления и доставки телеметрии.
+агента реализован в `cmd/agent`: [запуск ловушек](src/backend/internal/agent/README.md).
+[Redis Medium](src/backend/internal/decoys/redistrap/README.md) использует тот же
+контракт управления и доставки телеметрии. [Оркестратор Docker Swarm](deploy/decoys/README.md)
+разворачивает изолированный контейнер после создания через API и сам отправляет
+команды применения конфигурации и запуска.
 Frontend WSS `/api/stream` подключён: [replay/live, безопасные DTO и reconnect](src/backend/modules/frontendws/README.md).
 
 ## 7. Докеризация

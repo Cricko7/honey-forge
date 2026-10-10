@@ -30,10 +30,10 @@
 значение скрыто, а агент получает полный snapshot. Затем создайте Trap, выдайте
 реквизиты и отправьте команды
 `apply_config` с `{"profile_revision":1}` и `start` с `{}` по шагам в
-[руководстве агента](../backend/internal/agent/README.md). `stop` тоже принимает `{}`.
+[руководстве агента](../../agent/README.md). `stop` тоже принимает `{}`.
 
-Соберите отдельное приложение из `src/redis-trap` командой
-`go build -o redis-trap.exe .` (Linux: `go build -o redis-trap .`). Запускайте
+Соберите единый агент из `src/backend` командой
+`go build -o edge-worker.exe ./cmd/agent` (Linux: `go build -o edge-worker ./cmd/agent`). Запускайте
 его с теми же `AGENT_WS_URL`, `AGENT_TRAP_ID`, `AGENT_TOKEN`,
 `AGENT_REDIS_URL` и, при собственном CA, `AGENT_CA_FILE`, что и TCP-агент.
 Для этой ловушки нужен собственный Trap ID и токен; Redis хранит её журнал
@@ -58,6 +58,6 @@ source IP/port, destination port, время, session_id/sequence, введён�
 RESP3 и реальные команды Redis, файловая система и сеть за пределами
 слушающего порта не эмулируются.
 
-Локальные тесты без внешнего Redis: из `src/redis-trap` выполните
-`go test ./...`. Они проверяют последовательность команд, ответы и созданные
+Локальные тесты без внешнего Redis: из `src/backend` выполните
+`go test ./internal/decoys/redistrap`. Они проверяют последовательность команд, ответы и созданные
 события через локальное подключение к эмулятору.

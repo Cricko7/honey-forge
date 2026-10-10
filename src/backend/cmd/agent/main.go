@@ -8,9 +8,11 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"honey-forge/internal/agent"
+	"honey-forge/internal/decoys"
 )
 
 func main() {
@@ -42,8 +44,31 @@ func run() error {
 		}
 		config.RootCAs = roots
 	}
-	if os.Getenv("AGENT_REDIS_URL") == "" {
+	token, err := secret("AGENT_TOKEN", os.Getenv("AGENT_TOKEN_FILE"))
+	if err != nil {
+		return err
+	}
+	redisURL, err := secret("AGENT_REDIS_URL", os.Getenv("AGENT_REDIS_URL_FILE"))
+	if err != nil {
+		return err
+	}
+	if redisURL == "" {
 		return fmt.Errorf("AGENT_REDIS_URL is required")
 	}
-	return agent.Run(ctx, agent.Options{URL: os.Getenv("AGENT_WS_URL"), Token: os.Getenv("AGENT_TOKEN"), TrapID: os.Getenv("AGENT_TRAP_ID"), RedisURL: os.Getenv("AGENT_REDIS_URL"), TLS: config})
+	supported, err := decoys.ForType(os.Getenv("DECOY_TYPE"))
+	if err != nil {
+		return err
+	}
+	return agent.Run(ctx, agent.Options{URL: os.Getenv("AGENT_WS_URL"), Token: token, TrapID: os.Getenv("AGENT_TRAP_ID"), RedisURL: redisURL, TLS: config, SupportedTypes: supported})
+}
+
+func secret(name, file string) (string, error) {
+	if file == "" {
+		return os.Getenv(name), nil
+	}
+	raw, err := os.ReadFile(file)
+	if err != nil {
+		return "", fmt.Errorf("read %s file: %w", name, err)
+	}
+	return strings.TrimSuffix(string(raw), "\n"), nil
 }
