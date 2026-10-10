@@ -1,0 +1,17 @@
+[Unit]
+Description=HoneyForge API
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=honeyforge
+Group=honeyforge
+WorkingDirectory=/opt/honeyforge/src/backend
+EnvironmentFile=/etc/honeyforge/env
+ExecStart=/opt/honeyforge/src/backend/honey-forge-api
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

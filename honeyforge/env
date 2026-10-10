@@ -1,0 +1,10 @@
+POSTGRES_PASSWORD=<один раз, хранится>
+CURSOR_KEY=<один раз, хранится>
+DATABASE_URL=postgres://honey_forge:...@127.0.0.1:5432/honey_forge?sslmode=disable
+API_ADDR=127.0.0.1:8443
+TLS_CERT_FILE=/etc/honey-forge/tls/backend.crt
+TLS_KEY_FILE=/etc/honey-forge/tls/backend.key
+AGENT_WS_URL=wss://api.example.org/assets/stream
+BROWSER_ORIGINS=https://app.example.org
+KAFKA_BROKERS=127.0.0.1:29092
+GIN_MODE=release
