@@ -1,0 +1,118 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* ---- Светлая тема (по умолчанию): SPI Silver · Purple · Ivory + графит ---- */
+  :root,
+  [data-theme='light'] {
+    color-scheme: light;
+    --bg-base: 245 240 230; /* Ivory #F5F0E6 */
+    --bg-panel: 255 255 255;
+    --bg-elevated: 240 236 225;
+    --bg-hover: 232 227 213;
+    --line: 214 209 194;
+    --fg: 38 42 54; /* графитовый текст */
+    --muted: 110 112 126;
+    --brand: 112 69 160; /* Purple #7045A0 */
+    --brand-soft: 138 96 190;
+    --brand-deep: 88 52 128;
+    --ok: 22 163 110;
+    --warn: 202 138 4;
+    --danger: 225 45 76;
+    --info: 14 144 210;
+    /* графитовая боковая панель / топбар */
+    --graphite: 30 33 45; /* #1E212D */
+    --graphite-soft: 42 46 60;
+    --graphite-line: 58 62 78;
+    --graphite-fg: 232 232 240;
+    --graphite-muted: 150 154 172;
+    --shadow-glass: 0 8px 28px rgba(30, 33, 45, 0.1);
+    /* фоновые блики страницы */
+    --page-glow-1: rgba(112, 69, 160, 0.1);
+    --page-glow-2: rgba(191, 197, 206, 0.35);
+  }
+
+  /* ---- Тёмная тема ---- */
+  [data-theme='dark'] {
+    color-scheme: dark;
+    --bg-base: 10 10 15;
+    --bg-panel: 19 19 28;
+    --bg-elevated: 26 26 38;
+    --bg-hover: 34 34 50;
+    --line: 42 42 58;
+    --fg: 226 232 240;
+    --muted: 138 138 160;
+    --brand: 124 92 255;
+    --brand-soft: 157 133 255;
+    --brand-deep: 91 63 214;
+    --ok: 52 211 153;
+    --warn: 251 191 36;
+    --danger: 244 63 94;
+    --info: 56 189 248;
+    --graphite: 19 19 28;
+    --graphite-soft: 26 26 38;
+    --graphite-line: 42 42 58;
+    --graphite-fg: 226 232 240;
+    --graphite-muted: 138 138 160;
+    --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.45);
+    --page-glow-1: rgba(124, 92, 255, 0.14);
+    --page-glow-2: rgba(56, 189, 248, 0.08);
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-bg-base text-fg font-sans antialiased;
+    background-image:
+      radial-gradient(circle at 15% -10%, var(--page-glow-1), transparent 45%),
+      radial-gradient(circle at 90% 0%, var(--page-glow-2), transparent 42%);
+    background-attachment: fixed;
+    transition: background-color 0.4s ease, color 0.4s ease;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--line)) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: rgb(var(--line));
+    border-radius: 999px;
+  }
+}
+
+@layer components {
+  .glass {
+    @apply bg-bg-panel/70 border border-line/60 backdrop-blur-xl;
+  }
+  .card {
+    @apply glass rounded-2xl shadow-glass;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-brand hover:bg-brand-deep text-white shadow-glow;
+  }
+  .btn-ghost {
+    @apply btn bg-bg-elevated hover:bg-bg-hover text-fg border border-line;
+  }
+  .btn-danger {
+    @apply btn bg-danger/90 hover:bg-danger text-white;
+  }
+  .input {
+    @apply w-full rounded-xl bg-bg-elevated border border-line px-3 py-2 text-sm text-fg placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand/60;
+  }
+  .label {
+    @apply block text-xs font-medium text-muted mb-1.5;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+}
