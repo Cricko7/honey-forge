@@ -38,3 +38,12 @@ go.work.sum
 # Local TLS certs and node deps (added for frontend + local stack)
 certs/
 node_modules/
+
+# Build artifacts
+src/backend/honey-forge-api
+src/backend/honey-forge-api.*
+src/backend/*.tar.gz
+src/redis-trap/redis-trap
+
+# Deploy artifacts
+incoming/
