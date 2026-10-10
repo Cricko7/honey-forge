@@ -86,3 +86,106 @@ jobs:
             (cd "$module" && go test -race -tags=integration ./... -count=1)
             echo "::endgroup::"
           done
+
+  deploy:
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.1'
+          cache-dependency-path: src/backend/go.sum
+
+      - name: Build Linux amd64 binary
+        working-directory: src/backend
+        env:
+          CGO_ENABLED: "0"
+          GOOS: linux
+          GOARCH: amd64
+        run: go build -trimpath -ldflags="-s -w" -buildvcs=false -o honey-forge-api ./cmd/api
+
+      - name: Upload binary, migrations and deploy configs
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ vars.SSH_PORT || 22 }}
+          source: "src/backend/honey-forge-api,migrations/,deploy/"
+          target: "/opt/honeyforge/incoming/${{ github.run_id }}-${{ github.run_attempt }}/"
+          strip_components: 0
+          overwrite: true
+
+      - name: Install and restart
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ vars.SSH_PORT || 22 }}
+          script: |
+            set -e
+
+            INCOMING="/opt/honeyforge/incoming/${{ github.run_id }}-${{ github.run_attempt }}"
+
+            # Бэкап старого бинарника для отката
+            cp /opt/honeyforge/src/backend/honey-forge-api \
+               /opt/honeyforge/src/backend/honey-forge-api.prev 2>/dev/null || true
+
+            # Обновить миграции (honeyforge владеет /opt/honeyforge — sudo не нужен)
+            mkdir -p /opt/honeyforge/migrations
+            cp -r "$INCOMING/migrations/." /opt/honeyforge/migrations/
+
+            # Атомарно заменить бинарник
+            install -m 0755 "$INCOMING/src/backend/honey-forge-api" \
+              /opt/honeyforge/src/backend/honey-forge-api.new
+            mv /opt/honeyforge/src/backend/honey-forge-api.new \
+               /opt/honeyforge/src/backend/honey-forge-api
+
+            # Перезапустить сервис
+            sudo systemctl restart honeyforge
+
+            # Ждать готовности /healthz
+            for i in $(seq 1 15); do
+              if curl --fail --silent \
+                  --cacert /etc/nginx/certs/backend-ca.crt \
+                  --resolve localhost:8443:127.0.0.1 \
+                  https://localhost:8443/healthz | grep -q '"status":"ok"'; then
+                echo "API is healthy"
+                exit 0
+              fi
+              sleep 2
+            done
+
+            echo "API failed to become healthy — откат"
+            cp /opt/honeyforge/src/backend/honey-forge-api.prev \
+               /opt/honeyforge/src/backend/honey-forge-api 2>/dev/null || true
+            sudo systemctl restart honeyforge
+            sudo journalctl -u honeyforge -n 100 --no-pager
+            exit 1
+
+      - name: External smoke test
+        run: |
+          set -e
+          BASE="${{ vars.API_BASE_URL }}"
+
+          # Пока сертификат самоподписанный → -k
+          code=$(curl -k -s -o /dev/null -w "%{http_code}" "$BASE/api/session")
+          [ "$code" = "401" ] || (echo "expected 401 for /api/session, got $code"; exit 1)
+
+          code=$(curl -k -s -o /dev/null -w "%{http_code}" "$BASE/assets/stream")
+          [ "$code" = "401" ] || (echo "expected 401 for /assets/stream, got $code"; exit 1)
+
+          code=$(curl -k -s -o /dev/null -w "%{http_code}" "$BASE/")
+          [ "$code" = "404" ] || (echo "expected 404 for /, got $code"; exit 1)
+
+          echo "Smoke test passed"
