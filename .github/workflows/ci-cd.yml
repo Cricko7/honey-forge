@@ -139,16 +139,19 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         env:
-          # Пусто → относительные URL, фронт и API на одном домене
-          VITE_API_BASE: ""
+          # ВАЖНО: непустое значение выключает mock-режим (USE_MOCK = API_BASE === '')
+          # и включает реальный API на том же origin.
+          VITE_API_BASE: "https://honey-forge-seg-fault.ru"
         run: |
           npm ci
-          echo "VITE_API_BASE=" > .env.production
+          echo "VITE_API_BASE=https://honey-forge-seg-fault.ru" > .env.production
           npm run build
           echo "=== dist/ ==="
           ls -la dist/
           echo "=== dist/assets/ ==="
           ls -la dist/assets/ | head -10
+          echo "=== VITE_API_BASE in bundle ==="
+          grep -o "honey-forge-seg-fault\.ru" dist/assets/*.js | head -3 || true
 
       # ---------- Upload ----------
 
@@ -183,15 +186,12 @@ jobs:
 
             # --- Backend ---
 
-            # Бэкап старого бинарника для отката
             cp /opt/honeyforge/src/backend/honey-forge-api \
                /opt/honeyforge/src/backend/honey-forge-api.prev 2>/dev/null || true
 
-            # Миграции
             mkdir -p /opt/honeyforge/migrations
             cp -r "$INCOMING/migrations/." /opt/honeyforge/migrations/
 
-            # Атомарная замена бинарника
             install -m 0755 "$INCOMING/src/backend/honey-forge-api" \
               /opt/honeyforge/src/backend/honey-forge-api.new
             mv /opt/honeyforge/src/backend/honey-forge-api.new \
@@ -199,7 +199,6 @@ jobs:
 
             # --- Frontend ---
 
-            # /var/www/honeyforge-frontend принадлежит honeyforge — sudo не нужен
             if [ -d /var/www/honeyforge-frontend ]; then
               rm -rf /var/www/honeyforge-frontend/*
               cp -r "$INCOMING/frontend/dist/." /var/www/honeyforge-frontend/
@@ -214,7 +213,6 @@ jobs:
 
             sudo systemctl restart honeyforge
 
-            # Ждать готовности /healthz
             for i in $(seq 1 15); do
               if curl --fail --silent \
                   --cacert /etc/nginx/certs/backend-ca.crt \
@@ -242,7 +240,6 @@ jobs:
         run: |
           set -e
 
-          # Backend API
           check_api() {
             local path="$1" expected="$2"
             local code
@@ -253,7 +250,6 @@ jobs:
             [ "$code" = "$expected" ] || (echo "expected $expected, got $code"; exit 1)
           }
 
-          # Frontend SPA: / должен вернуть 200 и HTML
           check_front() {
             local code
             code=$(curl -k -s -o /dev/null -w "%{http_code}" \
@@ -262,7 +258,6 @@ jobs:
             echo "Frontend / → $code"
             [ "$code" = "200" ] || (echo "expected 200, got $code"; exit 1)
 
-            # Проверить, что это SPA, а не дефолтная страница nginx
             local body
             body=$(curl -k -s \
               --resolve "$API_DOMAIN:443:$API_IP" \
