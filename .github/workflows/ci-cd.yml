@@ -111,6 +111,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # ---------- Backend ----------
+
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
@@ -125,17 +127,44 @@ jobs:
           GOARCH: amd64
         run: go build -trimpath -ldflags="-s -w" -buildvcs=false -o honey-forge-api ./cmd/api
 
-      - name: Upload binary, migrations and deploy configs
+      # ---------- Frontend ----------
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          # Пусто → относительные URL, фронт и API на одном домене
+          VITE_API_BASE: ""
+        run: |
+          npm ci
+          echo "VITE_API_BASE=" > .env.production
+          npm run build
+          echo "=== dist/ ==="
+          ls -la dist/
+          echo "=== dist/assets/ ==="
+          ls -la dist/assets/ | head -10
+
+      # ---------- Upload ----------
+
+      - name: Upload backend, frontend, migrations and configs
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ vars.SSH_PORT || 22 }}
-          source: "src/backend/honey-forge-api,migrations/,deploy/"
+          source: "src/backend/honey-forge-api,migrations/,deploy/,frontend/dist/"
           target: "/opt/honeyforge/incoming/${{ github.run_id }}-${{ github.run_attempt }}/"
           strip_components: 0
           overwrite: true
+
+      # ---------- Install and restart ----------
 
       - name: Install and restart
         uses: appleboy/ssh-action@v1
@@ -149,21 +178,40 @@ jobs:
 
             INCOMING="/opt/honeyforge/incoming/${{ github.run_id }}-${{ github.run_attempt }}"
 
+            # --- Очистка старых incoming (оставить 5 последних) ---
+            ls -dt /opt/honeyforge/incoming/*/ 2>/dev/null | tail -n +6 | xargs -r rm -rf
+
+            # --- Backend ---
+
             # Бэкап старого бинарника для отката
             cp /opt/honeyforge/src/backend/honey-forge-api \
                /opt/honeyforge/src/backend/honey-forge-api.prev 2>/dev/null || true
 
-            # Обновить миграции (honeyforge владеет /opt/honeyforge — sudo не нужен)
+            # Миграции
             mkdir -p /opt/honeyforge/migrations
             cp -r "$INCOMING/migrations/." /opt/honeyforge/migrations/
 
-            # Атомарно заменить бинарник
+            # Атомарная замена бинарника
             install -m 0755 "$INCOMING/src/backend/honey-forge-api" \
               /opt/honeyforge/src/backend/honey-forge-api.new
             mv /opt/honeyforge/src/backend/honey-forge-api.new \
                /opt/honeyforge/src/backend/honey-forge-api
 
-            # Перезапустить сервис
+            # --- Frontend ---
+
+            # /var/www/honeyforge-frontend принадлежит honeyforge — sudo не нужен
+            if [ -d /var/www/honeyforge-frontend ]; then
+              rm -rf /var/www/honeyforge-frontend/*
+              cp -r "$INCOMING/frontend/dist/." /var/www/honeyforge-frontend/
+              chmod -R 755 /var/www/honeyforge-frontend
+              echo "Frontend updated: $(ls /var/www/honeyforge-frontend/ | head -3)"
+            else
+              echo "::error::/var/www/honeyforge-frontend does not exist"
+              exit 1
+            fi
+
+            # --- Restart API ---
+
             sudo systemctl restart honeyforge
 
             # Ждать готовности /healthz
@@ -178,12 +226,14 @@ jobs:
               sleep 2
             done
 
-            echo "API failed to become healthy — откат"
+            echo "API failed to become healthy — откат backend"
             cp /opt/honeyforge/src/backend/honey-forge-api.prev \
                /opt/honeyforge/src/backend/honey-forge-api 2>/dev/null || true
             sudo systemctl restart honeyforge
             sudo journalctl -u honeyforge -n 100 --no-pager
             exit 1
+
+      # ---------- Smoke tests ----------
 
       - name: External smoke test
         env:
@@ -192,18 +242,37 @@ jobs:
         run: |
           set -e
 
-          check() {
+          # Backend API
+          check_api() {
             local path="$1" expected="$2"
             local code
             code=$(curl -k -s -o /dev/null -w "%{http_code}" \
               --resolve "$API_DOMAIN:443:$API_IP" \
               "https://$API_DOMAIN$path")
-            echo "$path → $code"
+            echo "API $path → $code"
             [ "$code" = "$expected" ] || (echo "expected $expected, got $code"; exit 1)
           }
 
-          check /api/session 401
-          check /assets/stream 401
-          check / 404
+          # Frontend SPA: / должен вернуть 200 и HTML
+          check_front() {
+            local code
+            code=$(curl -k -s -o /dev/null -w "%{http_code}" \
+              --resolve "$API_DOMAIN:443:$API_IP" \
+              "https://$API_DOMAIN/")
+            echo "Frontend / → $code"
+            [ "$code" = "200" ] || (echo "expected 200, got $code"; exit 1)
+
+            # Проверить, что это SPA, а не дефолтная страница nginx
+            local body
+            body=$(curl -k -s \
+              --resolve "$API_DOMAIN:443:$API_IP" \
+              "https://$API_DOMAIN/")
+            echo "$body" | grep -q "<div id=\"root\">" \
+              || (echo "index.html does not contain SPA root div"; exit 1)
+          }
+
+          check_api /api/session 401
+          check_api /assets/stream 401
+          check_front
 
           echo "Smoke test passed"
