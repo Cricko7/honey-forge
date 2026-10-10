@@ -34,3 +34,7 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Local TLS certs and node deps (added for frontend + local stack)
+certs/
+node_modules/

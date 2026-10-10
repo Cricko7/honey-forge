@@ -44,6 +44,11 @@ type Config struct {
 	Ingester           traps.Ingester
 	EventPublisher     events.BatchPublisher
 	CatalogDefinitions []catalog.Definition
+	// TrustedProxies are addresses/CIDRs of the reverse proxy (e.g. nginx on
+	// loopback). When set, Gin derives ClientIP from X-Forwarded-For so the auth
+	// rate limiter buckets per real client instead of the shared proxy IP. Empty
+	// keeps the safe default of trusting no proxy (direct peer address).
+	TrustedProxies []string
 }
 type Runtime struct {
 	Router    *gin.Engine
@@ -104,7 +109,13 @@ func Open(ctx context.Context, config Config) (*Runtime, error) {
 		pool.Close()
 		return nil, fmt.Errorf("install catalog: %w", err)
 	}
-	router := NewRouter()
+	router := NewRouter(browser.CORSMiddleware())
+	if len(config.TrustedProxies) > 0 {
+		if err := router.SetTrustedProxies(config.TrustedProxies); err != nil {
+			pool.Close()
+			return nil, fmt.Errorf("configure trusted proxies: %w", err)
+		}
+	}
 	logger := config.Logger
 	if logger == nil {
 		logger = slog.Default()

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"fmt"
+	"net/http"
 	"net/url"
 
 	"github.com/gin-gonic/gin"
@@ -48,6 +49,47 @@ func NewBrowserPolicy(origins []string) (*BrowserPolicy, error) {
 func ValidHTTPSOrigin(s string) bool {
 	u, err := url.Parse(s)
 	return err == nil && u.Scheme == "https" && u.Host != "" && u.Hostname() != "" && u.User == nil && u.Path == "" && u.RawQuery == "" && u.Fragment == "" && !u.ForceQuery
+}
+
+// CORSMiddleware emits CORS headers for the allowlisted browser origins and
+// answers preflight (OPTIONS) requests. A separate frontend origin
+// (app.example.org → api.example.org) otherwise fails: the Origin check alone
+// rejects nothing, but the browser blocks the response without these headers.
+//
+// Credentials (the __Host-session cookie) require echoing the exact Origin and
+// Vary: Origin; a wildcard is not permitted with Allow-Credentials. Only
+// allowlisted origins receive headers, so this does not widen access beyond
+// what CheckOrigin already enforces for mutations.
+func (p *BrowserPolicy) CORSMiddleware() gin.HandlerFunc {
+	const allowHeaders = "Content-Type, X-CSRF-Token, X-Expected-Revision, If-Match, If-None-Match"
+	const allowMethods = "GET, POST, PATCH, DELETE, OPTIONS"
+	return func(c *gin.Context) {
+		origin := c.GetHeader("Origin")
+		allowed := origin != "" && p.origins[origin]
+		if allowed {
+			h := c.Writer.Header()
+			h.Set("Access-Control-Allow-Origin", origin)
+			h.Set("Access-Control-Allow-Credentials", "true")
+			h.Add("Vary", "Origin")
+		}
+		if c.Request.Method == http.MethodOptions {
+			// Preflight: respond here and never reach handlers. Disallowed
+			// origins get a bare 204 without CORS headers (browser blocks).
+			if allowed {
+				h := c.Writer.Header()
+				h.Set("Access-Control-Allow-Methods", allowMethods)
+				if requested := c.GetHeader("Access-Control-Request-Headers"); requested != "" {
+					h.Set("Access-Control-Allow-Headers", requested)
+				} else {
+					h.Set("Access-Control-Allow-Headers", allowHeaders)
+				}
+				h.Set("Access-Control-Max-Age", "600")
+			}
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+		c.Next()
+	}
 }
 
 func (p *BrowserPolicy) CheckOrigin(c *gin.Context) bool {

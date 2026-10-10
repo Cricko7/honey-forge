@@ -84,7 +84,8 @@ go test -race -tags=integration ./... -count=1
 | `POSTGRES_PASSWORD` | Обязательный пароль PostgreSQL для Docker Compose. |
 | `DATABASE_URL` | Обязательная строка подключения API к PostgreSQL. |
 | `CURSOR_KEY` | Обязательный постоянный ключ: 32 байта в Base64; сохраните его между перезапусками. |
-| `BROWSER_ORIGINS` | Обязательные разрешённые HTTPS-origin браузера, через запятую. |
+| `BROWSER_ORIGINS` | Обязательные разрешённые HTTPS-origin браузера, через запятую. Для этих origin сервер отдаёт CORS-заголовки (Allow-Origin/Credentials) и отвечает на preflight; отдельный origin фронтенда (`app.example.org`) работает без общего прокси. |
+| `TRUSTED_PROXIES` | Необязательные адреса/CIDR обратного прокси (например `127.0.0.1,::1` для nginx на loopback), через запятую. Заданы — API берёт ClientIP из `X-Forwarded-For`, и лимит входа считается на реального клиента, а не на общий адрес прокси. Пусто — прокси не доверяется. |
 | `TLS_CERT_FILE`, `TLS_KEY_FILE` | Обязательные пути к сертификату и закрытому ключу HTTPS. |
 | `KAFKA_BROKERS` | Обязательные адреса брокеров Kafka, через запятую. |
 | `KAFKA_TELEMETRY_TOPIC` | Тема телеметрии; по умолчанию `honey-forge.telemetry`. |
