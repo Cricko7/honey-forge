@@ -86,6 +86,52 @@ func TestJournalConcurrentEventsAndRecovery(t *testing.T) {
 	}
 }
 
+func TestJournalRecoversServiceSession(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "redis.journal")
+	j, err := OpenJournal(path, "trap", 1<<20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	session := string(contract.NewID())
+	event := events.AgentEvent{EventID: string(contract.NewID()), SessionID: session, SessionSequence: 1, TypeID: "service-demo", EventType: "service.connection_opened", OccurredAt: time.Now().UTC().Format(time.RFC3339Nano), Data: json.RawMessage(`{"service":"redis"}`)}
+	if _, err := j.Enqueue(event); err != nil {
+		t.Fatal(err)
+	}
+	event.EventID = string(contract.NewID())
+	event.SessionSequence = 2
+	event.EventType = "service.auth_attempt"
+	event.Data = json.RawMessage(`{"service":"redis","received_bytes":17}`)
+	if _, err := j.Enqueue(event); err != nil {
+		t.Fatal(err)
+	}
+	if err := j.Close(); err != nil {
+		t.Fatal(err)
+	}
+	j, err = OpenJournal(path, "trap", 1<<20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer j.Close()
+	if err := j.RecoverSessions(); err != nil {
+		t.Fatal(err)
+	}
+	pending := j.Pending()
+	if len(pending) != 3 || pending[2].Events[0].EventType != "service.connection_closed" || pending[2].Events[0].SessionSequence != 3 {
+		t.Fatalf("recovery: %+v", pending)
+	}
+	var data struct {
+		Service string `json:"service"`
+		Bytes   int64  `json:"bytes_received"`
+		Reason  string `json:"reason"`
+	}
+	if err := json.Unmarshal(pending[2].Events[0].Data, &data); err != nil || data.Service != "redis" || data.Bytes != 17 || data.Reason != "service_stopped" {
+		t.Fatalf("close data: %+v %v", data, err)
+	}
+	if err := j.RecoverSessions(); err != nil || len(j.Pending()) != 3 {
+		t.Fatalf("duplicate recovery: %v", err)
+	}
+}
+
 func TestJournalCapacityPreservesRoomForSessionClose(t *testing.T) {
 	j, err := OpenJournal(filepath.Join(t.TempDir(), "journal"), "trap", 32*1024)
 	if err != nil {

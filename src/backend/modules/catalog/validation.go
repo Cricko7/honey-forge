@@ -26,7 +26,7 @@ func (s *Service) CheckRuntimeResult(ctx context.Context, id string, version con
 	if err := s.CheckActionResult(ctx, id, version, action, result); err != nil {
 		return err
 	}
-	if id == "tcp-banner" && version == 1 && hasConfiguration {
+	if (id == "tcp-banner" || id == "redis-emulator") && version == 1 && hasConfiguration {
 		var value struct {
 			Revision *schemaInteger `json:"applied_profile_revision"`
 		}
@@ -123,7 +123,7 @@ func (s *Service) CheckActionResult(ctx context.Context, id string, version cont
 	if err := schema.Validate(result, "/result"); err != nil {
 		return validationError(err, "command_result_invalid")
 	}
-	if id == "tcp-banner" && version == 1 {
+	if (id == "tcp-banner" || id == "redis-emulator") && version == 1 {
 		var value struct {
 			RuntimeState string         `json:"runtime_state"`
 			Revision     *schemaInteger `json:"applied_profile_revision"`

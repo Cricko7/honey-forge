@@ -38,8 +38,8 @@ username/password (1024) и input (4096) проверяются в UTF-8 бай�
 усекает, не маскирует и не нормализует эти значения. null и пустая строка различны.
 Согласованный формат snapshot: `config.services` — массив объектов с `name`;
 поле data.service должно точно совпадать с одним из имён. capture_payload=false
-не отключает структурированные события. Тестовый service-demo descriptor проверяет
-этот путь, но не заявляет наличие работающего Medium-сервиса.
+не отключает структурированные события. Тестовый service-demo descriptor и рабочий `redis-emulator/1` проверяют
+этот путь. Redis дополнительно проверяет порт по snapshot.
 
 Для запуска API обязательна `KAFKA_BROKERS` (адреса через запятую).
 `KAFKA_TELEMETRY_TOPIC` по умолчанию `honey-forge.telemetry`. Локальный broker

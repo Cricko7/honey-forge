@@ -18,7 +18,7 @@
 | ActionDescriptor | `action: Action`, `title: string` (1..100), `params_schema: JSON Schema`, `result_schema: JSON Schema` |
 | UIHints | `field_order: string[]` (JSON Pointer), `widgets: object` (JSON Pointer -> `text`, `textarea`, `number`, `checkbox`, `select`, `password`, `array`, `object`) |
 
-`interaction_level` не является закрытым enum общего API: сейчас low, позже medium/high. `event_schemas` и `actions` содержат уникальные идентификаторы. Для типа обязательны базовые actions start, stop, apply_config. Дополнительные actions объявляются каталогом без изменения маршрутов. Поле default в JSON Schema — подсказка, не автоматическое изменение запроса; клиент отправляет полную конфигурацию.
+`interaction_level` не является закрытым enum общего API: сейчас low и medium, позже high. `event_schemas` и `actions` содержат уникальные идентификаторы. Для типа обязательны базовые actions start, stop, apply_config. Дополнительные actions объявляются каталогом без изменения маршрутов. Поле default в JSON Schema — подсказка, не автоматическое изменение запроса; клиент отправляет полную конфигурацию.
 
 Форма использует рекурсивно object/array, scalar, enum, oneOf и `$defs`, ограничения и title/description/default. UIHints — необязательные для клиента подсказки: неизвестный widget пропускается, применяется универсальный редактор JSON. Сервер валидирует независимо от формы. `format` проверяется сервером для используемых форматов (UUID/IP/date-time/email), а не только отображается. Конфигурация типов не может содержать исполняемые JS, URL для загрузки формы или произвольный код UI.
 
@@ -116,4 +116,24 @@ Base64 обязан декодироваться; decoded length = captured_byte
 
 Тип с аутентификацией обязан объявить service.auth_attempt в event_schemas; тип с командами/запросами — service.action. Общие data_schema определены в модуле 07. Backend не принимает событие, не объявленное точной версией типа. Новые схемы публикуются под новой immutable-версией, старые не меняются. Логирование auth/action обязательно для поддерживающего типа и не отключается capture_payload, управляющим сырыми payload.
 
-tcp-banner/1 остаётся Low: не извлекает пароли/команды из произвольных TCP-байтов и не объявляет auth/action. Наличие схем в контракте не означает реализации Medium runtime.
+tcp-banner/1 остаётся Low: не извлекает пароли/команды из произвольных TCP-байтов и не объявляет auth/action.
+
+## Medium-тип redis-emulator / 1
+
+`interaction_level=medium`, `available_for_new_profiles=true`. Полная схема
+находится в `src/backend/modules/catalog/schemas/redis-emulator-1.json`.
+Конфигурация содержит ровно один элемент `services` с `name`, `port` (1..65535)
+и `password` (1..128 символов, `writeOnly`), а также те же интервалы
+`management`, что у TCP-баннера. Создание профиля, регистрация Trap, реквизиты
+агента и команды `apply_config`, `start`, `stop` используют те же маршруты и
+формы запросов. Пароль хранится в полном snapshot для ловушки, но скрывается в
+ответах профиля.
+
+Тип объявляет `service.connection_opened`, `service.auth_attempt`,
+`service.action`, `service.connection_closed`. Auth/action включают исходные
+введённые значения, outcome, признак усечения и `received_bytes`; закрытие
+содержит длительность, суммарные байты и причину. Для каждого события backend
+проверяет service name и destination port по выданному snapshot. Сырые RESP
+кадры целиком не сохраняются: действия нормализуются в текст команды с
+ограничением 4096 UTF-8 байт. Протокол и демонстрационный сценарий описаны в
+`src/redis-trap/README.md`.

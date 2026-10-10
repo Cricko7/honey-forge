@@ -105,7 +105,7 @@ func TestLookupType(t *testing.T) {
 }
 
 func TestList(t *testing.T) {
-	defs := BuiltinDefinitions()
+	defs := BuiltinDefinitions()[:1]
 	second := BuiltinDefinitions()[0]
 	second.Entry.TypeVersion = 2
 	second.Entry.AvailableForNewProfiles = false

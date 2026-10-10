@@ -9,8 +9,16 @@ import (
 	"time"
 
 	"honey-forge/internal/tcptrap"
+	"honey-forge/modules/events"
 	"honey-forge/modules/profiles"
 )
+
+type TrapRuntime interface {
+	Stop()
+	Err() error
+}
+
+type TrapStarter func(context.Context, profiles.Snapshot, string, func(context.Context, events.AgentEvent) error) (TrapRuntime, error)
 
 type childBootstrap struct {
 	URL      string            `json:"url"`
@@ -32,6 +40,13 @@ func readChildBootstrap(reader io.Reader) (childBootstrap, error) {
 }
 
 func RunTrap(ctx context.Context) error {
+	return RunTrapWith(ctx, func(ctx context.Context, snapshot profiles.Snapshot, host string, sink func(context.Context, events.AgentEvent) error) (TrapRuntime, error) {
+		return tcptrap.Start(ctx, snapshot, host, tcptrap.Sink(sink))
+	})
+}
+
+// RunTrapWith runs an isolated child using the shared local agent transport.
+func RunTrapWith(ctx context.Context, start TrapStarter) error {
 	bootstrap, err := readChildBootstrap(os.Stdin)
 	if err != nil {
 		return err
@@ -41,7 +56,7 @@ func RunTrap(ctx context.Context) error {
 		return err
 	}
 	defer client.Close()
-	runtime, err := tcptrap.Start(ctx, bootstrap.Snapshot, "", client.Emit)
+	runtime, err := start(ctx, bootstrap.Snapshot, "", client.Emit)
 	if err != nil {
 		return err
 	}

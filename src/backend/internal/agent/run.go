@@ -16,17 +16,19 @@ import (
 	"time"
 
 	"honey-forge/internal/contract"
+	"honey-forge/modules/agentws"
 )
 
 type Options struct {
-	URL         string
-	Token       string
-	TrapID      string
-	JournalPath string
-	Executable  string
-	Hostname    string
-	BootID      string
-	TLS         *tls.Config
+	URL            string
+	Token          string
+	TrapID         string
+	JournalPath    string
+	Executable     string
+	Hostname       string
+	BootID         string
+	TLS            *tls.Config
+	SupportedTypes []agentws.SupportedType
 }
 
 func Run(ctx context.Context, opts Options) error {

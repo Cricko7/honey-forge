@@ -58,3 +58,25 @@ func TestStructuredSnapshot(t *testing.T) {
 		})
 	}
 }
+
+func TestServiceSnapshotPort(t *testing.T) {
+	snapshot := profiles.Snapshot{TypeID: "service-demo", TypeVersion: 1, ProfileRevision: 1, Config: profiles.Object{"services": []any{profiles.Object{"name": "redis", "port": 6380}}}}
+	for _, tc := range []struct {
+		name              string
+		port              int
+		service, protocol string
+		valid             bool
+	}{
+		{"declared", 6380, "redis", "tcp", true},
+		{"wrong port", 6381, "redis", "tcp", false},
+		{"wrong service", 6380, "other", "tcp", false},
+		{"wrong protocol", 6380, "redis", "udp", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := AgentEvent{TypeID: "service-demo", TypeVersion: 1, ProfileRevision: 1, EventType: "service.action", Destination: Destination{Protocol: tc.protocol, Port: tc.port}, Data: json.RawMessage(`{"service":"` + tc.service + `"}`)}
+			if err := checkSnapshot(e, snapshot); (err == nil) != tc.valid {
+				t.Fatalf("err=%v", err)
+			}
+		})
+	}
+}

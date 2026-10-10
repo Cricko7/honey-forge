@@ -29,17 +29,25 @@ type Local struct {
 	Failures chan string
 	mu       sync.Mutex
 	snapshot profiles.Snapshot
-	schemas  map[string]*configschema.Schema
+	schemas  map[eventSchemaKey]*configschema.Schema
+}
+
+type eventSchemaKey struct {
+	typeID  string
+	version int64
+	event   string
 }
 
 func NewLocal(j *Journal, token string) (*Local, error) {
-	l := &Local{Journal: j, Token: token, Ready: make(chan struct{}, 1), Failures: make(chan string, 1), schemas: map[string]*configschema.Schema{}}
-	for _, e := range catalog.BuiltinDefinitions()[0].Entry.EventSchemas {
-		schema, err := configschema.Compile(e.DataSchema)
-		if err != nil {
-			return nil, err
+	l := &Local{Journal: j, Token: token, Ready: make(chan struct{}, 1), Failures: make(chan string, 1), schemas: map[eventSchemaKey]*configschema.Schema{}}
+	for _, definition := range catalog.BuiltinDefinitions() {
+		for _, e := range definition.Entry.EventSchemas {
+			schema, err := configschema.Compile(e.DataSchema)
+			if err != nil {
+				return nil, err
+			}
+			l.schemas[eventSchemaKey{string(definition.Entry.TypeID), int64(definition.Entry.TypeVersion), string(e.EventType)}] = schema
 		}
-		l.schemas[string(e.EventType)] = schema
 	}
 	contract.Configure()
 	return l, nil
@@ -113,10 +121,10 @@ func (l *Local) Handler(ctx context.Context) *gin.Engine {
 			l.mu.Lock()
 			snapshot := l.snapshot
 			l.mu.Unlock()
-			schema := l.schemas["invalid"]
+			var schema *configschema.Schema
 			valid := contract.CheckJSON(raw) == nil && httpx.StrictObject(raw, reflect.TypeFor[events.AgentEvent]()) && json.Unmarshal(raw, &e) == nil && binding.Validator.ValidateStruct(e) == nil
 			if valid {
-				schema = l.schemas[e.EventType]
+				schema = l.schemas[eventSchemaKey{e.TypeID, e.TypeVersion, e.EventType}]
 			}
 			valid = valid && schema != nil && schema.Validate(e.Data, "") == nil && e.TypeID == snapshot.TypeID && e.TypeVersion == int64(snapshot.TypeVersion) && e.ProfileRevision == int64(snapshot.ProfileRevision)
 			if !valid {

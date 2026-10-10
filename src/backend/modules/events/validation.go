@@ -48,7 +48,7 @@ func checkSnapshot(e AgentEvent, snapshot profiles.Snapshot) error {
 		return invalid
 	}
 	if e.TypeID != "tcp-banner" {
-		if e.EventType == "service.auth_attempt" || e.EventType == "service.action" {
+		if strings.HasPrefix(e.EventType, "service.") {
 			return checkServiceSnapshot(e, snapshot)
 		}
 		return nil
