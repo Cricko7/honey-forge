@@ -61,7 +61,7 @@ function StatCard({
 export function DashboardPage() {
   const c = useThemeColors()
   const { data: traps } = useTraps()
-  const { data: eventsPage } = useEvents({ limit: 200 })
+  const { data: eventsPage } = useEvents({ limit: 100 })
   const [liveFeed, setLiveFeed] = useState<EventSummary[]>([])
 
   useLiveStream((e) => setLiveFeed((f) => [e, ...f].slice(0, 8)))
@@ -69,6 +69,12 @@ export function DashboardPage() {
   const trapsList = traps?.items ?? []
   const events = eventsPage?.items ?? []
   const onlineTraps = trapsList.filter((t) => t.connectivity === 'online').length
+
+  // События именно за последние 24 часа (совпадает с графиком активности ниже).
+  const events24h = useMemo(() => {
+    const dayAgo = Date.now() - 24 * 3600 * 1000
+    return events.filter((e) => new Date(e.occurred_at).getTime() >= dayAgo)
+  }, [events])
 
   // Активность атак по часам (последние 24ч)
   const activity = useMemo(() => {
@@ -124,9 +130,8 @@ export function DashboardPage() {
         <StatCard
           icon={Activity}
           label="События за 24 часа"
-          value={String(events.length)}
-          delta="+18% активности"
-          deltaTone="down"
+          value={String(events24h.length)}
+          delta={`${events.length} за всё время`}
         />
         <StatCard
           icon={ShieldAlert}

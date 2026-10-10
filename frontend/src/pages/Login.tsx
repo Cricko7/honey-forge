@@ -7,7 +7,7 @@ import { ThemeToggle } from '@/components/ThemeToggle'
 export function LoginPage() {
   const navigate = useNavigate()
   const [email, setEmail] = useState('admin@perimetr.ru')
-  const [password, setPassword] = useState('demo-password')
+  const [password, setPassword] = useState('demo-password-2026')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 

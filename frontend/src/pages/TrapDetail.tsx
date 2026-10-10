@@ -24,9 +24,11 @@ import {
   useTrap,
   useCommands,
   useEvents,
+  useProfiles,
   useSendCommand,
   useDeleteTrap,
 } from '@/api/hooks'
+import { ApiError } from '@/api/client'
 import { formatDateTime, timeAgo } from '@/lib/utils'
 
 export function TrapDetailPage() {
@@ -34,6 +36,7 @@ export function TrapDetailPage() {
   const { data: trap, isLoading } = useTrap(id)
   const { data: commands } = useCommands(id)
   const { data: events } = useEvents({ trap_id: id, limit: 20 })
+  const { data: profiles } = useProfiles()
   const sendCommand = useSendCommand()
   const deleteTrap = useDeleteTrap()
 
@@ -41,6 +44,12 @@ export function TrapDetailPage() {
   if (!trap) return <div className="p-6"><EmptyState title="Ловушка не найдена" /></div>
 
   const busy = sendCommand.isPending || !!trap.active_command_id
+  // apply_config валидируется под дескриптор действия: нужна точная ревизия профиля.
+  const profileRevision =
+    profiles?.items.find((p) => p.id === trap.profile_id)?.revision ??
+    trap.applied_profile_revision ??
+    trap.revision
+  const cmdError = sendCommand.error as ApiError | null
 
   return (
     <div className="p-6 space-y-5">
@@ -84,7 +93,13 @@ export function TrapDetailPage() {
           <button
             className="btn-ghost"
             disabled={busy}
-            onClick={() => sendCommand.mutate({ trapId: id, action: 'apply_config' })}
+            onClick={() =>
+              sendCommand.mutate({
+                trapId: id,
+                action: 'apply_config',
+                params: { profile_revision: profileRevision },
+              })
+            }
           >
             <RefreshCw size={15} /> Применить конфиг
           </button>
@@ -102,6 +117,13 @@ export function TrapDetailPage() {
       {busy && (
         <div className="chip bg-brand/15 text-brand-soft animate-pulseGlow">
           <Activity size={12} /> выполняется команда…
+        </div>
+      )}
+      {cmdError && !busy && (
+        <div className="chip bg-danger/10 text-danger">
+          Команда отклонена: {cmdError.code === 'configuration_not_applied'
+            ? 'сначала примените конфиг (apply_config)'
+            : cmdError.message || cmdError.code}
         </div>
       )}
 

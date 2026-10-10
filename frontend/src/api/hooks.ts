@@ -60,10 +60,18 @@ export function useDeleteTrap() {
 export function useSendCommand() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ trapId, action }: { trapId: string; action: CommandAction }) =>
-      api.createCommand(trapId, action),
+    mutationFn: ({
+      trapId,
+      action,
+      params,
+    }: {
+      trapId: string
+      action: CommandAction
+      params?: Record<string, unknown>
+    }) => api.createCommand(trapId, action, params),
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: qk.commands(v.trapId) })
+      qc.invalidateQueries({ queryKey: qk.trap(v.trapId) })
     },
   })
 }
