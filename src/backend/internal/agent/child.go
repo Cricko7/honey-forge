@@ -12,17 +12,36 @@ import (
 	"honey-forge/modules/profiles"
 )
 
-func RunTrap(ctx context.Context) error {
-	var snapshot profiles.Snapshot
-	if err := json.Unmarshal([]byte(os.Getenv("TRAP_SNAPSHOT")), &snapshot); err != nil {
-		return fmt.Errorf("load trap configuration: %w", err)
+type childBootstrap struct {
+	URL      string            `json:"url"`
+	Token    string            `json:"token"`
+	Snapshot profiles.Snapshot `json:"snapshot"`
+}
+
+func readChildBootstrap(reader io.Reader) (childBootstrap, error) {
+	var bootstrap childBootstrap
+	decoder := json.NewDecoder(io.LimitReader(reader, 1<<20))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&bootstrap); err != nil {
+		return bootstrap, fmt.Errorf("read trap bootstrap: %w", err)
 	}
-	client, err := DialLocal(ctx, os.Getenv("TRAP_AGENT_URL"), os.Getenv("TRAP_AGENT_TOKEN"))
+	if bootstrap.URL == "" || bootstrap.Token == "" {
+		return bootstrap, fmt.Errorf("incomplete trap bootstrap")
+	}
+	return bootstrap, nil
+}
+
+func RunTrap(ctx context.Context) error {
+	bootstrap, err := readChildBootstrap(os.Stdin)
+	if err != nil {
+		return err
+	}
+	client, err := DialLocal(ctx, bootstrap.URL, bootstrap.Token)
 	if err != nil {
 		return err
 	}
 	defer client.Close()
-	runtime, err := tcptrap.Start(ctx, snapshot, "", client.Emit)
+	runtime, err := tcptrap.Start(ctx, bootstrap.Snapshot, "", client.Emit)
 	if err != nil {
 		return err
 	}

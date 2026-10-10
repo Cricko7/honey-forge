@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -29,11 +30,11 @@ func (p *Process) Start(ctx context.Context, snapshot profiles.Snapshot) error {
 		return fmt.Errorf("trap process is already running")
 	}
 	p.Local.Configure(snapshot)
-	raw, err := json.Marshal(snapshot)
+	raw, err := json.Marshal(childBootstrap{URL: p.URL, Token: p.Local.Token, Snapshot: snapshot})
 	if err != nil {
 		return fmt.Errorf("encode child configuration: %w", err)
 	}
-	cmd := exec.Command(p.Executable, "--tcp-trap")
+	cmd := exec.Command(p.Executable, "--worker")
 	hideWindow(cmd)
 	for _, entry := range os.Environ() {
 		key, _, _ := strings.Cut(entry, "=")
@@ -42,7 +43,6 @@ func (p *Process) Start(ctx context.Context, snapshot profiles.Snapshot) error {
 		}
 		cmd.Env = append(cmd.Env, entry)
 	}
-	cmd.Env = append(cmd.Env, "TRAP_AGENT_URL="+p.URL, "TRAP_AGENT_TOKEN="+p.Local.Token, "TRAP_SNAPSHOT="+string(raw))
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return fmt.Errorf("child shutdown pipe: %w", err)
@@ -57,6 +57,10 @@ func (p *Process) Start(ctx context.Context, snapshot profiles.Snapshot) error {
 	p.stdin = stdin
 	p.done = make(chan error, 1)
 	go func() { p.done <- cmd.Wait() }()
+	if _, err := stdin.Write(append(raw, '\n')); err != nil {
+		stopErr := p.Stop()
+		return fmt.Errorf("send trap bootstrap: %w", errors.Join(err, stopErr))
+	}
 	select {
 	case <-p.Local.Ready:
 		return nil

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -30,6 +32,15 @@ import (
 
 // Exercises the actual agent process, TCP listener, Kafka journal, and database.
 func TestDemoRegistrationToTCPStop(t *testing.T) {
+	testDemoRegistrationToTCPStop(t, false)
+}
+
+func TestDemoRegistrationToTCPStopAfterWSSLoss(t *testing.T) {
+	testDemoRegistrationToTCPStop(t, true)
+}
+
+func testDemoRegistrationToTCPStop(t *testing.T, disconnect bool) {
+	t.Helper()
 	brokers := os.Getenv("TEST_KAFKA_BROKERS")
 	if brokers == "" {
 		t.Skip("TEST_KAFKA_BROKERS required")
@@ -41,6 +52,8 @@ func TestDemoRegistrationToTCPStop(t *testing.T) {
 	t.Cleanup(publisher.Close)
 
 	server := httptest.NewUnstartedServer(http.NotFoundHandler())
+	connections := &agentConnections{Listener: server.Listener, active: make(map[net.Conn]struct{})}
+	server.Listener = connections
 	endpoint := "wss://" + server.Listener.Addr().String() + "/assets/stream"
 	r := openIntegrationRuntimeWithOptions(t, nil, publisher, endpoint)
 	server.Config.Handler = r.Router
@@ -70,7 +83,11 @@ func TestDemoRegistrationToTCPStop(t *testing.T) {
 	listener["banner"] = "hello\n"
 	listener["close_after_banner"] = false
 	config["logging"] = profiles.Object{"capture_payload": true, "max_payload_bytes": 64}
-	config["management"] = profiles.Object{"heartbeat_interval_seconds": 5, "telemetry_flush_interval_ms": 100}
+	flushInterval := 100
+	if disconnect {
+		flushInterval = 1000
+	}
+	config["management"] = profiles.Object{"heartbeat_interval_seconds": 5, "telemetry_flush_interval_ms": flushInterval}
 	profileRequest.Config = config
 	profile := decodeIntegration[profiles.Profile](t, sendOperator(t, r, "POST", "/api/profiles", integrationJSON(t, profileRequest), admin, 201))
 	trapRequest := traps.CreateRequest{RequestID: string(contract.NewID()), Name: "Real TCP demo", ProfileID: profile.ID}
@@ -137,8 +154,12 @@ func TestDemoRegistrationToTCPStop(t *testing.T) {
 		t.Fatalf("%s command did not complete", command.Action)
 	}
 
-	waitCommand(createCommand("apply_config", json.RawMessage(`{"profile_revision":1}`)))
-	waitCommand(createCommand("start", json.RawMessage(`{}`)))
+	apply := createCommand("apply_config", json.RawMessage(`{"profile_revision":1}`))
+	waitCommand(apply)
+	start := createCommand("start", json.RawMessage(`{}`))
+	waitCommand(start)
+	appliedBefore := decodeIntegration[commands.Command](t, sendOperator(t, r, "GET", path+"/commands/"+apply.ID, "", admin, 200))
+	startedBefore := decodeIntegration[commands.Command](t, sendOperator(t, r, "GET", path+"/commands/"+start.ID, "", admin, 200))
 
 	address := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
 	connection, err := net.DialTimeout("tcp", address, 3*time.Second)
@@ -159,19 +180,25 @@ func TestDemoRegistrationToTCPStop(t *testing.T) {
 	if err := connection.Close(); err != nil {
 		t.Fatal(err)
 	}
+	if disconnect {
+		connections.dropActive()
+		if err := connections.waitForReconnect(15 * time.Second); err != nil {
+			t.Fatal(err)
+		}
+	}
 
 	var received []events.EventSummary
 	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
 		page := decodeIntegration[events.EventPage](t, sendOperator(t, r, "GET", "/api/events?trap_id="+trap.ID, "", admin, 200))
 		received = page.Items
-		if len(received) >= 3 {
+		if len(received) == 3 {
 			break
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	if len(received) < 3 {
-		t.Fatalf("only %d TCP events reached Kafka/PostgreSQL", len(received))
+	if len(received) != 3 {
+		t.Fatalf("expected exactly three TCP events after reconnect, got %d", len(received))
 	}
 	kinds := make(map[string]bool)
 	for _, summary := range received {
@@ -196,6 +223,24 @@ func TestDemoRegistrationToTCPStop(t *testing.T) {
 		}
 	}
 	t.Logf("real TCP attack produced %d persisted events", len(received))
+	if disconnect {
+		for _, summary := range received {
+			if summary.EventType == "tcp.payload_received" && summary.ProfileRevision != 1 {
+				t.Fatalf("unexpected profile revision after reconnect: %+v", summary)
+			}
+		}
+		time.Sleep(1500 * time.Millisecond)
+		page := decodeIntegration[events.EventPage](t, sendOperator(t, r, "GET", "/api/events?trap_id="+trap.ID, "", admin, 200))
+		if len(page.Items) != 3 {
+			t.Fatalf("duplicate TCP events after reconnect: %d", len(page.Items))
+		}
+		for _, previous := range []commands.Command{appliedBefore, startedBefore} {
+			current := decodeIntegration[commands.Command](t, sendOperator(t, r, "GET", path+"/commands/"+previous.ID, "", admin, 200))
+			if current.Status != commands.Succeeded || current.FinishedAt == nil || previous.FinishedAt == nil || !current.FinishedAt.Equal(*previous.FinishedAt) {
+				t.Fatalf("command changed after reconnect: %+v", current)
+			}
+		}
+	}
 
 	waitCommand(createCommand("stop", json.RawMessage(`{}`)))
 	stopped := decodeIntegration[traps.Trap](t, sendOperator(t, r, "GET", path, "", admin, 200))
@@ -207,4 +252,46 @@ func TestDemoRegistrationToTCPStop(t *testing.T) {
 		connection.Close()
 		t.Fatal("TCP listener still accepts connections after stop")
 	}
+}
+
+type agentConnections struct {
+	net.Listener
+	mu     sync.Mutex
+	active map[net.Conn]struct{}
+	count  int
+}
+
+func (l *agentConnections) Accept() (net.Conn, error) {
+	conn, err := l.Listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+	l.mu.Lock()
+	l.active[conn] = struct{}{}
+	l.count++
+	l.mu.Unlock()
+	return conn, nil
+}
+
+func (l *agentConnections) dropActive() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for conn := range l.active {
+		conn.Close()
+		delete(l.active, conn)
+	}
+}
+
+func (l *agentConnections) waitForReconnect(timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		l.mu.Lock()
+		count := l.count
+		l.mu.Unlock()
+		if count >= 2 {
+			return nil
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	return fmt.Errorf("agent did not reconnect")
 }

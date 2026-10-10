@@ -64,7 +64,7 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 	defer stop()
 	conn.SetReadLimit(contract.MaxBodyBytes)
 	w := wire{conn: conn}
-	helloID, err := w.send("agent.hello", agentws.AgentHello{BootID: opts.BootID, AgentVersion: "tcp-banner-demo/1", Hostname: opts.Hostname, SupportedTypes: []agentws.SupportedType{{TypeID: "tcp-banner", TypeVersion: 1, Actions: []string{"start", "stop", "apply_config"}}}, Runtime: s.Runtime()})
+	helloID, err := w.send("agent.hello", agentws.AgentHello{BootID: opts.BootID, AgentVersion: "1.0", Hostname: opts.Hostname, SupportedTypes: []agentws.SupportedType{{TypeID: "tcp-banner", TypeVersion: 1, Actions: []string{"start", "stop", "apply_config"}}}, Runtime: s.Runtime()})
 	if err != nil {
 		return err
 	}
@@ -120,7 +120,7 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 	}()
 	heartbeat := time.NewTicker(time.Duration(body.Interval) * time.Second)
 	defer heartbeat.Stop()
-	flush := time.NewTicker(100 * time.Millisecond)
+	flush := time.NewTicker(s.FlushInterval())
 	defer flush.Stop()
 	var pending *Batch
 	var pendingMessage contract.ID
@@ -195,6 +195,7 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 				if err != nil {
 					return fmt.Errorf("execute command: %w", err)
 				}
+				flush.Reset(s.FlushInterval())
 				if _, err := w.send("command.result", result); err != nil {
 					return err
 				}

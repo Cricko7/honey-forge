@@ -24,7 +24,7 @@ func main() {
 func run() error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-	if len(os.Args) == 2 && os.Args[1] == "--tcp-trap" {
+	if len(os.Args) == 2 && os.Args[1] == "--worker" {
 		return agent.RunTrap(ctx)
 	}
 	config := &tls.Config{MinVersion: tls.VersionTLS12}

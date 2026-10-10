@@ -55,6 +55,21 @@ func (s *Service) Runtime() commands.AgentRuntime {
 	return s.runtime()
 }
 
+func (s *Service) FlushInterval() time.Duration {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	configuration := s.journal.LoadState().Configuration
+	if configuration == nil {
+		return 100 * time.Millisecond
+	}
+	config, err := tcptrap.ParseConfig(context.Background(), *configuration)
+	if err != nil {
+		return 100 * time.Millisecond
+	}
+	return time.Duration(config.Management.Flush) * time.Millisecond
+}
+
 func runtimeError(code string) *commands.RuntimeError {
 	e := &commands.RuntimeError{Code: code}
 	if err := commands.NormalizeRuntimeError(e); err != nil {

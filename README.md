@@ -121,6 +121,108 @@ go run ./cmd/api
 директорией через менеджер процессов. Нужны доступ к PostgreSQL и Kafka и
 действующие TLS-файлы. Отсутствующие обязательные настройки останавливают запуск.
 
+### Nginx перед API
+
+Ниже — развёртывание на **одном Linux-хосте** (команды установки — для
+Debian/Ubuntu): nginx принимает публичный HTTPS/WSS на 443, а Go API слушает
+только `127.0.0.1:8443`. Пример конфигурации:
+[deploy/nginx/honey-forge.conf](deploy/nginx/honey-forge.conf). Агент и его TCP
+ловушки могут находиться на других хостах. Если nginx и API размещены на разных
+машинах, этот пример с `127.0.0.1` не подходит: настройте отдельный защищённый
+upstream и разрешите к нему доступ только с хоста nginx.
+
+1. **Подготовьте DNS и сертификаты.** Направьте A-запись, например
+   `api.example.org`, на хост nginx. Понадобятся действующий публичный
+   сертификат с цепочкой и ключом для этого имени, а также отдельный
+   сертификат Go API с SAN `DNS:localhost`, выданный вашим внутренним CA.
+   Разместите сертификат CA в `/etc/nginx/certs/backend-ca.crt`. Закрытые ключи
+   храните вне репозитория с доступом только у нужных процессов. В шаблоне
+   публичные файлы указаны как `/etc/nginx/certs/public.crt` и `public.key`;
+   можно заменить эти пути на файлы вашего менеджера сертификатов, чтобы
+   продление не требовало ручного копирования. Если у вас есть AAAA-запись,
+   добавьте в оба `server` блока nginx прослушивание IPv6 либо уберите эту
+   запись: шаблон слушает только IPv4.
+
+2. **Настройте и запустите Go API** по разделу выше. В окружении его сервиса
+   задайте, помимо `DATABASE_URL`, `CURSOR_KEY` и `KAFKA_BROKERS`:
+
+   ```text
+   API_ADDR=127.0.0.1:8443
+   TLS_CERT_FILE=/etc/honey-forge/tls/backend.crt
+   TLS_KEY_FILE=/etc/honey-forge/tls/backend.key
+   AGENT_WS_URL=wss://api.example.org/assets/stream
+   BROWSER_ORIGINS=https://app.example.org
+   GIN_MODE=release
+   ```
+
+   Замените оба домена своими. `BROWSER_ORIGINS` — фактический HTTPS origin
+   фронтенда, с которого браузер вызывает API; это не обязательно домен API.
+   Укажите `AGENT_WS_URL` явно, иначе сервер построит его из первого
+   `BROWSER_ORIGINS`. Запускайте API с рабочим каталогом `src/backend`;
+   `TLS_CERT_FILE` и `TLS_KEY_FILE` должны быть доступны пользователю его
+   процесса. Проверьте локальный HTTPS до установки прокси:
+
+   ```sh
+   curl --fail --cacert /etc/nginx/certs/backend-ca.crt \
+     --resolve localhost:8443:127.0.0.1 https://localhost:8443/healthz
+   ```
+
+   Ожидается `{"status":"ok"}`. Ошибка проверки сертификата означает проблему
+   с SAN, цепочкой CA или сроком действия; не отключайте проверку TLS.
+
+3. **Установите nginx версии 1.19.4 или новее**: шаблон использует
+   `ssl_reject_handshake`. Убедитесь, что основной `nginx.conf` включает
+   `/etc/nginx/conf.d/*.conf`. Затем установите и отредактируйте шаблон:
+
+   ```sh
+   sudo apt-get update
+   sudo apt-get install nginx
+   nginx -v
+   sudo install -D -m 0644 deploy/nginx/honey-forge.conf /etc/nginx/conf.d/honey-forge.conf
+   sudoedit /etc/nginx/conf.d/honey-forge.conf
+   sudo nginx -t
+   sudo systemctl enable --now nginx
+   sudo systemctl reload nginx
+   ```
+
+   Выполняйте `install` из корня репозитория. В конфиге замените
+   `server_name honeyforge.example` на ваш домен и проверьте пути к публичным
+   сертификатам и `backend-ca.crt`. Если `nginx -t` сообщает о повторном
+   `default_server` для 443, согласуйте существующие сайты: для этого адреса
+   должен остаться один сервер по умолчанию. Не перезагружайте nginx, пока
+   `nginx -t` не завершится успешно. Если пакет дистрибутива старее 1.19.4,
+   установите поддерживаемую версию nginx перед применением шаблона. При
+   замене действующего конфига сначала сохраните его копию вне `conf.d`, чтобы
+   при необходимости вернуть её и выполнить `nginx -t` и reload.
+
+4. **Проверьте снаружи и ограничьте доступ.** Откройте на хосте nginx порт 443;
+   порт 8443 должен оставаться только на loopback. PostgreSQL и Kafka из
+   `compose.yaml` уже привязаны к `127.0.0.1`. Порт 80 нужен лишь если выбранный
+   способ выдачи или продления публичного сертификата использует HTTP-01.
+
+   ```sh
+   curl -i https://api.example.org/api/session
+   curl -i https://api.example.org/assets/stream
+   curl -i https://api.example.org/
+   ```
+
+   Без cookie первый запрос должен вернуть `401`, без токена агента второй —
+   `401`, а `/` — `404`. Затем подключите тестового агента по выданному
+   `agent_ws_url` и проверьте, что он стал online: HTTP-ответ `401` сам по себе
+   ещё не доказывает успешный WSS Upgrade. Для диагностики используйте
+   `sudo journalctl -u nginx -n 100 --no-pager` и журнал Go API. `502` обычно
+   означает недоступный `127.0.0.1:8443` или неуспешную проверку его TLS.
+
+При обновлении конфигурации или публичного сертификата снова выполните
+`sudo nginx -t` и `sudo systemctl reload nginx`. Настройте автоматическое
+продление публичного сертификата; при смене внутреннего CA согласованно обновите
+сертификат API и `backend-ca.crt`. Прокси пропускает только `/api/` и
+`/assets/stream`; открытые TCP-порты ловушек он не скрывает — их изоляция
+настраивается отдельно на хостах агента.
+
+Поведение WSS-прокси и проверки TLS описано в [документации nginx по WebSocket](https://nginx.org/en/docs/http/websocket.html)
+и [директивах HTTPS upstream](https://nginx.org/en/docs/http/ngx_http_proxy_module.html).
+
 Go-модуль и единственный API entrypoint находятся в `src/backend/`; полный
 контракт — в `api/openapi.yaml`. API подключает auth/organizations, catalog,
 profiles, ловушки, команды и приём событий. Состояние ловушек описано в

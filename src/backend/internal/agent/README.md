@@ -4,7 +4,7 @@
 процесс TCP-ловушки из ранее применённой конфигурации. Ловушка подключается к
 локальному `ws://127.0.0.1:<случайный порт>/trap-stream`, агент — к существующему
 `wss://<backend>/assets/stream`. Локальный WebSocket защищён случайным токеном,
-который выдаётся только дочернему процессу. На атакующих TCP-портах нет доступа
+который выдаётся дочернему процессу через stdin pipe вместе со snapshot. На атакующих TCP-портах нет доступа
 к управляющему каналу. Дочерний процесс не получает backend-токен агента.
 
 ## Создание по запросам с конфигурацией
@@ -61,7 +61,8 @@
 `GET /api/events?trap_id=<TRAP_ID>` и `GET /api/events/<EVENT_ID>`.
 
 `stop` с `params:{}` останавливает процесс и закрывает сессии. `apply_config`
-при работающей ловушке перезапускает её с новым snapshot. Правка профиля сама
+при работающей ловушке перезапускает её с новым snapshot и меняет интервал
+отправки телеметрии без перезапуска агента. Правка профиля сама
 по себе не изменяет процесс. Создание регистрации также не запускает listener.
 
 ## Запуск агента
@@ -69,17 +70,17 @@
 Из `src/backend`:
 
 ```powershell
-go build -o honey-forge-agent.exe ./cmd/agent
+go build -trimpath -buildvcs=false -o edge-worker.exe ./cmd/agent
 $env:AGENT_WS_URL = '<agent_ws_url из ответа реквизитов>'
 $env:AGENT_TRAP_ID = '<trap_id из ответа реквизитов>'
 $env:AGENT_TOKEN = '<token из ответа реквизитов>'
 $env:AGENT_JOURNAL_FILE = 'C:\HoneyForge\agent-data\demo.journal'
 # Для локального backend с собственным CA:
 $env:AGENT_CA_FILE = 'C:\certs\localhost-ca.crt'
-.\honey-forge-agent.exe
+.\edge-worker.exe
 ```
 
-На Linux соберите `go build -o honey-forge-agent ./cmd/agent` и задайте те же
+На Linux соберите `go build -trimpath -buildvcs=false -o edge-worker ./cmd/agent` и задайте те же
 переменные. TLS проверяется; отключения проверки сертификата нет. Требуются
 свободные TCP-порты из конфигурации и право bind на них. Один процесс агента
 обслуживает одну ловушку; для второй нужны отдельные реквизиты и журнал.
@@ -114,7 +115,7 @@ WSS или отсутствии ack агент повторяет тот же ba
 ```powershell
 go test ./internal/agent ./internal/tcptrap
 go test -tags=integration ./internal/agent -run TestDemoTrapToBackend -count=1
-go test -tags=integration ./internal/app -run TestDemoRegistrationToTCPStop -count=1 -v
+go test -tags=integration ./internal/app -run '^TestDemoRegistrationToTCPStop' -count=1 -v
 go fmt ./...
 go vet ./...
 go test ./...
@@ -131,3 +132,6 @@ TLS/WSS до тестового backend peer и проверяет достав�
 Он проходит регистрацию и повторный вход, создаёт профиль и ловушку, запускает
 настоящего агента, отправляет данные в TCP listener, сверяет три события через
 REST после Kafka/PostgreSQL и проверяет остановку и закрытие порта.
+`TestDemoRegistrationToTCPStopAfterWSSLoss` повторяет этот путь с разрывом WSS
+после TCP-атаки: агент переподключается, три события появляются ровно по одному
+разу, а завершённые команды не меняют статус и время завершения.
