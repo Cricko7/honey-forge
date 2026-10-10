@@ -66,7 +66,7 @@ func NewKafkaPublisher(brokers []string, topic string) (*KafkaPublisher, error) 
 			return nil, fmt.Errorf("Kafka broker must not be empty")
 		}
 	}
-	client, err := kgo.NewClient(kgo.SeedBrokers(brokers...), kgo.RequiredAcks(kgo.AllISRAcks()), kgo.RecordDeliveryTimeout(8*time.Second), kgo.ProducerBatchMaxBytes(512<<10))
+	client, err := kgo.NewClient(kgo.SeedBrokers(brokers...), kgo.AllowAutoTopicCreation(), kgo.RequiredAcks(kgo.AllISRAcks()), kgo.RecordDeliveryTimeout(8*time.Second), kgo.ProducerBatchMaxBytes(512<<10))
 	if err != nil {
 		return nil, fmt.Errorf("configure Kafka: %w", err)
 	}

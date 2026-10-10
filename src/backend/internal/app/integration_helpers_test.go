@@ -22,6 +22,7 @@ import (
 	"honey-forge/internal/contract"
 	"honey-forge/modules/auth"
 	"honey-forge/modules/catalog"
+	"honey-forge/modules/events"
 	"honey-forge/modules/profiles"
 )
 
@@ -39,6 +40,10 @@ func openIntegrationRuntime(t *testing.T) *Runtime {
 }
 
 func openIntegrationRuntimeWithDefinitions(t *testing.T, definitions []catalog.Definition) *Runtime {
+	return openIntegrationRuntimeWithOptions(t, definitions, nil, "")
+}
+
+func openIntegrationRuntimeWithOptions(t *testing.T, definitions []catalog.Definition, publisher events.BatchPublisher, agentWSURL string) *Runtime {
 	t.Helper()
 
 	dsn := os.Getenv("TEST_DATABASE_URL")
@@ -85,6 +90,8 @@ func openIntegrationRuntimeWithDefinitions(t *testing.T, definitions []catalog.D
 		MigrationsPath:     "../../../../migrations",
 		Logger:             slog.New(slog.NewTextHandler(io.Discard, nil)),
 		CatalogDefinitions: definitions,
+		EventPublisher:     publisher,
+		AgentWSURL:         agentWSURL,
 	})
 	if err != nil {
 		t.Fatal(err)

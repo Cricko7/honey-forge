@@ -114,6 +114,7 @@ WSS или отсутствии ack агент повторяет тот же ba
 ```powershell
 go test ./internal/agent ./internal/tcptrap
 go test -tags=integration ./internal/agent -run TestDemoTrapToBackend -count=1
+go test -tags=integration ./internal/app -run TestDemoRegistrationToTCPStop -count=1 -v
 go fmt ./...
 go vet ./...
 go test ./...
@@ -125,3 +126,8 @@ Smoke-тест запускает настоящий дочерний проце
 TLS/WSS до тестового backend peer и проверяет доставку трёх событий. Для него
 не нужны PostgreSQL/Kafka. Проверки реального backend/БД остаются в
 `internal/app` с тегом `integration` и требуют `TEST_DATABASE_URL`.
+
+`TestDemoRegistrationToTCPStop` дополнительно требует `TEST_KAFKA_BROKERS`.
+Он проходит регистрацию и повторный вход, создаёт профиль и ловушку, запускает
+настоящего агента, отправляет данные в TCP listener, сверяет три события через
+REST после Kafka/PostgreSQL и проверяет остановку и закрытие порта.
