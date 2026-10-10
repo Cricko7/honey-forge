@@ -2,7 +2,7 @@ package auth
 
 import (
 	"encoding/json"
-	"honey-forge/src/backend/internal/platform/httpx"
+	"honey-forge/internal/platform/httpx"
 	"reflect"
 )
 

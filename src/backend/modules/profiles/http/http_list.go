@@ -1,13 +1,13 @@
 package http
 
 import (
-	authhttp "honey-forge/src/backend/modules/auth/http"
-	profilecore "honey-forge/src/backend/modules/profiles"
+	authhttp "honey-forge/modules/auth/http"
+	profilecore "honey-forge/modules/profiles"
 	"net/http"
 	"net/url"
 	"strconv"
 
-	"honey-forge/src/backend/internal/platform/httpx"
+	"honey-forge/internal/platform/httpx"
 
 	"github.com/gin-gonic/gin"
 )

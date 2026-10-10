@@ -4,7 +4,7 @@ package repository
 
 import (
 	"context"
-	authcore "honey-forge/src/backend/modules/auth"
+	authcore "honey-forge/modules/auth"
 	"os"
 	"path/filepath"
 	"strings"

@@ -10,7 +10,7 @@ func TestRuntime(t *testing.T) {
 	if dsn == "" {
 		t.Skip("TEST_DATABASE_URL required")
 	}
-	runtime, err := Open(t.Context(), Config{DatabaseURL: dsn, CursorKey: make([]byte, 32), BrowserOrigins: []string{"https://operator.example"}, MigrationsPath: "../../migrations"})
+	runtime, err := Open(t.Context(), Config{DatabaseURL: dsn, CursorKey: make([]byte, 32), BrowserOrigins: []string{"https://operator.example"}, MigrationsPath: "../../../migrations"})
 	if err != nil {
 		t.Fatal(err)
 	}

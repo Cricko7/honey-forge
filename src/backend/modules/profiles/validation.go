@@ -11,7 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
-	"honey-forge/src/backend/internal/platform/httpx"
+	"honey-forge/internal/platform/httpx"
 )
 
 var typePattern = regexp.MustCompile(`^[a-z][a-z0-9_.-]{0,63}$`)

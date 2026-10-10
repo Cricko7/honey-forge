@@ -5,10 +5,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	profilecore "honey-forge/src/backend/modules/profiles"
+	profilecore "honey-forge/modules/profiles"
 
 	"github.com/jackc/pgx/v5"
-	"honey-forge/src/backend/modules/auth"
+	"honey-forge/modules/auth"
 )
 
 func (r *Repository) Create(ctx context.Context, a auth.AuthContext, key string, hash [32]byte, build func() (profilecore.Profile, error)) (profilecore.CreateResult, error) {

@@ -29,6 +29,7 @@ $env:TLS_KEY_FILE = 'C:\certs\localhost.key'
 $env:API_ADDR = ':8443'
 $env:GIN_MODE = 'release'
 docker compose up -d postgres
+Set-Location src/backend
 go run ./cmd/api
 ```
 
@@ -37,9 +38,9 @@ HTTP-сервер работает исключительно по HTTPS. При
 Goose migrations, браузерная политика, cursor codec, журнал изменений и
 координатор записей. Отсутствующие настройки останавливают запуск.
 
-В корне находится единственный Go-модуль `honey-forge`, каталог миграций
-`migrations/` и полный контракт `api/openapi.yaml`. Оба entrypoint запускают
-общую сборку auth/organizations, profiles и catalog. Регистрация создаёт
+Go-модуль и единственный API entrypoint находятся в `src/backend/`.
+Миграции находятся в корневом `migrations/`, полный контракт — в
+`api/openapi.yaml`. API запускает auth/organizations, profiles и catalog. Регистрация создаёт
 реальную сессию; viewer читает каталог и профили, admin также изменяет профили.
 Агентский TCP runtime, команды и доставка WSS требуют следующих модулей.
 
@@ -113,6 +114,7 @@ Goose migrations, браузерная политика, cursor codec, журн�
 ## Проверки
 
 ```powershell
+Set-Location src/backend
 go fmt ./...
 go vet ./...
 go test ./...

@@ -2,7 +2,7 @@ package http
 
 import (
 	"encoding/json"
-	authcore "honey-forge/src/backend/modules/auth"
+	authcore "honey-forge/modules/auth"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,7 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"honey-forge/src/backend/internal/platform/httpx"
+	"honey-forge/internal/platform/httpx"
 )
 
 func TestRegistrationValidationBoundaries(t *testing.T) {

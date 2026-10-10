@@ -4,12 +4,12 @@ Auth/organizations и profiles из `origin/main` (49fe686) включены в 
 checkout. Исходные незакоммиченные файлы предварительно сохранены в резервной
 копии. Git merge/push не выполнялись.
 
-- Единственный Go-модуль — `honey-forge` в корне; весь код входит в `go test ./...`.
+- Единственный Go-модуль расположен в `src/backend`; весь код входит в `go test ./...`.
 - Миграции auth, profiles, common и catalog находятся в корневом `migrations/`.
   Goose применяет также ещё не установленные миграции с более ранним timestamp,
   поэтому база с уже установленным common может получить auth/profiles.
-- Оба entrypoint используют `internal/app.Open`: одинаковые реальные сервисы,
-  маршруты и установленный каталог. Основной запуск: `go run ./cmd/api` (TLS).
+- Единственный entrypoint использует `internal/app.Open` для реальных сервисов,
+  маршрутов и установленного каталога. Запуск из `src/backend`: `go run ./cmd/api` (TLS).
 - `RegisterSessionCatalog` проверяет настоящую cookie-сессию и создаёт
   `contract.Principal` из серверного UserID, OrganizationID и Role. Проверка
   выполняется до чтения/304; отозванная сессия получает 401.

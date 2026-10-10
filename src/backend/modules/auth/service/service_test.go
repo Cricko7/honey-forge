@@ -3,7 +3,7 @@ package service
 import (
 	"encoding/hex"
 	"errors"
-	authcore "honey-forge/src/backend/modules/auth"
+	authcore "honey-forge/modules/auth"
 	"strings"
 	"sync"
 	"sync/atomic"

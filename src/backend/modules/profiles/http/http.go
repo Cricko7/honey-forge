@@ -1,15 +1,15 @@
 package http
 
 import (
-	authhttp "honey-forge/src/backend/modules/auth/http"
-	profilecore "honey-forge/src/backend/modules/profiles"
-	profileservice "honey-forge/src/backend/modules/profiles/service"
+	authhttp "honey-forge/modules/auth/http"
+	profilecore "honey-forge/modules/profiles"
+	profileservice "honey-forge/modules/profiles/service"
 	"log/slog"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"honey-forge/src/backend/internal/platform/httpx"
+	"honey-forge/internal/platform/httpx"
 )
 
 type Handler struct {

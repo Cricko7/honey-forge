@@ -10,8 +10,8 @@ import (
 
 	"honey-forge/internal/configschema"
 	"honey-forge/internal/contract"
-	"honey-forge/src/backend/modules/catalog"
-	"honey-forge/src/backend/modules/profiles"
+	"honey-forge/modules/catalog"
+	"honey-forge/modules/profiles"
 )
 
 // ProfileTypeLookup adapts immutable catalog versions to the profile service.

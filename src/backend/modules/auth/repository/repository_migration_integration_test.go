@@ -3,8 +3,8 @@
 package repository
 
 import (
-	authcore "honey-forge/src/backend/modules/auth"
-	authservice "honey-forge/src/backend/modules/auth/service"
+	authcore "honey-forge/modules/auth"
+	authservice "honey-forge/modules/auth/service"
 	"path/filepath"
 	"testing"
 

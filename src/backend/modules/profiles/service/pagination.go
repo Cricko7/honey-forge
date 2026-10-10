@@ -6,11 +6,11 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
-	profilecore "honey-forge/src/backend/modules/profiles"
+	profilecore "honey-forge/modules/profiles"
 	"strings"
 	"time"
 
-	"honey-forge/src/backend/modules/auth"
+	"honey-forge/modules/auth"
 )
 
 type cursor struct {

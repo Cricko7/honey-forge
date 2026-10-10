@@ -3,12 +3,12 @@ package http
 import (
 	"errors"
 	"fmt"
-	profilecore "honey-forge/src/backend/modules/profiles"
+	profilecore "honey-forge/modules/profiles"
 	"log/slog"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgconn"
-	"honey-forge/src/backend/internal/platform/httpx"
+	"honey-forge/internal/platform/httpx"
 )
 
 func (h *Handler) fail(c *gin.Context, err error) {

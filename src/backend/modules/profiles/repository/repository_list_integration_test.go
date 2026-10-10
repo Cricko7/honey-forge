@@ -5,11 +5,11 @@ package repository
 import (
 	"context"
 	"errors"
-	profilescore "honey-forge/src/backend/modules/profiles"
+	profilescore "honey-forge/modules/profiles"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
-	"honey-forge/src/backend/modules/auth"
+	"honey-forge/modules/auth"
 )
 
 func TestPostgresProfilePaginationAndAuditRollback(t *testing.T) {

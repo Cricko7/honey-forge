@@ -2,7 +2,7 @@ package service
 
 import (
 	"errors"
-	profilecore "honey-forge/src/backend/modules/profiles"
+	profilecore "honey-forge/modules/profiles"
 	"testing"
 )
 

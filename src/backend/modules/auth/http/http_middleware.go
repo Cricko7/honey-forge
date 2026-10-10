@@ -1,12 +1,12 @@
 package http
 
 import (
-	authcore "honey-forge/src/backend/modules/auth"
+	authcore "honey-forge/modules/auth"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 
-	"honey-forge/src/backend/internal/platform/httpx"
+	"honey-forge/internal/platform/httpx"
 )
 
 // RequireSession passes a verified identity to other operator feature handlers.

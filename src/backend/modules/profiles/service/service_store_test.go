@@ -3,12 +3,12 @@ package service
 import (
 	"context"
 	"encoding/json"
-	profilecore "honey-forge/src/backend/modules/profiles"
+	profilecore "honey-forge/modules/profiles"
 	"sort"
 	"sync"
 
 	"github.com/jackc/pgx/v5"
-	"honey-forge/src/backend/modules/auth"
+	"honey-forge/modules/auth"
 )
 
 type fakeKey struct {

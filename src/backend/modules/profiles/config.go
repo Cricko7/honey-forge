@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"sort"
 
-	"honey-forge/src/backend/internal/platform/httpx"
+	"honey-forge/internal/platform/httpx"
 )
 
 func Canonical(v any) ([]byte, error) { return httpx.CanonicalJSON(v) }

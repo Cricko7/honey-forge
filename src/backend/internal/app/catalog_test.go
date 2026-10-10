@@ -3,7 +3,7 @@ package app
 import (
 	"encoding/json"
 	"honey-forge/internal/contract"
-	"honey-forge/src/backend/modules/catalog"
+	"honey-forge/modules/catalog"
 	"net/http/httptest"
 	"testing"
 

@@ -12,9 +12,9 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"honey-forge/src/backend/modules/auth"
-	profilecore "honey-forge/src/backend/modules/profiles"
-	profileservice "honey-forge/src/backend/modules/profiles/service"
+	"honey-forge/modules/auth"
+	profilecore "honey-forge/modules/profiles"
+	profileservice "honey-forge/modules/profiles/service"
 )
 
 func httpRouter(t *testing.T, actor auth.AuthContext) (*gin.Engine, *profileservice.Service) {

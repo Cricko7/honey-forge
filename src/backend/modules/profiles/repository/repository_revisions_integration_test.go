@@ -4,7 +4,7 @@ package repository
 
 import (
 	"errors"
-	profilescore "honey-forge/src/backend/modules/profiles"
+	profilescore "honey-forge/modules/profiles"
 	"testing"
 
 	"github.com/jackc/pgx/v5"

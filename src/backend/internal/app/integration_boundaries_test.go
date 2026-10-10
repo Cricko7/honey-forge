@@ -4,14 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"honey-forge/src/backend/modules/profiles"
+	"honey-forge/modules/profiles"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 
 	"honey-forge/internal/contract"
-	"honey-forge/src/backend/modules/catalog"
+	"honey-forge/modules/catalog"
 )
 
 func TestRouterIgnoresUntrustedProxyIdentity(t *testing.T) {

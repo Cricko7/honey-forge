@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
-	profilecore "honey-forge/src/backend/modules/profiles"
+	profilecore "honey-forge/modules/profiles"
 
 	"github.com/jackc/pgx/v5"
 )

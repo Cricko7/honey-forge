@@ -10,11 +10,11 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"honey-forge/internal/contract"
-	authhttp "honey-forge/src/backend/modules/auth/http"
-	authservice "honey-forge/src/backend/modules/auth/service"
-	"honey-forge/src/backend/modules/catalog"
-	profilehttp "honey-forge/src/backend/modules/profiles/http"
-	profileservice "honey-forge/src/backend/modules/profiles/service"
+	authhttp "honey-forge/modules/auth/http"
+	authservice "honey-forge/modules/auth/service"
+	"honey-forge/modules/catalog"
+	profilehttp "honey-forge/modules/profiles/http"
+	profileservice "honey-forge/modules/profiles/service"
 )
 
 // RegisterServices connects both feature modules and the catalog to one real session.

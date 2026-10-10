@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"honey-forge/internal/contract"
 	"honey-forge/internal/postgres"
-	"honey-forge/src/backend/modules/catalog"
+	"honey-forge/modules/catalog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -49,7 +49,7 @@ func TestRealSessionCatalogAndProfileFlow(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer isolated.Close()
-	if err := postgres.Migrate(t.Context(), isolated, os.DirFS("../../migrations")); err != nil {
+	if err := postgres.Migrate(t.Context(), isolated, os.DirFS("../../../migrations")); err != nil {
 		t.Fatal(err)
 	}
 	// startup must use the same isolated schema as these real auth repositories.
@@ -61,7 +61,7 @@ func TestRealSessionCatalogAndProfileFlow(t *testing.T) {
 	query.Set("search_path", schema)
 	databaseURL.RawQuery = query.Encode()
 	schemaDSN := databaseURL.String()
-	runtime, err := Open(t.Context(), Config{DatabaseURL: schemaDSN, CursorKey: make([]byte, 32), BrowserOrigins: []string{"https://operator.example"}, MigrationsPath: "../../migrations"})
+	runtime, err := Open(t.Context(), Config{DatabaseURL: schemaDSN, CursorKey: make([]byte, 32), BrowserOrigins: []string{"https://operator.example"}, MigrationsPath: "../../../migrations"})
 	if err != nil {
 		t.Fatal(err)
 	}

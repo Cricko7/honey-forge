@@ -5,13 +5,13 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
-	profilecore "honey-forge/src/backend/modules/profiles"
+	profilecore "honey-forge/modules/profiles"
 	"math"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"honey-forge/src/backend/modules/auth"
+	"honey-forge/modules/auth"
 )
 
 // store is the consumed test seam; transaction implementations own atomic writes.

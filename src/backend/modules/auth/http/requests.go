@@ -2,8 +2,8 @@ package http
 
 import (
 	"github.com/gin-gonic/gin"
-	"honey-forge/src/backend/internal/platform/httpx"
-	authcore "honey-forge/src/backend/modules/auth"
+	"honey-forge/internal/platform/httpx"
+	authcore "honey-forge/modules/auth"
 	"reflect"
 )
 

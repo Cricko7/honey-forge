@@ -2,7 +2,7 @@ package app
 
 import (
 	"honey-forge/internal/contract"
-	"honey-forge/src/backend/modules/catalog"
+	"honey-forge/modules/catalog"
 
 	"github.com/gin-gonic/gin"
 )

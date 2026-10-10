@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
-	authcore "honey-forge/src/backend/modules/auth"
+	authcore "honey-forge/modules/auth"
 	"testing"
 
 	"github.com/jackc/pgx/v5"

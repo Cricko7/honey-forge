@@ -2,7 +2,7 @@ package profiles
 
 import (
 	"errors"
-	"honey-forge/src/backend/internal/platform/httpx"
+	"honey-forge/internal/platform/httpx"
 )
 
 var (

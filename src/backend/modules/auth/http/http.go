@@ -1,14 +1,14 @@
 package http
 
 import (
-	authcore "honey-forge/src/backend/modules/auth"
-	authservice "honey-forge/src/backend/modules/auth/service"
+	authcore "honey-forge/modules/auth"
+	authservice "honey-forge/modules/auth/service"
 	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"honey-forge/src/backend/internal/platform/httpx"
+	"honey-forge/internal/platform/httpx"
 )
 
 const (

@@ -1,6 +1,6 @@
 package auth
 
-import authtypes "honey-forge/src/backend/modules/auth/types"
+import authtypes "honey-forge/modules/auth/types"
 
 const (
 	RoleAdmin  = authtypes.RoleAdmin

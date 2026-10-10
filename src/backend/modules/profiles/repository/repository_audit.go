@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	profilecore "honey-forge/src/backend/modules/profiles"
+	profilecore "honey-forge/modules/profiles"
 
 	"github.com/jackc/pgx/v5"
-	"honey-forge/src/backend/modules/auth"
+	"honey-forge/modules/auth"
 )
 
 type Writers struct {

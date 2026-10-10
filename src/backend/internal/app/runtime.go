@@ -7,12 +7,12 @@ import (
 	"honey-forge/internal/contract"
 	"honey-forge/internal/mutation"
 	"honey-forge/internal/postgres"
-	authrepo "honey-forge/src/backend/modules/auth/repository"
-	authservice "honey-forge/src/backend/modules/auth/service"
-	"honey-forge/src/backend/modules/catalog"
-	"honey-forge/src/backend/modules/profiles"
-	profilerepo "honey-forge/src/backend/modules/profiles/repository"
-	profileservice "honey-forge/src/backend/modules/profiles/service"
+	authrepo "honey-forge/modules/auth/repository"
+	authservice "honey-forge/modules/auth/service"
+	"honey-forge/modules/catalog"
+	"honey-forge/modules/profiles"
+	profilerepo "honey-forge/modules/profiles/repository"
+	profileservice "honey-forge/modules/profiles/service"
 	"log/slog"
 	"os"
 
@@ -56,7 +56,7 @@ func Open(ctx context.Context, config Config) (*Runtime, error) {
 	}
 	directory := config.MigrationsPath
 	if directory == "" {
-		directory = "migrations"
+		directory = "../../migrations"
 	}
 	if err := postgres.Migrate(ctx, pool, os.DirFS(directory)); err != nil {
 		pool.Close()

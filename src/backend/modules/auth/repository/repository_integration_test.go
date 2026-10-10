@@ -5,9 +5,9 @@ package repository
 import (
 	"context"
 	"errors"
-	authcore "honey-forge/src/backend/modules/auth"
-	authhttp "honey-forge/src/backend/modules/auth/http"
-	authservice "honey-forge/src/backend/modules/auth/service"
+	authcore "honey-forge/modules/auth"
+	authhttp "honey-forge/modules/auth/http"
+	authservice "honey-forge/modules/auth/service"
 	"io"
 	"log/slog"
 	"net/http/httptest"

@@ -1,6 +1,6 @@
 package profiles
 
-import profiletypes "honey-forge/src/backend/modules/profiles/types"
+import profiletypes "honey-forge/modules/profiles/types"
 
 type Object = profiletypes.Object
 type CreateRequest = profiletypes.CreateRequest

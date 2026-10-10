@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
-	authcore "honey-forge/src/backend/modules/auth"
+	authcore "honey-forge/modules/auth"
 	"time"
 )
 

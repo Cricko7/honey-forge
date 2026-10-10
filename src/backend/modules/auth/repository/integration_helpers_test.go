@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 
-	authcore "honey-forge/src/backend/modules/auth"
+	authcore "honey-forge/modules/auth"
 )
 
 func createRequest(email string) authcore.RegisterRequest {

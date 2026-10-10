@@ -46,7 +46,7 @@ func TestRepositoryInstall(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer pool.Close()
-	if err := postgres.Migrate(t.Context(), pool, os.DirFS("../../migrations")); err != nil {
+	if err := postgres.Migrate(t.Context(), pool, os.DirFS("../../../../migrations")); err != nil {
 		t.Fatal(err)
 	}
 	repo := NewRepository(pool)

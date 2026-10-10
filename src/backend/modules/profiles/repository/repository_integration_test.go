@@ -5,7 +5,7 @@ package repository
 import (
 	"context"
 	"errors"
-	profilescore "honey-forge/src/backend/modules/profiles"
+	profilescore "honey-forge/modules/profiles"
 	"os"
 	"path/filepath"
 	"strings"
