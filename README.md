@@ -125,7 +125,8 @@ Go-модуль и единственный API entrypoint находятся в
 контракт — в `api/openapi.yaml`. API подключает auth/organizations, catalog,
 profiles, ловушки, команды и приём событий. Состояние ловушек описано в
 [модуле traps](src/backend/modules/traps/README.md). Отдельный TCP runtime
-агента и frontend WSS остаются отдельными компонентами.
+агента реализован в `cmd/agent`: [создание первой ловушки с конфигурацией и запуск](src/backend/internal/agent/README.md).
+Frontend WSS остаётся отдельным компонентом.
 
 ## 7. Докеризация
 

@@ -28,6 +28,9 @@ go.work.sum
 # env file
 .env
 
+# Local agent state and captured telemetry
+*.journal
+
 # Editor/IDE
 # .idea/
 # .vscode/
