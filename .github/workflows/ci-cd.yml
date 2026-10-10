@@ -174,18 +174,25 @@ jobs:
             exit 1
 
       - name: External smoke test
+        env:
+          API_DOMAIN: "honey-forge-seg-fault.ru"
+          API_IP: ${{ secrets.SSH_HOST }}
         run: |
           set -e
-          BASE="${{ vars.API_BASE_URL }}"
-
-          # Пока сертификат самоподписанный → -k
-          code=$(curl -k -s -o /dev/null -w "%{http_code}" "$BASE/api/session")
-          [ "$code" = "401" ] || (echo "expected 401 for /api/session, got $code"; exit 1)
-
-          code=$(curl -k -s -o /dev/null -w "%{http_code}" "$BASE/assets/stream")
-          [ "$code" = "401" ] || (echo "expected 401 for /assets/stream, got $code"; exit 1)
-
-          code=$(curl -k -s -o /dev/null -w "%{http_code}" "$BASE/")
-          [ "$code" = "404" ] || (echo "expected 404 for /, got $code"; exit 1)
-
+          
+          # Если домен не резолвится с runner'а — используем --resolve
+          check() {
+            local path="$1" expected="$2"
+            local code
+            code=$(curl -k -s -o /dev/null -w "%{http_code}" \
+              --resolve "$API_DOMAIN:443:$API_IP" \
+              "https://$API_DOMAIN$path")
+            echo "$path → $code"
+            [ "$code" = "$expected" ] || (echo "expected $expected, got $code"; exit 1)
+          }
+          
+          check /api/session 401
+          check /assets/stream 401
+          check / 404
+          
           echo "Smoke test passed"
