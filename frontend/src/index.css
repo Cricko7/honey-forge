@@ -3,61 +3,57 @@
 @tailwind utilities;
 
 @layer base {
-  /* ---- Светлая тема (по умолчанию): SPI Silver · Purple · Ivory + графит ---- */
+  /* ---- Светлая тема: приглушённый тонированный фон (не чисто белый) + благородный фиолет ---- */
   :root,
   [data-theme='light'] {
     color-scheme: light;
-    --bg-base: 245 240 230; /* Ivory #F5F0E6 */
-    --bg-panel: 255 255 255;
-    --bg-elevated: 240 236 225;
-    --bg-hover: 232 227 213;
-    --line: 214 209 194;
-    --fg: 38 42 54; /* графитовый текст */
-    --muted: 110 112 126;
-    --brand: 112 69 160; /* Purple #7045A0 */
-    --brand-soft: 138 96 190;
-    --brand-deep: 88 52 128;
-    --ok: 22 163 110;
-    --warn: 202 138 4;
-    --danger: 225 45 76;
-    --info: 14 144 210;
-    /* графитовая боковая панель / топбар */
-    --graphite: 30 33 45; /* #1E212D */
-    --graphite-soft: 42 46 60;
-    --graphite-line: 58 62 78;
-    --graphite-fg: 232 232 240;
-    --graphite-muted: 150 154 172;
-    --shadow-glass: 0 8px 28px rgba(30, 33, 45, 0.1);
-    /* фоновые блики страницы */
-    --page-glow-1: rgba(112, 69, 160, 0.1);
-    --page-glow-2: rgba(191, 197, 206, 0.35);
+    /* SPI: Silver · Purple · Ivory — тёплый ivory (60%) + greige silver-структура (30%) + фиолет-акцент (10%) */
+    --bg-base: 243 240 232; /* #F3F0E8 тёплый ivory — фон страницы */
+    --bg-panel: 252 251 246; /* #FCFBF6 светлейший ivory — карточки приподнимаются */
+    --bg-elevated: 238 235 226; /* #EEEBE2 подложка */
+    --bg-hover: 232 228 217; /* #E8E4D9 */
+    --line: 225 220 208; /* #E1DCD0 тёплая silver-грань */
+    --fg: 44 41 37; /* #2C2925 тёплый графит (ink) */
+    --muted: 122 116 105; /* #7A7469 greige silver-текст */
+    --brand: 110 86 207; /* #6E56CF благородный фиолет (Radix violet) — мостик warm/cool */
+    --brand-soft: 138 116 232; /* #8A74E8 */
+    --brand-deep: 88 68 170; /* #5844AA */
+    --ok: 22 150 110;
+    --warn: 176 128 24;
+    --danger: 210 52 82;
+    --info: 44 118 198;
+    /* боковая панель / топбар — тёмные фиолетово-графитовые в любой теме */
+    --graphite: 23 21 31; /* #17151F */
+    --graphite-soft: 30 27 41; /* #1E1B29 */
+    --graphite-line: 44 41 58; /* #2C293A */
+    --graphite-fg: 233 231 240;
+    --graphite-muted: 158 155 176;
+    --shadow-glass: 0 1px 2px rgba(60, 50, 30, 0.04), 0 16px 40px -14px rgba(60, 50, 30, 0.14);
   }
 
-  /* ---- Тёмная тема ---- */
+  /* ---- Тёмная тема: глубокий фиолетово-чёрный ---- */
   [data-theme='dark'] {
     color-scheme: dark;
-    --bg-base: 10 10 15;
-    --bg-panel: 19 19 28;
-    --bg-elevated: 26 26 38;
-    --bg-hover: 34 34 50;
-    --line: 42 42 58;
-    --fg: 226 232 240;
-    --muted: 138 138 160;
-    --brand: 124 92 255;
-    --brand-soft: 157 133 255;
-    --brand-deep: 91 63 214;
-    --ok: 52 211 153;
-    --warn: 251 191 36;
-    --danger: 244 63 94;
-    --info: 56 189 248;
-    --graphite: 19 19 28;
-    --graphite-soft: 26 26 38;
-    --graphite-line: 42 42 58;
-    --graphite-fg: 226 232 240;
-    --graphite-muted: 138 138 160;
-    --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.45);
-    --page-glow-1: rgba(124, 92, 255, 0.14);
-    --page-glow-2: rgba(56, 189, 248, 0.08);
+    --bg-base: 15 14 21; /* #0F0E15 */
+    --bg-panel: 23 21 31; /* #17151F */
+    --bg-elevated: 30 27 41; /* #1E1B29 */
+    --bg-hover: 38 34 52; /* #262234 */
+    --line: 42 39 56; /* #2A2738 */
+    --fg: 231 230 238; /* #E7E6EE */
+    --muted: 154 151 173; /* #9A97AD */
+    --brand: 139 122 243; /* #8B7AF3 */
+    --brand-soft: 173 158 255; /* #AD9EFF */
+    --brand-deep: 109 92 214; /* #6D5CD6 */
+    --ok: 52 200 150;
+    --warn: 240 185 60;
+    --danger: 240 72 102;
+    --info: 70 168 238;
+    --graphite: 19 17 27; /* #13111B чуть темнее панели */
+    --graphite-soft: 26 24 36;
+    --graphite-line: 42 39 56;
+    --graphite-fg: 231 230 238;
+    --graphite-muted: 154 151 173;
+    --shadow-glass: 0 1px 2px rgba(0, 0, 0, 0.3), 0 20px 48px -12px rgba(0, 0, 0, 0.55);
   }
 
   html,
@@ -67,11 +63,7 @@
   }
   body {
     @apply bg-bg-base text-fg font-sans antialiased;
-    background-image:
-      radial-gradient(circle at 15% -10%, var(--page-glow-1), transparent 45%),
-      radial-gradient(circle at 90% 0%, var(--page-glow-2), transparent 42%);
-    background-attachment: fixed;
-    transition: background-color 0.4s ease, color 0.4s ease;
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
   * {
     scrollbar-width: thin;
@@ -88,17 +80,19 @@
 }
 
 @layer components {
+  /* Премиум + «воздух»: сплошные поверхности, граница почти незаметна,
+     отделение задаёт мягкая парящая тень (как окна macOS) */
   .glass {
-    @apply bg-bg-panel/70 border border-line/60 backdrop-blur-xl;
+    @apply bg-bg-panel border border-line/50;
   }
   .card {
     @apply glass rounded-2xl shadow-glass;
   }
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-primary {
-    @apply btn bg-brand hover:bg-brand-deep text-white shadow-glow;
+    @apply btn bg-brand hover:bg-brand-deep text-white shadow-sm;
   }
   .btn-ghost {
     @apply btn bg-bg-elevated hover:bg-bg-hover text-fg border border-line;
@@ -107,12 +101,12 @@
     @apply btn bg-danger/90 hover:bg-danger text-white;
   }
   .input {
-    @apply w-full rounded-xl bg-bg-elevated border border-line px-3 py-2 text-sm text-fg placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand/60;
+    @apply w-full rounded-lg bg-bg-elevated border border-line px-3 py-2 text-sm text-fg placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand/40;
   }
   .label {
     @apply block text-xs font-medium text-muted mb-1.5;
   }
   .chip {
-    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium;
+    @apply inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium;
   }
 }

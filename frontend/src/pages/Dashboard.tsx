@@ -14,7 +14,7 @@ import {
   Pie,
   Cell,
 } from 'recharts'
-import { Bug, Activity, ShieldAlert, Globe, TrendingUp, ArrowUpRight } from 'lucide-react'
+import { Bug, Activity, ShieldAlert, Globe, ArrowUpRight } from 'lucide-react'
 import { Card, SectionTitle, EventTypeBadge } from '@/components/ui'
 import { useEvents, useTraps, useLiveStream } from '@/api/hooks'
 import type { EventSummary } from '@/types'
@@ -26,32 +26,22 @@ function StatCard({
   label,
   value,
   delta,
-  deltaTone,
 }: {
   icon: typeof Bug
   label: string
   value: string
   delta?: string
-  deltaTone?: 'up' | 'down'
 }) {
   return (
     <Card>
       <div className="flex items-start justify-between">
         <div>
           <div className="text-xs text-muted mb-2">{label}</div>
-          <div className="text-3xl font-bold text-fg">{value}</div>
-          {delta && (
-            <div
-              className={`text-xs mt-2 flex items-center gap-1 ${
-                deltaTone === 'down' ? 'text-danger' : 'text-ok'
-              }`}
-            >
-              <TrendingUp size={12} /> {delta}
-            </div>
-          )}
+          <div className="text-3xl font-semibold tracking-tight text-fg">{value}</div>
+          {delta && <div className="text-xs mt-2 text-muted">{delta}</div>}
         </div>
-        <div className="h-10 w-10 rounded-xl bg-brand/15 grid place-items-center">
-          <Icon size={18} className="text-brand-soft" />
+        <div className="h-10 w-10 rounded-lg bg-brand/10 grid place-items-center">
+          <Icon size={18} className="text-brand" />
         </div>
       </div>
     </Card>
@@ -108,10 +98,10 @@ export function DashboardPage() {
   }, [events, c])
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-8 space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Дашборд</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Дашборд</h1>
           <p className="text-sm text-muted">Обзор ловушек и активности атак в реальном времени</p>
         </div>
         <Link to="/app/network" className="btn-primary">
@@ -120,34 +110,19 @@ export function DashboardPage() {
       </div>
 
       {/* Статкарточки */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard
-          icon={Bug}
-          label="Активные ловушки"
-          value={String(onlineTraps)}
-          delta={`${trapsList.length} всего`}
-        />
-        <StatCard
-          icon={Activity}
-          label="События за 24 часа"
-          value={String(events24h.length)}
-          delta={`${events.length} за всё время`}
-        />
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <StatCard icon={Bug} label="Активные ловушки" value={String(onlineTraps)} delta={`${trapsList.length} всего`} />
+        <StatCard icon={Activity} label="События за 24 часа" value={String(events24h.length)} delta={`${events.length} за всё время`} />
         <StatCard
           icon={ShieldAlert}
           label="Попытки входа"
           value={String(events.filter((e) => e.event_type.includes('auth') || e.event_type.includes('payload') || e.event_type === 'honeytoken.triggered').length)}
           delta="перехвачено"
         />
-        <StatCard
-          icon={Globe}
-          label="Уникальных источников"
-          value={String(new Set(events.map((e) => e.source.ip)).size)}
-          delta="IP-адресов"
-        />
+        <StatCard icon={Globe} label="Уникальных источников" value={String(new Set(events.map((e) => e.source.ip)).size)} delta="IP-адресов" />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Активность атак */}
         <Card className="lg:col-span-2">
           <SectionTitle>Активность атак · 24 часа</SectionTitle>
@@ -157,22 +132,8 @@ export function DashboardPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke={c.line} vertical={false} />
                 <XAxis dataKey="hour" stroke={c.muted} fontSize={11} tickLine={false} interval={3} />
                 <YAxis stroke={c.muted} fontSize={11} tickLine={false} axisLine={false} />
-                <Tooltip
-                  contentStyle={{
-                    background: c.panel,
-                    border: `1px solid ${c.line}`,
-                    borderRadius: 12,
-                    fontSize: 12,
-                  }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="count"
-                  stroke={c.brand}
-                  strokeWidth={2.5}
-                  dot={{ r: 3, fill: c.brand }}
-                  activeDot={{ r: 5 }}
-                />
+                <Tooltip contentStyle={{ background: c.panel, border: `1px solid ${c.line}`, borderRadius: 10, fontSize: 12 }} />
+                <Line type="monotone" dataKey="count" stroke={c.brand} strokeWidth={2.5} dot={{ r: 3, fill: c.brand }} activeDot={{ r: 5 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -180,20 +141,13 @@ export function DashboardPage() {
 
         {/* Live-лента */}
         <Card>
-          <SectionTitle
-            action={<span className="chip bg-danger/10 text-danger animate-pulseGlow">LIVE</span>}
-          >
+          <SectionTitle action={<span className="chip bg-danger/10 text-danger animate-pulseGlow">LIVE</span>}>
             Поток событий
           </SectionTitle>
           <div className="space-y-2 max-h-64 overflow-auto">
-            {liveFeed.length === 0 && (
-              <p className="text-xs text-muted py-8 text-center">Ожидание событий…</p>
-            )}
+            {liveFeed.length === 0 && <p className="text-xs text-muted py-8 text-center">Ожидание событий…</p>}
             {liveFeed.map((e) => (
-              <div
-                key={e.event_id}
-                className="flex items-center gap-2 text-xs p-2 rounded-lg bg-bg-elevated/50 animate-slideIn"
-              >
+              <div key={e.event_id} className="flex items-center gap-2 text-xs p-2 rounded-lg bg-bg-elevated/50 animate-slideIn">
                 <span className="font-mono text-muted">{formatTime(e.occurred_at)}</span>
                 <span className="font-mono text-fg">{e.source.ip}</span>
                 <span className="ml-auto">
@@ -205,7 +159,7 @@ export function DashboardPage() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Типы событий */}
         <Card className="lg:col-span-2">
           <SectionTitle>Типы событий</SectionTitle>
@@ -215,15 +169,7 @@ export function DashboardPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke={c.line} vertical={false} />
                 <XAxis dataKey="type" stroke={c.muted} fontSize={11} tickLine={false} />
                 <YAxis stroke={c.muted} fontSize={11} tickLine={false} axisLine={false} />
-                <Tooltip
-                  cursor={{ fill: 'rgba(112,69,160,0.1)' }}
-                  contentStyle={{
-                    background: c.panel,
-                    border: `1px solid ${c.line}`,
-                    borderRadius: 12,
-                    fontSize: 12,
-                  }}
-                />
+                <Tooltip cursor={{ fill: 'rgba(110,86,207,0.1)' }} contentStyle={{ background: c.panel, border: `1px solid ${c.line}`, borderRadius: 10, fontSize: 12 }} />
                 <Bar dataKey="count" fill={c.brand} radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -237,15 +183,7 @@ export function DashboardPage() {
             <div className="h-36 w-36 shrink-0">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie
-                    data={byCountry}
-                    dataKey="count"
-                    nameKey="ip"
-                    innerRadius={38}
-                    outerRadius={60}
-                    paddingAngle={3}
-                    stroke="none"
-                  >
+                  <Pie data={byCountry} dataKey="count" nameKey="ip" innerRadius={38} outerRadius={60} paddingAngle={3} stroke="none">
                     {byCountry.map((d) => (
                       <Cell key={d.ip} fill={d.color} />
                     ))}

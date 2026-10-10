@@ -15,14 +15,58 @@ import ReactFlow, {
   MarkerType,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
-import { Plus, Save, Bug, Database, Server, Zap } from 'lucide-react'
+import { Plus, Bug, Database, Server, Zap, KeyRound, TerminalSquare } from 'lucide-react'
 import { TrapNode, type TrapNodeData } from './network/TrapNode'
-import { useTraps, useProfiles, useCreateTrap, useLiveStream } from '@/api/hooks'
+import { useTraps, useCatalog, useCreateProfile, useCreateTrap, useLiveStream } from '@/api/hooks'
 import { Modal } from '@/components/Modal'
+import { LevelBadge } from '@/components/ui'
+import { ApiError } from '@/api/client'
 import { useThemeColors } from '@/lib/theme'
-import type { Profile } from '@/types'
+import type { CatalogEntry } from '@/types'
 
 const ATTACK = '#f43f5e'
+
+// Иконка и дефолтный порт для каждого типа каталога.
+const TYPE_ICON: Record<string, typeof Bug> = {
+  'tcp-banner': Server,
+  'redis-emulator': Database,
+  'honeytoken-http': KeyRound,
+  'ssh-high-interaction': TerminalSquare,
+}
+const DEFAULT_PORT: Record<string, number> = {
+  'tcp-banner': 2222,
+  'redis-emulator': 6379,
+  'honeytoken-http': 8080,
+  'ssh-high-interaction': 2022,
+}
+
+// Валидный дефолт-конфиг под config_schema типа — чтобы создавать ловушку
+// любого типа прямо из конструктора без ручного JSON.
+function defaultConfig(typeId: string, port: number): Record<string, unknown> {
+  const management = { heartbeat_interval_seconds: 10, telemetry_flush_interval_ms: 500 }
+  switch (typeId) {
+    case 'redis-emulator':
+      return { services: [{ name: 'redis', port, password: 'S3cretTrap!' }], management }
+    case 'honeytoken-http':
+      return {
+        services: [{ name: 'web', port }],
+        tokens: [{ id: 'aws-key', kind: 'key', path: '/admin/credentials.txt', value: 'AKIAIOSFODNN7EXAMPLE' }],
+        management,
+      }
+    case 'ssh-high-interaction':
+      return {
+        services: [{ name: 'ssh', port, username: 'root', password: 'toor' }],
+        session: { max_seconds: 300, max_connections: 4, max_recording_bytes: 1048576, max_upload_bytes: 1048576 },
+        management,
+      }
+    default: // tcp-banner
+      return {
+        listeners: [{ name: 'svc', port, banner: 'SSH-2.0-OpenSSH_9.6\r\n', close_after_banner: false }],
+        logging: { capture_payload: true, max_payload_bytes: 4096 },
+        management,
+      }
+  }
+}
 
 const nodeTypes: NodeTypes = { trap: TrapNode }
 const LAYOUT_KEY = 'honeyforge.network.layout.v1'
@@ -39,11 +83,15 @@ export function NetworkBuilderPage() {
   const navigate = useNavigate()
   const c = useThemeColors()
   const { data: trapsPage } = useTraps()
-  const { data: profilesPage } = useProfiles()
+  const { data: catalogPage } = useCatalog()
+  const createProfile = useCreateProfile()
   const createTrap = useCreateTrap()
 
   const traps = useMemo(() => trapsPage?.items ?? [], [trapsPage])
-  const profiles = profilesPage?.items ?? []
+  const catalog = useMemo(
+    () => (catalogPage?.items ?? []).filter((e) => e.available_for_new_profiles),
+    [catalogPage],
+  )
 
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
@@ -123,6 +171,8 @@ export function NetworkBuilderPage() {
     [setEdges],
   )
 
+  // Авто-сохранение раскладки: позиция каждого узла пишется в localStorage
+  // при завершении перетаскивания — вручную ничего сохранять не нужно.
   function saveLayout() {
     const layout: Record<string, { x: number; y: number }> = {}
     nodes.forEach((n) => (layout[n.id] = n.position))
@@ -151,9 +201,6 @@ export function NetworkBuilderPage() {
               <Zap size={12} /> {attackCount} под атакой
             </span>
           )}
-          <button className="btn-ghost" onClick={saveLayout}>
-            <Save size={16} /> Сохранить раскладку
-          </button>
           <button className="btn-primary" onClick={() => setAddOpen(true)}>
             <Plus size={16} /> Добавить ловушку
           </button>
@@ -168,6 +215,7 @@ export function NetworkBuilderPage() {
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onNodeClick={onNodeClick}
+          onNodeDragStop={() => saveLayout()}
           nodeTypes={nodeTypes}
           fitView
           proOptions={{ hideAttribution: true }}
@@ -200,10 +248,17 @@ export function NetworkBuilderPage() {
       <AddTrapModal
         open={addOpen}
         onClose={() => setAddOpen(false)}
-        profiles={profiles}
-        creating={createTrap.isPending}
-        onCreate={async (name, profileId) => {
-          await createTrap.mutateAsync({ name, profile_id: profileId })
+        catalog={catalog}
+        creating={createProfile.isPending || createTrap.isPending}
+        onCreate={async (name, entry, port) => {
+          const config = defaultConfig(entry.type_id, port)
+          const profile = await createProfile.mutateAsync({
+            name: `${name} · ${entry.type_id}`,
+            type_id: entry.type_id,
+            type_version: entry.type_version,
+            config,
+          })
+          await createTrap.mutateAsync({ name, profile_id: profile.id })
           setAddOpen(false)
         }}
       />
@@ -214,60 +269,123 @@ export function NetworkBuilderPage() {
 function AddTrapModal({
   open,
   onClose,
-  profiles,
+  catalog,
   onCreate,
   creating,
 }: {
   open: boolean
   onClose: () => void
-  profiles: Profile[]
-  onCreate: (name: string, profileId: string) => void
+  catalog: CatalogEntry[]
+  onCreate: (name: string, entry: CatalogEntry, port: number) => Promise<void>
   creating: boolean
 }) {
   const [name, setName] = useState('')
-  const [profileId, setProfileId] = useState('')
+  const [typeKey, setTypeKey] = useState('')
+  const [port, setPort] = useState<number>(2222)
+  const [error, setError] = useState<string | null>(null)
 
+  const selected = useMemo(
+    () => catalog.find((e) => `${e.type_id}/${e.type_version}` === typeKey),
+    [catalog, typeKey],
+  )
+
+  // Выбрать первый тип при открытии; порт — дефолтный для типа.
   useEffect(() => {
-    if (open && profiles.length && !profileId) setProfileId(profiles[0].id)
-  }, [open, profiles, profileId])
+    if (open && catalog.length && !typeKey) {
+      const first = catalog[0]
+      setTypeKey(`${first.type_id}/${first.type_version}`)
+    }
+  }, [open, catalog, typeKey])
+  useEffect(() => {
+    if (selected) setPort(DEFAULT_PORT[selected.type_id] ?? 2222)
+  }, [selected])
+
+  async function submit() {
+    setError(null)
+    if (!selected || !name.trim()) {
+      setError('Выберите тип и укажите имя')
+      return
+    }
+    try {
+      await onCreate(name.trim(), selected, port)
+      setName('')
+      setTypeKey('')
+    } catch (err) {
+      if (err instanceof ApiError) setError(err.message || err.code)
+      else setError('Не удалось создать ловушку')
+    }
+  }
 
   return (
-    <Modal open={open} onClose={onClose} title="Новая ловушка">
-      <div className="space-y-4">
+    <Modal open={open} onClose={onClose} title="Новая ловушка" width="max-w-2xl">
+      <div className="space-y-5">
+        {/* Каталог типов прямо в конструкторе */}
         <div>
-          <label className="label">Имя ловушки</label>
-          <input
-            className="input"
-            placeholder="dmz-ssh-03"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
+          <label className="label">Тип ловушки из каталога</label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {catalog.map((e) => {
+              const key = `${e.type_id}/${e.type_version}`
+              const Icon = TYPE_ICON[e.type_id] ?? Bug
+              const active = key === typeKey
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setTypeKey(key)}
+                  className={`text-left rounded-xl border p-3 transition-colors ${
+                    active
+                      ? 'border-brand/60 bg-brand/10'
+                      : 'border-line/60 bg-bg-elevated/50 hover:bg-bg-hover'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <div className={`h-7 w-7 rounded-lg grid place-items-center ${active ? 'bg-brand/15 text-brand' : 'bg-bg-hover text-muted'}`}>
+                      <Icon size={15} />
+                    </div>
+                    <span className="text-sm font-medium text-fg">{e.title}</span>
+                    <span className="ml-auto">
+                      <LevelBadge level={e.interaction_level} />
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted line-clamp-2">{e.description}</p>
+                </button>
+              )
+            })}
+          </div>
         </div>
-        <div>
-          <label className="label">Профиль (тип + конфиг)</label>
-          <select className="input" value={profileId} onChange={(e) => setProfileId(e.target.value)}>
-            {profiles.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} — {p.type_id}/{p.type_version} ({p.interaction_level})
-              </option>
-            ))}
-          </select>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label">Имя ловушки</label>
+            <input className="input" placeholder="dmz-ssh-03" value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Порт приманки</label>
+            <input
+              className="input"
+              type="number"
+              min={1}
+              max={65535}
+              value={port}
+              onChange={(e) => setPort(Number(e.target.value))}
+            />
+          </div>
         </div>
-        <div className="flex items-start gap-2 text-xs text-muted bg-bg-elevated/60 rounded-xl p-3">
-          <Bug size={14} className="text-brand-soft mt-0.5 shrink-0" />
-          Ловушка создаётся offline и в состоянии unknown. Реквизиты агента и запуск — на странице
-          деталей ловушки.
+
+        <div className="flex items-start gap-2 text-xs text-muted bg-brand/5 border border-brand/15 rounded-xl p-3">
+          <Bug size={14} className="text-brand mt-0.5 shrink-0" />
+          Панель сама создаст профиль по дефолт-конфигу типа, поднимет контейнер приманки и запустит
+          listener на указанном порту. Тонкую настройку конфига можно сделать на странице «Профили».
         </div>
+
+        {error && <p className="text-xs text-danger">{error}</p>}
+
         <div className="flex justify-end gap-2">
           <button className="btn-ghost" onClick={onClose}>
             Отмена
           </button>
-          <button
-            className="btn-primary"
-            disabled={!name || !profileId || creating}
-            onClick={() => onCreate(name, profileId)}
-          >
-            {creating ? 'Создание…' : 'Создать'}
+          <button className="btn-primary" disabled={!name || !selected || creating} onClick={submit}>
+            {creating ? 'Создание…' : 'Создать ловушку'}
           </button>
         </div>
       </div>

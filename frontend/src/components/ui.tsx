@@ -3,13 +3,13 @@ import { cn } from '@/lib/utils'
 import type { Connectivity, RuntimeState, CommandStatus } from '@/types'
 
 export function Card({ className, children }: { className?: string; children: ReactNode }) {
-  return <div className={cn('card p-5', className)}>{children}</div>
+  return <div className={cn('card p-6', className)}>{children}</div>
 }
 
 export function SectionTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
-    <div className="flex items-center justify-between mb-4">
-      <h2 className="text-sm font-semibold text-fg tracking-wide">{children}</h2>
+    <div className="flex items-center justify-between mb-5">
+      <h2 className="text-sm font-semibold text-fg tracking-tight">{children}</h2>
       {action}
     </div>
   )
