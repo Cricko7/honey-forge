@@ -21,8 +21,9 @@ const (
 )
 
 type Socket struct {
-	conn    *websocket.Conn
-	writeMu sync.Mutex
+	conn       *websocket.Conn
+	writeMu    sync.Mutex
+	capability contract.Capability
 }
 
 func Upgrade(c *gin.Context, capability contract.Capability, policies ...*contract.BrowserPolicy) (*Socket, error) {
@@ -38,6 +39,15 @@ func Upgrade(c *gin.Context, capability contract.Capability, policies ...*contra
 	}
 	if c.Request.TLS == nil {
 		return nil, fail(c, "origin_not_allowed")
+	}
+	if capability == contract.AgentStream {
+		if len(c.Request.Header.Values("Origin")) > 0 {
+			return nil, fail(c, "origin_not_allowed")
+		}
+		protocols := c.Request.Header.Values("Sec-WebSocket-Protocol")
+		if len(protocols) != 1 || protocols[0] != "resource-stream.v1" {
+			return nil, fail(c, "invalid_ws_protocol")
+		}
 	}
 	if len(policies) > 0 && policies[0] != nil {
 		if !policies[0].CheckOrigin(c) {
@@ -58,6 +68,9 @@ func Upgrade(c *gin.Context, capability contract.Capability, policies ...*contra
 	upgrader := websocket.Upgrader{EnableCompression: false, HandshakeTimeout: 5 * time.Second, CheckOrigin: func(*http.Request) bool { return true }, Error: func(http.ResponseWriter, *http.Request, int, error) {
 		contract.Fail(c, contract.NewError("invalid_json"))
 	}}
+	if capability == contract.AgentStream {
+		upgrader.Subprotocols = []string{"resource-stream.v1"}
+	}
 	headers := http.Header{}
 	headers.Set("X-Request-ID", c.Writer.Header().Get("X-Request-ID"))
 	headers.Set("Cache-Control", "no-store")
@@ -67,7 +80,7 @@ func Upgrade(c *gin.Context, capability contract.Capability, policies ...*contra
 	}
 	conn.SetReadLimit(contract.MaxBodyBytes)
 	conn.EnableWriteCompression(false)
-	return &Socket{conn: conn}, nil
+	return &Socket{conn: conn, capability: capability}, nil
 }
 func fail(c *gin.Context, code string) error {
 	err := contract.NewError(code)
@@ -75,6 +88,25 @@ func fail(c *gin.Context, code string) error {
 	return err
 }
 func (s *Socket) Close() error { return s.conn.Close() }
+
+func (s *Socket) SetReadDeadline(deadline time.Time) error {
+	return s.conn.SetReadDeadline(deadline)
+}
+
+func (s *Socket) SetPongHandler(handler func()) {
+	s.conn.SetPongHandler(func(string) error {
+		handler()
+		return nil
+	})
+}
+
+func (s *Socket) Ping(deadline time.Time) error {
+	return s.conn.WriteControl(websocket.PingMessage, nil, deadline)
+}
+
+func (s *Socket) CloseCode(code int, reason string) error {
+	return s.conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(code, reason), time.Now().Add(time.Second))
+}
 
 func (s *Socket) Read(ctx context.Context) (contract.Envelope, error) {
 	if err := ctx.Err(); err != nil {
@@ -106,12 +138,23 @@ func (s *Socket) Read(ctx context.Context) (contract.Envelope, error) {
 	}
 	envelope, err := contract.DecodeEnvelope(b)
 	if err != nil {
+		if s.capability == contract.AgentStream {
+			var request struct {
+				MessageID contract.ID `json:"message_id"`
+			}
+			if json.Unmarshal(b, &request) == nil && contract.ValidID(string(request.MessageID)) {
+				return contract.Envelope{MessageID: request.MessageID}, contract.NewError("invalid_message")
+			}
+		}
 		if closeErr := s.closeCode(websocket.ClosePolicyViolation); closeErr != nil {
 			return contract.Envelope{}, closeErr
 		}
 		return contract.Envelope{}, err
 	}
 	if envelope.ReplyTo != nil {
+		if s.capability == contract.AgentStream {
+			return envelope, contract.NewError("invalid_message")
+		}
 		if err := s.closeCode(websocket.ClosePolicyViolation); err != nil {
 			return contract.Envelope{}, err
 		}

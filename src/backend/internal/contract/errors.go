@@ -33,6 +33,11 @@ var errorsByCode = map[string]struct {
 	"idempotency_conflict": {409, "Request identifier was used with different content"}, "request_already_used": {409, "Request identifier belongs to a deleted resource"}, "revision_exhausted": {409, "Resource revision limit reached"},
 	"revision_mismatch": {412, "Resource has changed"}, "body_too_large": {413, "Request body is too large"}, "unsupported_media_type": {415, "Expected application/json"},
 	"validation_failed": {422, "Request validation failed"}, "invalid_time_range": {422, "Invalid time range"}, "config_too_large": {422, "Trap configuration is too large"},
+	"invalid_ws_protocol": {400, "Invalid WebSocket subprotocol"}, "invalid_message": {400, "Invalid WebSocket message"},
+	"unsupported_type": {422, "Trap type version is not supported"}, "unknown_configuration": {422, "Unknown applied configuration"},
+	"stale_command_lease": {409, "Command lease is no longer valid"}, "command_expired": {409, "Command has expired"}, "command_result_conflict": {409, "Command result conflicts with stored result"},
+	"batch_conflict": {409, "Batch identifier was used with different content"}, "event_id_conflict": {409, "Event identifier was used with different content"},
+	"ingestion_pending": {503, "Telemetry persistence is not yet confirmed"}, "ingestion_busy": {503, "Another telemetry batch is in progress"}, "telemetry_unavailable": {503, "Telemetry delivery is temporarily unavailable"},
 	"precondition_required": {428, "A precondition header is required"}, "rate_limited": {429, "Too many requests"}, "internal_error": {500, "Internal server error"}, "database_unavailable": {503, "Database is temporarily unavailable"}, "service_unavailable": {503, "Service is temporarily unavailable"},
 }
 

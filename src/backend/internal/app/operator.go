@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"honey-forge/internal/contract"
+	"honey-forge/internal/stream"
 	authhttp "honey-forge/modules/auth/http"
 	authservice "honey-forge/modules/auth/service"
 	"honey-forge/modules/catalog"
@@ -45,6 +46,10 @@ func operatorMiddleware(browser *contract.BrowserPolicy, logger *slog.Logger) gi
 	return func(c *gin.Context) {
 		c.Set("request_id", c.Writer.Header().Get("X-Request-ID"))
 		c.Header("X-Content-Type-Options", "nosniff")
+		if c.Request.URL.Path == stream.AgentPath {
+			c.Next()
+			return
+		}
 
 		started := time.Now()
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)

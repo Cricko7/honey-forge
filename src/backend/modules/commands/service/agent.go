@@ -4,9 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
-	"unicode"
 
 	"honey-forge/internal/contract"
 	"honey-forge/modules/commands"
@@ -149,7 +147,7 @@ func validateAgentResult(input *commands.AgentResult) error {
 	}
 
 	if input.Runtime.LastError != nil {
-		if err := safeRuntimeError(input.Runtime.LastError); err != nil {
+		if err := commands.NormalizeRuntimeError(input.Runtime.LastError); err != nil {
 			return err
 		}
 	}
@@ -167,29 +165,7 @@ func validateAgentResult(input *commands.AgentResult) error {
 		return commands.ErrResultInvalid
 	}
 
-	return safeRuntimeError(input.Error)
-}
-
-var runtimeMessages = map[string]string{
-	"port_unavailable":       "Port is unavailable",
-	"config_apply_failed":    "Configuration could not be applied",
-	"config_rollback_failed": "Configuration rollback failed",
-	"runtime_start_failed":   "Runtime could not start",
-	"runtime_stop_failed":    "Runtime could not stop",
-	"unsupported_type":       "Trap type is unsupported by this agent",
-	"unsupported_action":     "Action is unsupported by this agent",
-	"command_expired":        "Command has expired",
-	"buffer_unavailable":     "Telemetry buffer is unavailable",
-}
-
-func safeRuntimeError(value *commands.RuntimeError) error {
-	message, ok := runtimeMessages[value.Code]
-	if !ok || len(value.Message) > 200 || strings.IndexFunc(value.Message, unicode.IsControl) >= 0 {
-		return commands.ErrResultInvalid
-	}
-
-	value.Message = message
-	return nil
+	return commands.NormalizeRuntimeError(input.Error)
 }
 
 func sameRevision(a, b *int32) bool {

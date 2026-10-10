@@ -7,6 +7,7 @@ import (
 	"honey-forge/internal/contract"
 	"honey-forge/internal/mutation"
 	"honey-forge/internal/postgres"
+	"honey-forge/modules/agentws"
 	authrepo "honey-forge/modules/auth/repository"
 	authservice "honey-forge/modules/auth/service"
 	"honey-forge/modules/catalog"
@@ -26,6 +27,8 @@ type Config struct {
 	BrowserOrigins []string
 	MigrationsPath string
 	Logger         *slog.Logger
+	AgentGateway   agentws.Gateway
+	AgentCommands  agentws.CommandService
 }
 type Runtime struct {
 	Router    *gin.Engine
@@ -76,6 +79,7 @@ func Open(ctx context.Context, config Config) (*Runtime, error) {
 		pool.Close()
 		return nil, err
 	}
+	agentws.NewHandler(config.AgentGateway, config.AgentCommands).Register(router)
 	return &Runtime{Router: router, Mutations: mutation.NewStore(pool), Schemas: configschema.NewSchemaStore(pool), Cursors: cursors, Browser: browser, Catalog: catalogService, pool: pool}, nil
 }
 func (r *Runtime) Close() { r.pool.Close() }

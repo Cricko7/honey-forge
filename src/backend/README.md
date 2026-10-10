@@ -2,6 +2,9 @@
 
 Auth/organizations и profiles подключены к общей сборке common/catalog.
 Модуль commands готов к подключению после реализации traps (05); текущие маршруты API его не публикуют. Состояние и границы: [modules/commands/README.md](modules/commands/README.md).
+Серверная часть WSS агента (08) подключена через границы для модулей 05/07.
+Пока реальные реализации этих границ отсутствуют, `/assets/stream` возвращает
+503. Контракт и проверки: [modules/agentws/README.md](modules/agentws/README.md).
 Единственный Go-модуль и единственная сборка API находятся в этой директории.
 Миграции: `../../migrations/`; полный OpenAPI: [../../api/openapi.yaml](../../api/openapi.yaml).
 
