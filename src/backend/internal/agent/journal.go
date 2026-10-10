@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -147,14 +148,19 @@ func (j *Journal) apply(rec record) {
 				a.Bytes += d.Original
 				j.active[e.SessionID] = a
 			}
-			if e.EventType == "service.auth_attempt" || e.EventType == "service.action" || e.EventType == "honeytoken.triggered" {
+			if e.EventType == "service.auth_attempt" || e.EventType == "service.action" || e.EventType == "honeytoken.triggered" || (e.TypeID == "ssh-high-interaction" && strings.HasPrefix(e.EventType, "service.") && e.EventType != "service.connection_opened" && e.EventType != "service.connection_closed") {
 				a := j.active[e.SessionID]
 				a.Last = e
 				var d struct {
-					Received int64 `json:"received_bytes"`
+					Received int64  `json:"received_bytes"`
+					Bytes    int64  `json:"bytes"`
+					Stream   string `json:"stream"`
 				}
 				json.Unmarshal(e.Data, &d)
 				a.Bytes += d.Received
+				if e.EventType == "service.file_chunk" || e.EventType == "service.session_io" && (d.Stream == "stdin" || d.Stream == "exec") {
+					a.Bytes += d.Bytes
+				}
 				j.active[e.SessionID] = a
 			}
 			if e.EventType == "tcp.connection_closed" || e.EventType == "service.connection_closed" {

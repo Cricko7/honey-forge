@@ -99,6 +99,29 @@ jobs:
             echo "::endgroup::"
           done
 
+      - name: SSH sandbox acceptance
+        env:
+          TEST_SSH_DOCKER: '1'
+          SSH_SANDBOX_IMAGE: honeyforge/ssh-sandbox:test
+        run: |
+          docker build -f deploy/decoys/Dockerfile.sandbox -t "$SSH_SANDBOX_IMAGE" .
+          cd src/backend
+          go test -race -tags=integration ./internal/decoys/sshtrap -run TestDockerRealLinuxShellSFTPAndIsolation -count=1 -timeout=120s
+
+      - name: Setup Node.js for frontend checks
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Frontend tests and build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm test
+          npm run build
+
   deploy:
     needs: build-and-test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'

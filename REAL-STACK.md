@@ -12,6 +12,10 @@
 > Поднимается `up --build`; регистрация → профиль → ловушка → агент → атака → события
 > прошли на реальном бэке.
 
+SSH high-interaction добавлен отдельно: [запуск, запись сессий и ограничения](api/13-high-interaction.md).
+Его реальный Docker-сценарий проверяется отдельным acceptance-тестом в CI;
+локальная среда разработки без Docker не подтверждает запуск этого сценария.
+
 ## 0. Предпосылки
 - Установлен **Docker Desktop** (на WSL2-бэкенде нужен установленный дистрибутив и
   `wsl --set-default-version 2`, иначе движок не стартует).
@@ -56,6 +60,36 @@ docker compose -f docker-compose.real.yml up --build
 4. **Сгенерировать трафик** — подключиться к порту ловушки → появятся настоящие события.
 
 Размещение на одном или нескольких хостах описано в [руководстве оркестратора](deploy/decoys/README.md).
+
+### Добавление ловушки скриптом (панель поднимет её сама)
+
+Вместо кликов в UI ловушку можно завести одной командой — скрипт логинится,
+создаёт профиль и ловушку через REST, а оркестратор автоматически разворачивает
+контейнер приманки и запускает listener. `--wait` дожидается статуса running.
+
+Windows (PowerShell):
+```powershell
+# первый запуск на чистой базе — заодно регистрирует организацию:
+./scripts/add-trap.ps1 -Register -Org "OOO Perimetr" `
+    -Email admin@perimetr.ru -Password demo-password-2026 `
+    -Name "SSH-DMZ" -Type tcp-banner -Port 2222 -Wait
+# ещё одна ловушка существующим админом (другой порт!):
+./scripts/add-trap.ps1 -Email admin@perimetr.ru -Password demo-password-2026 `
+    -Name "Redis-prod" -Type redis-emulator -Port 6380 -Wait
+```
+
+Linux/macOS (bash):
+```bash
+./scripts/add-trap.sh --register --org "OOO Perimetr" \
+    --email admin@perimetr.ru --password demo-password-2026 \
+    --name SSH-DMZ --type tcp-banner --port 2222 --wait
+./scripts/add-trap.sh --email admin@perimetr.ru --password demo-password-2026 \
+    --name Redis-prod --type redis-emulator --port 6380 --wait
+```
+
+Параметры: `-Type tcp-banner|redis-emulator`, `-Port` (у каждой ловушки свой,
+публикуется на хост), `-Banner` (для tcp-banner), `-RedisPassword`, `-ConfigFile`
+(свой JSON config под схему типа). Трафик на опубликованный порт → события в дашборде.
 
 ## 5. Остановка / сброс
 ```powershell

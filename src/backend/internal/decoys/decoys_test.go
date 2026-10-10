@@ -16,6 +16,7 @@ func TestSelect(t *testing.T) {
 		{name: "TCP", typeID: "tcp-banner", version: 1},
 		{name: "Redis", typeID: "redis-emulator", version: 1},
 		{name: "Honeytokens", typeID: "honeytoken-http", version: 1},
+		{name: "SSH", typeID: "ssh-high-interaction", version: 1},
 		{name: "unknown type", typeID: "unknown", version: 1, wantErr: true},
 		{name: "unknown version", typeID: "tcp-banner", version: 2, wantErr: true},
 	} {
@@ -34,10 +35,11 @@ func TestForType(t *testing.T) {
 		want  int
 		error bool
 	}{
-		{name: "", want: 3},
+		{name: "", want: 4},
 		{name: "tcp-banner", want: 1},
 		{name: "redis-emulator", want: 1},
 		{name: "honeytoken-http", want: 1},
+		{name: "ssh-high-interaction", want: 1},
 		{name: "unknown", error: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

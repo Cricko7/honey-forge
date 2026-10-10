@@ -1627,6 +1627,23 @@ components:
           oneOf:
           - $ref: '#/components/schemas/Cursor'
           - type: 'null'
+    SessionRecording:
+      type: object
+      additionalProperties: false
+      required: [trap_id, session_id, complete, events]
+      properties:
+        trap_id:
+          $ref: '#/components/schemas/ID'
+        session_id:
+          $ref: '#/components/schemas/ID'
+        complete:
+          type: boolean
+          description: A connection_opened, contiguous sequence starting at 1, and connection_closed were observed. Does not imply every upload completed; inspect file_closed.complete and the close reason.
+        events:
+          type: array
+          maxItems: 8193
+          items:
+            $ref: '#/components/schemas/Event'
     EventPage:
       type: object
       additionalProperties: false
@@ -2134,6 +2151,51 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/EventPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/events/recordings/{session_id}:
+    get:
+      operationId: getSessionRecording
+      summary: Read an SSH high-interaction recording and uploaded file blocks
+      description: |
+        Admin/viewer access within the owning organization. The trap_id query is
+        required. Only ssh-high-interaction/1 sessions are returned. Events are
+        ordered by session_sequence, including binary-safe base64 terminal and
+        SFTP blocks. Runtime emits at most 8192 events plus connection_closed;
+        active, interrupted or gapped recordings may have complete=false.
+        Uploaded file blocks carry file_id, offset, bytes and payload_base64;
+        file_closed carries size, sha256 and complete. Paths are metadata, never
+        safe download names. Reconstruct blocks in sequence order and verify the
+        final hash before using a file. No terminal escape sequence is executed
+        by this endpoint. Schemas are published in the trap-type descriptor.
+      security:
+        - sessionCookie: []
+      parameters:
+        - in: path
+          name: session_id
+          required: true
+          schema:
+            $ref: '#/components/schemas/ID'
+        - in: query
+          name: trap_id
+          required: true
+          schema:
+            $ref: '#/components/schemas/ID'
+      responses:
+        '200':
+          description: Recording snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionRecording'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':

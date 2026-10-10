@@ -18,6 +18,7 @@
 | 09 | [WSS фронтенда](../src/backend/docs/api/09-frontend-ws.md) | `/api/stream`, replay/ready/live, безопасные DTO, session checks, backpressure; [проверки и границы](09-acceptance.md) |
 | 10 | [Аудит](../src/backend/docs/api/10-audit.md) | Подключён: единое чтение AuditEntry, фильтры/курсор, снимок автора и audit.created в общем журнале; записи атомарны с 02/04/05/06 |
 | 11 | [Сквозная приёмка](../src/backend/docs/api/11-happy-path.md) | Сквозной тест registration → profile → trap → Redis-агент → TCP → Kafka → PostgreSQL → dashboard replay → revision 2 → stop/start → DELETE/history; [проверки A–G](11-acceptance.md) |
+| 13 | [SSH high interaction](13-high-interaction.md) | Linux-контейнер на SSH-соединение, запись потоков и SFTP-файлов, просмотр и экспорт в интерфейсе; Docker-приёмка в CI |
 
 ## Подключение существующих модулей
 

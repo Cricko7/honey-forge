@@ -18,3 +18,8 @@ ENV DECOY_TYPE=redis-emulator
 
 FROM runtime AS honeytokens
 ENV DECOY_TYPE=honeytoken-http
+
+# Trusted SSH gateway. Attacker processes run only in the separate sandbox image.
+FROM runtime AS ssh
+RUN apk add --no-cache docker-cli
+ENV DECOY_TYPE=ssh-high-interaction

@@ -31,6 +31,7 @@ func run() error {
 		Network: os.Getenv("DECOY_NETWORK"), WSURL: wsURL, RedisURL: redisURL,
 		CAFile: os.Getenv("AGENT_CA_FILE"), TCPImage: os.Getenv("DECOY_TCP_IMAGE"), RedisImage: os.Getenv("DECOY_REDIS_IMAGE"),
 		HoneytokenImage: os.Getenv("DECOY_HONEYTOKEN_IMAGE"),
+		SSHImage:        os.Getenv("DECOY_SSH_IMAGE"), SandboxImage: os.Getenv("SSH_SANDBOX_IMAGE"),
 	}
 	if databaseURL == "" || docker.Network == "" || docker.TCPImage == "" || docker.RedisImage == "" {
 		return fmt.Errorf("DATABASE_URL, DECOY_NETWORK, DECOY_TCP_IMAGE and DECOY_REDIS_IMAGE are required")

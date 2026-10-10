@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, Navigate, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard,
   Network,
@@ -25,7 +25,7 @@ const nav = [
 ]
 
 export function Layout() {
-  const { data: session } = useSession()
+  const { data: session, isLoading, isError } = useSession()
   const navigate = useNavigate()
   // Глобальная подписка на live-стрим: держит кэш свежим на всех экранах.
   useLiveStream()
@@ -34,6 +34,16 @@ export function Layout() {
     await api.logout().catch(() => {})
     navigate('/login')
   }
+
+  // Auth-гард: без активной сессии (401) уводим на вход вместо «сломанной» оболочки.
+  if (isLoading) {
+    return (
+      <div className="h-screen grid place-items-center text-muted text-sm">
+        <span className="h-5 w-5 rounded-full border-2 border-brand/30 border-t-brand animate-spin" />
+      </div>
+    )
+  }
+  if (isError || !session) return <Navigate to="/login" replace />
 
   return (
     <div className="flex h-screen overflow-hidden">

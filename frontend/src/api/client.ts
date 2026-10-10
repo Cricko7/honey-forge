@@ -1,4 +1,5 @@
 import type {
+  SessionRecording,
   CatalogEntry,
   Command,
   CommandAction,
@@ -192,14 +193,20 @@ export const api = {
     })
   },
 
-  async createCommand(trapId: string, action: CommandAction): Promise<Command> {
+  // params валидируется под дескриптор действия типа ловушки: start/stop → {},
+  // apply_config → {profile_revision}. Пустой объект для start/stop обязателен.
+  async createCommand(
+    trapId: string,
+    action: CommandAction,
+    params: Record<string, unknown> = {},
+  ): Promise<Command> {
     if (USE_MOCK) {
       await delay(200)
       return mockApi.createCommand(trapId, action)
     }
     return real(`/api/traps/${trapId}/commands`, {
       method: 'POST',
-      body: JSON.stringify({ request_id: crypto.randomUUID(), action, params: {} }),
+      body: JSON.stringify({ request_id: crypto.randomUUID(), action, params }),
     })
   },
 
@@ -230,6 +237,17 @@ export const api = {
     }
     return real(`/api/events/${id}`)
   },
+
+  async getRecording(trapId: string, sessionId: string): Promise<SessionRecording> {
+    if (USE_MOCK) {
+      await delay()
+      const items = mockApi.listEvents({ trap_id: trapId, limit: 100 }).items
+        .filter((e) => e.session_id === sessionId && e.type_id === 'ssh-high-interaction')
+      const events = items.map((e) => mockApi.getEvent(e.event_id)!).sort((a, b) => a.session_sequence - b.session_sequence)
+      return { trap_id: trapId, session_id: sessionId, complete: false, events }
+    }
+    return real(`/api/events/recordings/${encodeURIComponent(sessionId)}?trap_id=${encodeURIComponent(trapId)}`)
+  },
 }
 
 // --- Поток уведомлений дашборда (WSS /api/stream или mock pub/sub) ---------
@@ -239,8 +257,10 @@ export function subscribeStream(onNotify: (n: StreamNotification) => void): () =
     return mockApi.subscribe(onNotify)
   }
   // Реальный WSS: dashboard-stream.v1, replay→ready→live.
+  // Субпротокол обязателен — бэкенд отклоняет handshake (400 invalid_ws_protocol)
+  // при отсутствии ровно одного Sec-WebSocket-Protocol: dashboard-stream.v1.
   const wsBase = API_BASE.replace(/^http/, 'ws')
-  const ws = new WebSocket(`${wsBase}/api/stream`)
+  const ws = new WebSocket(`${wsBase}/api/stream`, 'dashboard-stream.v1')
   ws.onopen = () => {
     ws.send(JSON.stringify({ message_id: crypto.randomUUID(), type: 'stream.subscribe', payload: { after: null } }))
   }
