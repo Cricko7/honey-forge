@@ -22,13 +22,14 @@ func checkServiceSnapshot(event AgentEvent, snapshot profiles.Snapshot) error {
 	var config struct {
 		Services []struct {
 			Name string `json:"name"`
+			Port int    `json:"port"`
 		} `json:"services"`
 	}
 	if json.Unmarshal(raw, &config) != nil {
 		return invalid
 	}
 	for _, service := range config.Services {
-		if service.Name == data.Service {
+		if service.Name == data.Service && (service.Port == 0 || event.Destination.Protocol == "tcp" && event.Destination.Port == service.Port) {
 			return nil
 		}
 	}

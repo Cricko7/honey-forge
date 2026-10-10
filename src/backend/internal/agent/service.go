@@ -7,7 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"honey-forge/internal/tcptrap"
+	"honey-forge/internal/configschema"
+	"honey-forge/modules/catalog"
 	"honey-forge/modules/commands"
 	"honey-forge/modules/profiles"
 )
@@ -63,11 +64,46 @@ func (s *Service) FlushInterval() time.Duration {
 	if configuration == nil {
 		return 100 * time.Millisecond
 	}
-	config, err := tcptrap.ParseConfig(context.Background(), *configuration)
+	flush, err := validateSnapshot(context.Background(), *configuration)
 	if err != nil {
 		return 100 * time.Millisecond
 	}
-	return time.Duration(config.Management.Flush) * time.Millisecond
+	return time.Duration(flush) * time.Millisecond
+}
+
+func validateSnapshot(ctx context.Context, snapshot profiles.Snapshot) (int, error) {
+	if snapshot.ProfileRevision < 1 {
+		return 0, fmt.Errorf("unsupported trap snapshot")
+	}
+	raw, err := json.Marshal(snapshot.Config)
+	if err != nil {
+		return 0, fmt.Errorf("encode configuration: %w", err)
+	}
+	for _, definition := range catalog.BuiltinDefinitions() {
+		if string(definition.Entry.TypeID) != snapshot.TypeID || int32(definition.Entry.TypeVersion) != snapshot.TypeVersion {
+			continue
+		}
+		schema, err := configschema.Compile(definition.Entry.ConfigSchema)
+		if err != nil {
+			return 0, fmt.Errorf("compile configuration: %w", err)
+		}
+		if err := schema.Validate(raw, ""); err != nil {
+			return 0, fmt.Errorf("validate configuration: %w", err)
+		}
+		if err := ctx.Err(); err != nil {
+			return 0, err
+		}
+		var config struct {
+			Management struct {
+				Flush int `json:"telemetry_flush_interval_ms"`
+			} `json:"management"`
+		}
+		if err := json.Unmarshal(raw, &config); err != nil {
+			return 0, fmt.Errorf("decode configuration: %w", err)
+		}
+		return config.Management.Flush, nil
+	}
+	return 0, fmt.Errorf("unsupported trap type")
 }
 
 func runtimeError(code string) *commands.RuntimeError {
@@ -112,7 +148,7 @@ func (s *Service) Execute(ctx context.Context, dispatch commands.Dispatch) (comm
 			fail("config_apply_failed")
 			break
 		}
-		if _, err := tcptrap.ParseConfig(ctx, *dispatch.Configuration); err != nil {
+		if _, err := validateSnapshot(ctx, *dispatch.Configuration); err != nil {
 			fail("config_apply_failed")
 			break
 		}

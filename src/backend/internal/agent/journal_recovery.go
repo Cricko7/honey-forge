@@ -3,6 +3,7 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"honey-forge/internal/contract"
@@ -20,17 +21,26 @@ func (j *Journal) RecoverSessions() error {
 	for _, a := range active {
 		var data struct {
 			Listener string `json:"listener_name"`
+			Service  string `json:"service"`
 		}
 		if err := json.Unmarshal(a.Last.Data, &data); err != nil {
 			return err
 		}
-		raw, err := json.Marshal(map[string]any{"listener_name": data.Listener, "duration_ms": max(int64(0), time.Since(a.Started).Milliseconds()), "bytes_received": a.Bytes, "reason": "service_stopped"})
+		fields := map[string]any{"duration_ms": max(int64(0), time.Since(a.Started).Milliseconds()), "bytes_received": a.Bytes, "reason": "service_stopped"}
+		kind := "tcp.connection_closed"
+		if strings.HasPrefix(a.Last.EventType, "service.") {
+			kind = "service.connection_closed"
+			fields["service"] = data.Service
+		} else {
+			fields["listener_name"] = data.Listener
+		}
+		raw, err := json.Marshal(fields)
 		if err != nil {
 			return err
 		}
 		e := a.Last
 		e.EventID = string(contract.NewID())
-		e.EventType = "tcp.connection_closed"
+		e.EventType = kind
 		e.SessionSequence++
 		e.OccurredAt = time.Now().UTC().Format(time.RFC3339Nano)
 		e.Data = raw

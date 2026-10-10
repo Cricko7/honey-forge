@@ -159,7 +159,7 @@ func (j *Journal) apply(rec record) {
 		j.pending = append(j.pending, *rec.Batch)
 		j.bytes += batchBytes(*rec.Batch)
 		for _, e := range rec.Batch.Events {
-			if e.EventType == "tcp.connection_opened" {
+			if e.EventType == "tcp.connection_opened" || e.EventType == "service.connection_opened" {
 				j.sessions[e.SessionID] = true
 				started, _ := time.Parse(time.RFC3339Nano, e.OccurredAt)
 				j.active[e.SessionID] = activeSession{Last: e, Started: started}
@@ -174,7 +174,17 @@ func (j *Journal) apply(rec record) {
 				a.Bytes += d.Original
 				j.active[e.SessionID] = a
 			}
-			if e.EventType == "tcp.connection_closed" {
+			if e.EventType == "service.auth_attempt" || e.EventType == "service.action" {
+				a := j.active[e.SessionID]
+				a.Last = e
+				var d struct {
+					Received int64 `json:"received_bytes"`
+				}
+				json.Unmarshal(e.Data, &d)
+				a.Bytes += d.Received
+				j.active[e.SessionID] = a
+			}
+			if e.EventType == "tcp.connection_closed" || e.EventType == "service.connection_closed" {
 				delete(j.sessions, e.SessionID)
 				delete(j.active, e.SessionID)
 			}
@@ -208,10 +218,10 @@ func (j *Journal) Enqueue(e events.AgentEvent) (Batch, error) {
 	}
 	b := Batch{BatchID: string(contract.NewID()), Events: []events.AgentEvent{e}}
 	reserve := int64(len(j.sessions)) * sessionReserve
-	if e.EventType == "tcp.connection_opened" && !j.sessions[e.SessionID] {
+	if (e.EventType == "tcp.connection_opened" || e.EventType == "service.connection_opened") && !j.sessions[e.SessionID] {
 		reserve += sessionReserve
 	}
-	if e.EventType == "tcp.connection_closed" && j.sessions[e.SessionID] {
+	if (e.EventType == "tcp.connection_closed" || e.EventType == "service.connection_closed") && j.sessions[e.SessionID] {
 		reserve -= sessionReserve
 	}
 	if j.bytes+batchBytes(b)+reserve > j.capacity {

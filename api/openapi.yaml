@@ -2347,7 +2347,7 @@ paths:
       summary: createSession
   /api/trap-types:
     get:
-      description: Sorted by type_id ASC, type_version ASC. Cursors bind the organization, filters and immutable catalog snapshot. All pages share the full catalog ETag. If-None-Match is applied only to the first page; cursor pages always return 200. Unknown/repeated query parameters are rejected. No catalog CRUD.
+      description: Installed types include tcp-banner/1 (low) and redis-emulator/1 (medium). Redis uses the same apply_config/start/stop command flow and agent credentials; its config has one service with name, port and writeOnly password plus management timings. Its event schemas cover service.connection_opened, service.auth_attempt, service.action and service.connection_closed. Sorted by type_id ASC, type_version ASC. Cursors bind the organization, filters and immutable catalog snapshot. All pages share the full catalog ETag. If-None-Match is applied only to the first page; cursor pages always return 200. Unknown/repeated query parameters are rejected. No catalog CRUD.
       operationId: listTrapTypes
       parameters:
       - $ref: "#/components/parameters/Limit"

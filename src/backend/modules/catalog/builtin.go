@@ -8,11 +8,18 @@ import (
 //go:embed schemas/tcp-banner-1.json
 var tcpBannerJSON []byte
 
-// BuiltinDefinitions returns fresh copies of the installed tcp-banner/1 descriptor.
+//go:embed schemas/redis-emulator-1.json
+var redisEmulatorJSON []byte
+
+// BuiltinDefinitions returns fresh copies of the installed trap descriptors.
 func BuiltinDefinitions() []Definition {
-	var entry CatalogEntry
-	if err := json.Unmarshal(tcpBannerJSON, &entry); err != nil {
-		panic("invalid embedded TCP descriptor: " + err.Error())
+	var definitions []Definition
+	for _, raw := range [][]byte{tcpBannerJSON, redisEmulatorJSON} {
+		var entry CatalogEntry
+		if err := json.Unmarshal(raw, &entry); err != nil {
+			panic("invalid embedded trap descriptor: " + err.Error())
+		}
+		definitions = append(definitions, Definition{Entry: entry, SupportsAuthentication: entry.TypeID == "redis-emulator", SupportsServiceActions: entry.TypeID == "redis-emulator"})
 	}
-	return []Definition{{Entry: entry}}
+	return definitions
 }

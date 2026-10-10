@@ -64,7 +64,11 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 	defer stop()
 	conn.SetReadLimit(contract.MaxBodyBytes)
 	w := wire{conn: conn}
-	helloID, err := w.send("agent.hello", agentws.AgentHello{BootID: opts.BootID, AgentVersion: "1.0", Hostname: opts.Hostname, SupportedTypes: []agentws.SupportedType{{TypeID: "tcp-banner", TypeVersion: 1, Actions: []string{"start", "stop", "apply_config"}}}, Runtime: s.Runtime()})
+	supported := opts.SupportedTypes
+	if len(supported) == 0 {
+		supported = []agentws.SupportedType{{TypeID: "tcp-banner", TypeVersion: 1, Actions: []string{"start", "stop", "apply_config"}}}
+	}
+	helloID, err := w.send("agent.hello", agentws.AgentHello{BootID: opts.BootID, AgentVersion: "1.0", Hostname: opts.Hostname, SupportedTypes: supported, Runtime: s.Runtime()})
 	if err != nil {
 		return err
 	}

@@ -1,0 +1,392 @@
+{
+  "actions": [
+    {
+      "title": "start",
+      "result_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$ref": "#/$defs/RuntimeResult",
+        "$defs": {
+          "RuntimeResult": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "runtime_state",
+              "applied_profile_revision"
+            ],
+            "properties": {
+              "runtime_state": {
+                "type": "string",
+                "enum": [
+                  "running",
+                  "stopped"
+                ]
+              },
+              "applied_profile_revision": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1,
+                "maximum": 2147483647
+              }
+            }
+          }
+        }
+      },
+      "action": "start",
+      "params_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$ref": "#/$defs/EmptyObject",
+        "$defs": {
+          "EmptyObject": {
+            "type": "object",
+            "additionalProperties": false,
+            "maxProperties": 0
+          }
+        }
+      }
+    },
+    {
+      "title": "stop",
+      "result_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$ref": "#/$defs/RuntimeResult",
+        "$defs": {
+          "RuntimeResult": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "runtime_state",
+              "applied_profile_revision"
+            ],
+            "properties": {
+              "runtime_state": {
+                "type": "string",
+                "enum": [
+                  "running",
+                  "stopped"
+                ]
+              },
+              "applied_profile_revision": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1,
+                "maximum": 2147483647
+              }
+            }
+          }
+        }
+      },
+      "action": "stop",
+      "params_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$ref": "#/$defs/EmptyObject",
+        "$defs": {
+          "EmptyObject": {
+            "type": "object",
+            "additionalProperties": false,
+            "maxProperties": 0
+          }
+        }
+      }
+    },
+    {
+      "title": "apply_config",
+      "result_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$ref": "#/$defs/RuntimeResult",
+        "$defs": {
+          "RuntimeResult": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "runtime_state",
+              "applied_profile_revision"
+            ],
+            "properties": {
+              "runtime_state": {
+                "type": "string",
+                "enum": [
+                  "running",
+                  "stopped"
+                ]
+              },
+              "applied_profile_revision": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1,
+                "maximum": 2147483647
+              }
+            }
+          }
+        }
+      },
+      "action": "apply_config",
+      "params_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$ref": "#/$defs/ApplyConfigParams",
+        "$defs": {
+          "ApplyConfigParams": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "profile_revision"
+            ],
+            "properties": {
+              "profile_revision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2147483647
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "type_version": 1,
+  "title": "Redis emulator",
+  "interaction_level": "medium",
+  "ui": {
+    "field_order": [
+      "/services",
+      "/management"
+    ],
+    "widgets": {
+      "/services": "array",
+      "/services/0/password": "password",
+      "/management": "object"
+    }
+  },
+  "config_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "services",
+      "management"
+    ],
+    "properties": {
+      "services": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 1,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "port",
+            "password"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "password": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "writeOnly": true
+            }
+          }
+        }
+      },
+      "management": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "heartbeat_interval_seconds",
+          "telemetry_flush_interval_ms"
+        ],
+        "properties": {
+          "heartbeat_interval_seconds": {
+            "type": "integer",
+            "minimum": 5,
+            "maximum": 10
+          },
+          "telemetry_flush_interval_ms": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 1000
+          }
+        }
+      }
+    }
+  },
+  "type_id": "redis-emulator",
+  "available_for_new_profiles": true,
+  "event_schemas": [
+    {
+      "event_type": "service.connection_opened",
+      "title": "Connection opened",
+      "data_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "service"
+        ],
+        "properties": {
+          "service": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+          }
+        }
+      }
+    },
+    {
+      "event_type": "service.auth_attempt",
+      "title": "Authentication attempt",
+      "data_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "service",
+          "username",
+          "password",
+          "outcome",
+          "truncated",
+          "received_bytes"
+        ],
+        "properties": {
+          "service": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024
+          },
+          "password": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "accepted",
+              "rejected",
+              "unknown"
+            ]
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "received_bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 8192
+          }
+        }
+      }
+    },
+    {
+      "event_type": "service.action",
+      "title": "Service action",
+      "data_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "service",
+          "action_kind",
+          "input",
+          "outcome",
+          "truncated",
+          "received_bytes"
+        ],
+        "properties": {
+          "service": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+          },
+          "action_kind": {
+            "type": "string",
+            "enum": [
+              "command",
+              "request"
+            ]
+          },
+          "input": {
+            "type": "string",
+            "maxLength": 4096
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "accepted",
+              "rejected",
+              "unknown"
+            ]
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "received_bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 8192
+          }
+        }
+      }
+    },
+    {
+      "event_type": "service.connection_closed",
+      "title": "Connection closed",
+      "data_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "service",
+          "duration_ms",
+          "bytes_received",
+          "reason"
+        ],
+        "properties": {
+          "service": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "bytes_received": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "peer_closed",
+              "idle_timeout",
+              "service_stopped",
+              "network_error",
+              "quit"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "description": "Medium-interaction Redis-like in-memory service with fake authentication and isolated per-session keyspace. Records connections, credentials, and commands. Supports RESP2 arrays and inline commands."
+}

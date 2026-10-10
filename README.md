@@ -9,7 +9,8 @@
 Контракт: [api/01-common.md](api/01-common.md), [OpenAPI](api/openapi.yaml).
 
 Модуль 03 добавляет immutable-каталог типов, GET `/api/trap-types` и точной
-версии, snapshot pagination/ETag и валидацию config/event/action для tcp-banner/1.
+версии, snapshot pagination/ETag и валидацию config/event/action для tcp-banner/1
+и redis-emulator/1.
 Требования и границы подключения: [api/03-catalog.md](api/03-catalog.md),
 [api/03-acceptance.md](api/03-acceptance.md). Auth/organizations и profiles из
 `src/backend/modules` подключены к тому же серверу. Каталог использует настоящую
@@ -17,8 +18,8 @@ cookie-сессию; профили проверяются его точной �
 
 ## 1. Стек и зависимости
 
-- Go 1.26.1; единственный Go-модуль находится в `src/backend`. Версии библиотек
-  закреплены в `src/backend/go.mod` и `src/backend/go.sum`.
+- Go 1.26.1; модули API и отдельной Medium-ловушки находятся в `src/backend`
+  и `src/redis-trap`. Версии библиотек закреплены в их `go.mod` и `go.sum`.
 - Gin — HTTP API, `pgx/v5` — доступ к PostgreSQL 17, Goose — SQL-миграции.
 - `validator/v10` и JSON Schema Draft 2020-12 — проверка входных данных и
   конфигураций; `gorilla/websocket` — WSS, `franz-go` — Kafka.
@@ -47,6 +48,14 @@ go build -o honey-forge-api.exe ./cmd/api
 ```powershell
 go fmt ./...
 go vet ./...
+go test ./...
+go build ./...
+```
+
+Отдельное приложение Medium собирается и проверяется из `src/redis-trap`:
+
+```powershell
+Set-Location ../redis-trap
 go test ./...
 go build ./...
 ```
@@ -227,7 +236,9 @@ Go-модуль и единственный API entrypoint находятся в
 контракт — в `api/openapi.yaml`. API подключает auth/organizations, catalog,
 profiles, ловушки, команды и приём событий. Состояние ловушек описано в
 [модуле traps](src/backend/modules/traps/README.md). Отдельный TCP runtime
-агента реализован в `cmd/agent`: [создание первой ловушки с конфигурацией и запуск](src/backend/internal/agent/README.md).
+агента реализован в `cmd/agent`: [запуск TCP-ловушки](src/backend/internal/agent/README.md).
+Отдельное приложение [Redis Medium](src/redis-trap/README.md)
+использует тот же контракт управления и доставки телеметрии.
 Frontend WSS остаётся отдельным компонентом.
 
 ## 7. Докеризация

@@ -6,8 +6,9 @@
 
 Общая HTTP-авторизация, пагинация и ошибки берутся из `internal/contract`.
 Компиляция безопасных JSON Schema использует `internal/configschema`; записи
-версий в PostgreSQL выполняет `repository.go`. Текущий встроенный тип:
-`tcp-banner/1` (`schemas/tcp-banner-1.json`). Новую версию следует добавлять
+версий в PostgreSQL выполняет `repository.go`. Встроенные типы:
+`tcp-banner/1` (`schemas/tcp-banner-1.json`) и
+`redis-emulator/1` (`schemas/redis-emulator-1.json`). Новую версию следует добавлять
 отдельным descriptor, не меняя уже опубликованную.
 
 Маршруты и публичный контракт описаны в [API 03](../../../../api/03-catalog.md)
