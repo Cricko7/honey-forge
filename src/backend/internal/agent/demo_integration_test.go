@@ -28,6 +28,11 @@ import (
 // Real child process, TCP listener, local WS, backend WSS and durable queue.
 // The backend is a protocol peer; PostgreSQL is tested separately by app tests.
 func TestDemoTrapToBackend(t *testing.T) {
+	testDemoTrapToBackend(t, false)
+}
+func TestDemoTrapToBackendAfterLostCommandAck(t *testing.T) { testDemoTrapToBackend(t, true) }
+func testDemoTrapToBackend(t *testing.T, loseAck bool) {
+	t.Helper()
 	executable := filepath.Join(t.TempDir(), "agent")
 	if runtime.GOOS == "windows" {
 		executable += ".exe"
@@ -95,6 +100,7 @@ func TestDemoTrapToBackend(t *testing.T) {
 			return
 		}
 		configured := false
+		ackDropped := false
 		for {
 			var m contract.Envelope
 			if err := conn.ReadJSON(&m); err != nil {
@@ -115,7 +121,11 @@ func TestDemoTrapToBackend(t *testing.T) {
 					serverErrors <- fmtResultError(result)
 					return
 				}
-				if err := send("command.ack", &m.MessageID, map[string]any{}); err != nil {
+				if loseAck && !configured && !ackDropped {
+					ackDropped = true
+					continue
+				}
+				if err := send("command.ack", &m.MessageID, map[string]any{"command_id": result.CommandID, "status": result.Status, "recorded_at": time.Now().UTC()}); err != nil {
 					return
 				}
 				if !configured {

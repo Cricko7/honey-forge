@@ -1,4 +1,16 @@
 services:
+  redis:
+    image: redis:7.4.6
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "always", "--maxmemory-policy", "noeviction"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
   kafka:
     image: apache/kafka:4.1.2
     hostname: kafka
@@ -36,5 +48,6 @@ services:
       timeout: 3s
       retries: 10
 volumes:
+  redis_data:
   kafka_data:
   postgres_data:

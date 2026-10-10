@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -132,11 +133,15 @@ func (l *Local) Handler(ctx context.Context) *gin.Engine {
 				return
 			}
 			if _, err := l.Journal.Enqueue(e); err != nil {
+				code := "buffer_unavailable"
+				if errors.Is(err, ErrBufferFull) {
+					code = "buffer_full"
+				}
 				select {
-				case l.Failures <- "buffer_unavailable":
+				case l.Failures <- code:
 				default:
 				}
-				writeLocal(conn, map[string]any{"error": map[string]string{"code": "buffer_unavailable", "message": "Telemetry buffer is unavailable"}})
+				writeLocal(conn, map[string]any{"error": map[string]string{"code": code, "message": "Telemetry buffer cannot accept event"}})
 				return
 			}
 			if err := writeLocal(conn, map[string]any{"event_id": e.EventID}); err != nil {

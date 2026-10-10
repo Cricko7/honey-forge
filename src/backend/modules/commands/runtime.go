@@ -15,6 +15,7 @@ var runtimeMessages = map[string]string{
 	"unsupported_action":     "Action is unsupported by this agent",
 	"command_expired":        "Command has expired",
 	"buffer_unavailable":     "Telemetry buffer is unavailable",
+	"buffer_full":            "Telemetry buffer is full",
 	"telemetry_invalid":      "Telemetry event is invalid",
 }
 

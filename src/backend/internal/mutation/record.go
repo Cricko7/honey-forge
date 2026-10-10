@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 
@@ -16,10 +17,16 @@ func record(ctx context.Context, tx pgx.Tx, organizationID contract.ID, outcome 
 	if err != nil {
 		return 0, fmt.Errorf("encode audit metadata: %w", err)
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO mutation_audit(id,organization_id,actor_id,action,resource_id,metadata) VALUES($1,$2,$3,$4,$5,$6)`, string(contract.NewID()), string(organizationID), string(principal.UserID), outcome.Action, string(outcome.ResourceID), metadata); err != nil {
+	details, err := json.Marshal(outcome.AuditDetails)
+	if err != nil {
+		return 0, fmt.Errorf("encode audit details: %w", err)
+	}
+	id := contract.NewID()
+	if _, err := tx.Exec(ctx, `INSERT INTO mutation_audit(id,organization_id,actor_id,action,resource_id,metadata,actor_email,actor_role,resource_kind,details) VALUES($1,$2,$3,$4,$5,$6,COALESCE((SELECT email FROM users WHERE id=$3 AND organization_id=$2),''),$7,$8,$9)`, string(id), string(organizationID), string(principal.UserID), outcome.Action, string(outcome.ResourceID), metadata, string(principal.Role), strings.SplitN(outcome.Action, ".", 2)[0], details); err != nil {
 		return 0, fmt.Errorf("record audit: %w", err)
 	}
-	return recordChanges(ctx, tx, organizationID, outcome.Changes)
+	changes := append(append([]Change(nil), outcome.Changes...), Change{Type: "audit.created", ResourceID: id})
+	return recordChanges(ctx, tx, organizationID, changes)
 }
 
 func recordChanges(ctx context.Context, tx pgx.Tx, organizationID contract.ID, changes []Change) (int64, error) {

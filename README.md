@@ -23,7 +23,8 @@ cookie-сессию; профили проверяются его точной �
 - Gin — HTTP API, `pgx/v5` — доступ к PostgreSQL 17, Goose — SQL-миграции.
 - `validator/v10` и JSON Schema Draft 2020-12 — проверка входных данных и
   конфигураций; `gorilla/websocket` — WSS, `franz-go` — Kafka.
-- Для запуска нужны PostgreSQL, Kafka и TLS-сертификат с закрытым ключом.
+- Для API нужны PostgreSQL, Kafka и TLS-сертификат с закрытым ключом;
+  для агента — локальный Redis с AOF/fsync-always и noeviction.
   Локальные версии инфраструктуры указаны в `compose.yaml`.
 
 ## 2. Как проект собирается
@@ -68,6 +69,7 @@ go build ./...
 ```powershell
 $env:TEST_DATABASE_URL = 'postgres://user:password@127.0.0.1:5432/honey_forge_test?sslmode=disable'
 $env:TEST_KAFKA_BROKERS = '127.0.0.1:29092'
+$env:TEST_REDIS_URL = 'redis://127.0.0.1:6379/0'
 go test -tags=integration ./... -count=1
 go test -race -tags=integration ./... -count=1
 ```
@@ -89,7 +91,9 @@ go test -race -tags=integration ./... -count=1
 | `AGENT_WS_URL` | Необязательный внешний WSS URL вида `wss://host/assets/stream`; по умолчанию строится из первого `BROWSER_ORIGINS`. |
 | `API_ADDR` | Адрес API; по умолчанию `:8443`. |
 | `GIN_MODE` | Для развёрнутого сервера задайте `release`. |
-| `TEST_DATABASE_URL`, `TEST_KAFKA_BROKERS` | Только для интеграционных тестов. |
+| `AGENT_REDIS_URL` | Обязательный Redis URL локального буфера агента; например `redis://127.0.0.1:6379/0`. |
+| `TEST_DATABASE_URL`, `TEST_KAFKA_BROKERS`, `TEST_REDIS_URL` | Для полной интеграционной приёмки. |
+| `TEST_REDIS_SERVER_PATH` | Путь к redis-server для проверки аварийного рестарта отдельного тестового Redis. |
 
 Секреты передаются через окружение и не сохраняются в Git. Для удалённой
 PostgreSQL используйте TLS вместо локального `sslmode=disable` из примера ниже.

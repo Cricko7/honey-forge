@@ -12,6 +12,7 @@ import (
 
 	"honey-forge/internal/contract"
 	"honey-forge/internal/mutation"
+	"honey-forge/modules/audit"
 	"honey-forge/modules/commands"
 	"honey-forge/modules/profiles"
 	profilerepo "honey-forge/modules/profiles/repository"
@@ -152,10 +153,16 @@ func (r *Repository) Create(ctx context.Context, org, trapID, requestID string, 
 			return mutation.Outcome{}, fmt.Errorf("activate command: %w", err)
 		}
 
+		details := audit.Details{TrapID: trapID, CommandID: created.ID}
+		if created.TargetProfileRevision != nil {
+			revision := contract.Revision(*created.TargetProfileRevision)
+			details.ProfileRevision = &revision
+		}
 		return mutation.Outcome{
-			ResourceID: contract.ID(created.ID),
-			Location:   "/api/traps/" + trapID + "/commands/" + created.ID,
-			Action:     "command.created",
+			ResourceID:   contract.ID(created.ID),
+			Location:     "/api/traps/" + trapID + "/commands/" + created.ID,
+			Action:       "command.created",
+			AuditDetails: details,
 			Changes: []mutation.Change{
 				{Type: "command.changed", ResourceID: contract.ID(created.ID)},
 				{Type: "trap.changed", ResourceID: contract.ID(trapID), Metadata: mutation.Metadata{StateVersion: &stateVersion}},

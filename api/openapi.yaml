@@ -1556,6 +1556,77 @@ components:
       - received_at
       - data
       - source_enrichment
+    AuditActor:
+      type: object
+      additionalProperties: false
+      required: [user_id, email, role]
+      properties:
+        user_id:
+          $ref: '#/components/schemas/ID'
+        email:
+          type: string
+        role:
+          type: string
+          enum: [admin, viewer]
+    AuditResource:
+      type: object
+      additionalProperties: false
+      required: [kind, id]
+      properties:
+        kind:
+          type: string
+          enum: [organization, profile, trap, command, session]
+        id:
+          $ref: '#/components/schemas/ID'
+    AuditDetails:
+      type: object
+      additionalProperties: false
+      properties:
+        changed_fields:
+          type: array
+          items:
+            type: string
+            description: JSON Pointer of a changed field; never contains values.
+        profile_revision:
+          $ref: '#/components/schemas/Revision'
+        trap_id:
+          $ref: '#/components/schemas/ID'
+        command_id:
+          $ref: '#/components/schemas/ID'
+        credential_generation:
+          $ref: '#/components/schemas/Revision'
+    AuditEntry:
+      type: object
+      additionalProperties: false
+      required: [id, occurred_at, actor, action, resource, details]
+      properties:
+        id:
+          $ref: '#/components/schemas/ID'
+        occurred_at:
+          $ref: '#/components/schemas/Timestamp'
+        actor:
+          $ref: '#/components/schemas/AuditActor'
+        action:
+          type: string
+          minLength: 1
+          maxLength: 100
+        resource:
+          $ref: '#/components/schemas/AuditResource'
+        details:
+          $ref: '#/components/schemas/AuditDetails'
+    AuditPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditEntry'
+        next_cursor:
+          oneOf:
+          - $ref: '#/components/schemas/Cursor'
+          - type: 'null'
     EventPage:
       type: object
       additionalProperties: false
@@ -1950,6 +2021,80 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '428':
           $ref: '#/components/responses/PreconditionRequired'
+  /api/audit-entries:
+    get:
+      operationId: listAuditEntries
+      description: Immutable operator history for admin and viewer in their organization. Filters AND; occurred_at DESC/id DESC. Unknown valid actions or actor IDs return an empty page. Cursor binds organization, normalized filters and first-page commit sequence. Reads do not create audit. Old mutation entries created before actor snapshots were introduced have a one-time identity backfill from the migration; later changes never rewrite them.
+      security:
+      - sessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      - in: query
+        name: from
+        schema:
+          $ref: '#/components/schemas/Timestamp'
+      - in: query
+        name: to
+        schema:
+          $ref: '#/components/schemas/Timestamp'
+      - in: query
+        name: action
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 100
+      - in: query
+        name: actor_id
+        schema:
+          $ref: '#/components/schemas/ID'
+      - in: query
+        name: resource_id
+        schema:
+          $ref: '#/components/schemas/ID'
+      responses:
+        '200':
+          description: Own audit history with safe metadata and actor snapshots.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/audit-entries/{audit_id}:
+    get:
+      operationId: readAuditEntry
+      security:
+      - sessionCookie: []
+      parameters:
+      - in: path
+        name: audit_id
+        required: true
+        schema:
+          $ref: '#/components/schemas/ID'
+      responses:
+        '200':
+          description: Immutable entry, including history of deleted resources. No credentials, configuration values or attacker input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditEntry'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
   /api/events:
     get:
       operationId: listEvents

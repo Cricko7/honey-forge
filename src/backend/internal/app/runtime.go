@@ -13,6 +13,7 @@ import (
 	"honey-forge/internal/mutation"
 	"honey-forge/internal/postgres"
 	"honey-forge/modules/agentws"
+	"honey-forge/modules/audit"
 	authhttp "honey-forge/modules/auth/http"
 	authrepo "honey-forge/modules/auth/repository"
 	authservice "honey-forge/modules/auth/service"
@@ -136,6 +137,7 @@ func Open(ctx context.Context, config Config) (*Runtime, error) {
 	agentHandler := agentws.NewHandler(gateway, agentCommands)
 	trapService := traps.NewService(trapRepository, catalogService, config.AgentWSURL, agentHandler.Revoke)
 	session := authhttp.NewHandler(authService, logger).RequireSession()
+	audit.NewHandler(audit.NewService(audit.NewRepository(pool)), cursors, logger).RegisterRoutes(router, session)
 	traps.NewHandler(trapService, cursors, logger).RegisterRoutes(router, session)
 	events.NewHandler(eventRepository, cursors, logger).RegisterRoutes(router, session)
 	commandhttp.NewHandler(commandservice.New(commandRepository, CommandActionCheck(catalogService)), cursors, logger).RegisterRoutes(router, session)

@@ -24,6 +24,7 @@ type Options struct {
 	Token          string
 	TrapID         string
 	JournalPath    string
+	RedisURL       string
 	Executable     string
 	Hostname       string
 	BootID         string
@@ -36,8 +37,8 @@ func Run(ctx context.Context, opts Options) error {
 	if err != nil || endpoint.Scheme != "wss" || endpoint.Host == "" || endpoint.Path != "/assets/stream" || endpoint.User != nil || endpoint.RawQuery != "" || endpoint.Fragment != "" {
 		return fmt.Errorf("AGENT_WS_URL must be wss://host/assets/stream")
 	}
-	if opts.Token == "" || !contract.ValidID(opts.TrapID) || opts.JournalPath == "" {
-		return fmt.Errorf("AGENT_TOKEN, AGENT_TRAP_ID and AGENT_JOURNAL_FILE are required")
+	if opts.Token == "" || !contract.ValidID(opts.TrapID) || (opts.JournalPath == "" && opts.RedisURL == "") {
+		return fmt.Errorf("AGENT_TOKEN, AGENT_TRAP_ID and AGENT_REDIS_URL are required")
 	}
 	if opts.Executable == "" {
 		opts.Executable, err = os.Executable()
@@ -52,7 +53,12 @@ func Run(ctx context.Context, opts Options) error {
 		}
 	}
 	opts.BootID = string(contract.NewID())
-	j, err := OpenJournal(opts.JournalPath, opts.TrapID, 64<<20)
+	var j *Journal
+	if opts.RedisURL != "" {
+		j, err = OpenRedisJournal(ctx, opts.RedisURL, opts.TrapID, 64<<20)
+	} else {
+		j, err = OpenJournal(opts.JournalPath, opts.TrapID, 64<<20)
+	}
 	if err != nil {
 		return err
 	}
@@ -87,6 +93,27 @@ func Run(ctx context.Context, opts Options) error {
 	p := &Process{Executable: opts.Executable, URL: "ws://" + listener.Addr().String() + "/trap-stream", Local: local}
 	s := NewService(j, p)
 	defer s.Shutdown()
+	if err := s.Restore(ctx); err != nil {
+		return err
+	}
+	storageCtx, storageCancel := context.WithCancel(ctx)
+	storageDone := make(chan struct{})
+	go func() {
+		defer close(storageDone)
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-storageCtx.Done():
+				return
+			case <-ticker.C:
+				if err := j.CheckStorage(storageCtx); err != nil && storageCtx.Err() == nil {
+					s.Failed("buffer_unavailable")
+				}
+			}
+		}
+	}()
+	defer func() { storageCancel(); <-storageDone }()
 	delay := time.Second
 	for {
 		err := session(ctx, opts, j, s, local, p)

@@ -28,7 +28,7 @@ func TestJournalReplayAndSnapshot(t *testing.T) {
 		t.Fatalf("snapshot %d %v", boundary, err)
 	}
 	changes, err := store.Changes(ctx, scope.OrganizationID, 0, boundary, 50)
-	if err != nil || len(changes) != 1 || changes[0].ResourceID != id {
+	if err != nil || len(changes) != 2 || changes[0].ResourceID != id || changes[1].Type != "audit.created" {
 		t.Fatalf("replay %+v %v", changes, err)
 	}
 	if _, err := store.Changes(ctx, contract.NewID(), 0, boundary, 50); err == nil {

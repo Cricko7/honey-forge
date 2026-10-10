@@ -50,7 +50,7 @@ func run() error {
 	}
 	return agent.Run(ctx, agent.Options{
 		URL: os.Getenv("AGENT_WS_URL"), Token: os.Getenv("AGENT_TOKEN"),
-		TrapID: os.Getenv("AGENT_TRAP_ID"), JournalPath: os.Getenv("AGENT_JOURNAL_FILE"), TLS: config,
+		TrapID: os.Getenv("AGENT_TRAP_ID"), RedisURL: os.Getenv("AGENT_REDIS_URL"), TLS: config,
 		SupportedTypes: []agentws.SupportedType{{TypeID: "redis-emulator", TypeVersion: 1, Actions: []string{"start", "stop", "apply_config"}}},
 	})
 }

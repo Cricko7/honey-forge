@@ -11,6 +11,7 @@ import (
 
 	"honey-forge/internal/contract"
 	"honey-forge/internal/mutation"
+	"honey-forge/modules/audit"
 )
 
 type Repository struct {
@@ -111,7 +112,12 @@ func outcome(r Record, action string) mutation.Outcome {
 		typ = "trap.deleted"
 	}
 	revision := contract.Revision(r.Revision)
-	return mutation.Outcome{ResourceID: contract.ID(r.ID), Location: "/api/traps/" + r.ID, Action: action, Metadata: mutation.Metadata{Revision: &revision}, Changes: []mutation.Change{change(r, typ)}}
+	details := audit.Details{}
+	if action == "trap.agent_credentials_issued" || action == "trap.agent_credentials_revoked" {
+		generation := contract.Revision(r.Generation)
+		details.CredentialGeneration = &generation
+	}
+	return mutation.Outcome{ResourceID: contract.ID(r.ID), Location: "/api/traps/" + r.ID, Action: action, Metadata: mutation.Metadata{Revision: &revision}, AuditDetails: details, Changes: []mutation.Change{change(r, typ)}}
 }
 
 // Returning this sentinel rolls back a no-op without audit or notifications.
@@ -124,6 +130,7 @@ func (r *Repository) Update(ctx context.Context, org, id string, update func(*Re
 		if err != nil {
 			return mutation.Outcome{}, err
 		}
+		before := current.Trap
 		action, err := update(&current)
 		if err != nil {
 			return mutation.Outcome{}, err
@@ -135,7 +142,14 @@ func (r *Repository) Update(ctx context.Context, org, id string, update func(*Re
 		if err := save(ctx, tx, current); err != nil {
 			return mutation.Outcome{}, err
 		}
-		return outcome(current, action), nil
+		result := outcome(current, action)
+		if before.Name != current.Name {
+			result.AuditDetails.ChangedFields = append(result.AuditDetails.ChangedFields, "/name")
+		}
+		if before.Description != current.Description {
+			result.AuditDetails.ChangedFields = append(result.AuditDetails.ChangedFields, "/description")
+		}
+		return result, nil
 	})
 	if errors.Is(err, errUnchanged) {
 		err = nil

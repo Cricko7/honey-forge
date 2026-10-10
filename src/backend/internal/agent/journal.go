@@ -2,14 +2,11 @@
 package agent
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -27,16 +24,24 @@ type Batch struct {
 }
 
 type State struct {
+	Running       bool                            `json:"running"`
+	Awaiting      map[string]bool                 `json:"awaiting"`
 	Configuration *profiles.Snapshot              `json:"configuration"`
 	Results       map[string]commands.AgentResult `json:"results"`
 	Intent        *commands.Dispatch              `json:"intent"`
 }
 
 type record struct {
-	Identity string `json:"identity,omitempty"`
-	Batch    *Batch `json:"batch,omitempty"`
-	Ack      string `json:"ack,omitempty"`
-	State    *State `json:"state,omitempty"`
+	Identity   string      `json:"identity,omitempty"`
+	Batch      *Batch      `json:"batch,omitempty"`
+	Ack        string      `json:"ack,omitempty"`
+	State      *State      `json:"state,omitempty"`
+	Checkpoint *checkpoint `json:"checkpoint,omitempty"`
+}
+type checkpoint struct {
+	Pending []Batch                  `json:"pending"`
+	Active  map[string]activeSession `json:"active"`
+	State   State                    `json:"state"`
 }
 
 type activeSession struct {
@@ -55,70 +60,10 @@ type Journal struct {
 	active   map[string]activeSession
 	state    State
 	broken   error
+	redis    *redisJournal
 }
 
-func OpenJournal(path, identity string, capacity int64) (*Journal, error) {
-	if identity == "" || capacity < 32*1024 {
-		return nil, fmt.Errorf("journal identity and capacity are required")
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-		return nil, fmt.Errorf("create journal directory: %w", err)
-	}
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0600)
-	if err != nil {
-		return nil, fmt.Errorf("open journal: %w", err)
-	}
-	j := &Journal{file: f, capacity: capacity, sessions: map[string]bool{}, active: map[string]activeSession{}, state: State{Results: map[string]commands.AgentResult{}}}
-	failed := true
-	defer func() {
-		if failed {
-			f.Close()
-		}
-	}()
-	if err := lockJournal(f); err != nil {
-		return nil, fmt.Errorf("lock journal: %w", err)
-	}
-	reader := bufio.NewReader(f)
-	var offset int64
-	foundIdentity := ""
-	for {
-		line, err := reader.ReadBytes('\n')
-		if errors.Is(err, io.EOF) {
-			// An interrupted final append was never locally acknowledged.
-			if len(line) > 0 {
-				if err := f.Truncate(offset); err != nil {
-					return nil, fmt.Errorf("repair journal tail: %w", err)
-				}
-			}
-			break
-		}
-		if err != nil {
-			return nil, fmt.Errorf("read journal: %w", err)
-		}
-		var rec record
-		if err := json.Unmarshal(line, &rec); err != nil {
-			return nil, fmt.Errorf("corrupt journal at byte %d: %w", offset, err)
-		}
-		if rec.Identity != "" {
-			foundIdentity = rec.Identity
-		}
-		j.apply(rec)
-		offset += int64(len(line))
-	}
-	if foundIdentity != "" && foundIdentity != identity {
-		return nil, fmt.Errorf("journal belongs to another trap")
-	}
-	if _, err := f.Seek(0, io.SeekEnd); err != nil {
-		return nil, fmt.Errorf("seek journal: %w", err)
-	}
-	if foundIdentity == "" {
-		if err := j.append(record{Identity: identity}); err != nil {
-			return nil, err
-		}
-	}
-	failed = false
-	return j, nil
-}
+var ErrBufferFull = errors.New("telemetry buffer is full")
 
 func (j *Journal) append(rec record) error {
 	if j.broken != nil {
@@ -133,6 +78,18 @@ func (j *Journal) append(rec record) error {
 	var committed record
 	if err := json.Unmarshal(raw, &committed); err != nil {
 		return fmt.Errorf("decode journal record: %w", err)
+	}
+	if j.redis != nil {
+		if err := j.redis.append(raw); err != nil {
+			j.broken = fmt.Errorf("persist Redis journal: %w", err)
+			return j.broken
+		}
+		j.apply(committed)
+		if err := j.compactRedis(); err != nil {
+			j.broken = err
+			return err
+		}
+		return nil
 	}
 	if _, err := j.file.Write(raw); err != nil {
 		j.broken = fmt.Errorf("write journal: %w", err)
@@ -149,10 +106,26 @@ func (j *Journal) append(rec record) error {
 func batchBytes(batch Batch) int64 { raw, _ := json.Marshal(batch); return int64(len(raw)) }
 
 func (j *Journal) apply(rec record) {
+	if rec.Checkpoint != nil {
+		j.pending = rec.Checkpoint.Pending
+		j.active = rec.Checkpoint.Active
+		j.state = rec.Checkpoint.State
+		j.bytes = 0
+		j.sessions = map[string]bool{}
+		for _, b := range j.pending {
+			j.bytes += batchBytes(b)
+		}
+		for id := range j.active {
+			j.sessions[id] = true
+		}
+	}
 	if rec.State != nil {
 		j.state = *rec.State
 		if j.state.Results == nil {
 			j.state.Results = map[string]commands.AgentResult{}
+		}
+		if j.state.Awaiting == nil {
+			j.state.Awaiting = map[string]bool{}
 		}
 	}
 	if rec.Batch != nil {
@@ -225,7 +198,7 @@ func (j *Journal) Enqueue(e events.AgentEvent) (Batch, error) {
 		reserve -= sessionReserve
 	}
 	if j.bytes+batchBytes(b)+reserve > j.capacity {
-		return Batch{}, fmt.Errorf("telemetry buffer is full")
+		return Batch{}, ErrBufferFull
 	}
 	return b, j.append(record{Batch: &b})
 }
@@ -276,4 +249,11 @@ func (j *Journal) Usage() (int64, int64) {
 	return int64(len(j.pending)), j.bytes
 }
 
-func (j *Journal) Close() error { j.mu.Lock(); defer j.mu.Unlock(); return j.file.Close() }
+func (j *Journal) Close() error {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if j.redis != nil {
+		return j.redis.close()
+	}
+	return j.file.Close()
+}

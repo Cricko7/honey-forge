@@ -59,6 +59,15 @@ func readFrontend(t *testing.T, c *websocket.Conn, kind string) contract.Envelop
 	if err := c.ReadJSON(&e); err != nil {
 		t.Fatal(err)
 	}
+	for e.Type == "audit.created" && kind != "audit.created" {
+		var data map[string]string
+		if err := json.Unmarshal(e.Payload["data"], &data); err != nil || len(data) != 1 || !contract.ValidID(data["audit_id"]) {
+			t.Fatalf("invalid audit DTO: %s", e.Payload["data"])
+		}
+		if err := c.ReadJSON(&e); err != nil {
+			t.Fatal(err)
+		}
+	}
 	if e.Type != kind {
 		t.Fatalf("type %s want %s", e.Type, kind)
 	}

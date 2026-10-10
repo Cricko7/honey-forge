@@ -42,5 +42,8 @@ func run() error {
 		}
 		config.RootCAs = roots
 	}
-	return agent.Run(ctx, agent.Options{URL: os.Getenv("AGENT_WS_URL"), Token: os.Getenv("AGENT_TOKEN"), TrapID: os.Getenv("AGENT_TRAP_ID"), JournalPath: os.Getenv("AGENT_JOURNAL_FILE"), TLS: config})
+	if os.Getenv("AGENT_REDIS_URL") == "" {
+		return fmt.Errorf("AGENT_REDIS_URL is required")
+	}
+	return agent.Run(ctx, agent.Options{URL: os.Getenv("AGENT_WS_URL"), Token: os.Getenv("AGENT_TOKEN"), TrapID: os.Getenv("AGENT_TRAP_ID"), RedisURL: os.Getenv("AGENT_REDIS_URL"), TLS: config})
 }

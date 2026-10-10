@@ -172,7 +172,7 @@ func (s *Service) IssueCredentials(ctx context.Context, id string, expected int6
 			return "", err
 		}
 		r.Generation, r.TokenHash, r.IssuedAt = generation, hash[:], ptrTime(s.now())
-		return "agent_credentials.issued", nil
+		return "trap.agent_credentials_issued", nil
 	})
 	if err != nil {
 		return AgentCredentials{}, err
@@ -208,7 +208,7 @@ func (s *Service) RevokeCredentials(ctx context.Context, id, etag string) error 
 			return "", err
 		}
 		r.Generation, r.TokenHash = generation, nil
-		return "agent_credentials.revoked", nil
+		return "trap.agent_credentials_revoked", nil
 	})
 	if err == nil && s.revoke != nil {
 		s.revoke(id, r.Generation+1)

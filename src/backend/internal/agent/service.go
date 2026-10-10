@@ -7,8 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"honey-forge/internal/configschema"
-	"honey-forge/modules/catalog"
 	"honey-forge/modules/commands"
 	"honey-forge/modules/profiles"
 )
@@ -28,92 +26,6 @@ type Service struct {
 
 func NewService(j *Journal, r Runner) *Service { return &Service{journal: j, runner: r} }
 
-func (s *Service) runtime() commands.AgentRuntime {
-	count, size := s.journal.Usage()
-	state := s.journal.LoadState()
-	runtime := commands.AgentRuntime{RuntimeState: "stopped", BufferedEvents: count, BufferBytes: size, BufferCapacityBytes: s.journal.capacity, BufferState: "ok"}
-	if state.Configuration != nil {
-		revision := state.Configuration.ProfileRevision
-		runtime.AppliedProfileRevision = &revision
-	}
-	if s.running {
-		runtime.RuntimeState = "running"
-	}
-	if s.failure != nil {
-		copy := *s.failure
-		runtime.RuntimeState = "error"
-		runtime.LastError = &copy
-		if copy.Code == "buffer_unavailable" {
-			runtime.BufferState = "unavailable"
-		}
-	}
-	return runtime
-}
-
-func (s *Service) Runtime() commands.AgentRuntime {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.runtime()
-}
-
-func (s *Service) FlushInterval() time.Duration {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	configuration := s.journal.LoadState().Configuration
-	if configuration == nil {
-		return 100 * time.Millisecond
-	}
-	flush, err := validateSnapshot(context.Background(), *configuration)
-	if err != nil {
-		return 100 * time.Millisecond
-	}
-	return time.Duration(flush) * time.Millisecond
-}
-
-func validateSnapshot(ctx context.Context, snapshot profiles.Snapshot) (int, error) {
-	if snapshot.ProfileRevision < 1 {
-		return 0, fmt.Errorf("unsupported trap snapshot")
-	}
-	raw, err := json.Marshal(snapshot.Config)
-	if err != nil {
-		return 0, fmt.Errorf("encode configuration: %w", err)
-	}
-	for _, definition := range catalog.BuiltinDefinitions() {
-		if string(definition.Entry.TypeID) != snapshot.TypeID || int32(definition.Entry.TypeVersion) != snapshot.TypeVersion {
-			continue
-		}
-		schema, err := configschema.Compile(definition.Entry.ConfigSchema)
-		if err != nil {
-			return 0, fmt.Errorf("compile configuration: %w", err)
-		}
-		if err := schema.Validate(raw, ""); err != nil {
-			return 0, fmt.Errorf("validate configuration: %w", err)
-		}
-		if err := ctx.Err(); err != nil {
-			return 0, err
-		}
-		var config struct {
-			Management struct {
-				Flush int `json:"telemetry_flush_interval_ms"`
-			} `json:"management"`
-		}
-		if err := json.Unmarshal(raw, &config); err != nil {
-			return 0, fmt.Errorf("decode configuration: %w", err)
-		}
-		return config.Management.Flush, nil
-	}
-	return 0, fmt.Errorf("unsupported trap type")
-}
-
-func runtimeError(code string) *commands.RuntimeError {
-	e := &commands.RuntimeError{Code: code}
-	if err := commands.NormalizeRuntimeError(e); err != nil {
-		return &commands.RuntimeError{Code: "runtime_start_failed", Message: "Runtime could not start"}
-	}
-	return e
-}
-
 // Execute writes the command intent before any listener side effect. Terminal
 // outcomes are durable and replayed with the latest lease and observed runtime.
 func (s *Service) Execute(ctx context.Context, dispatch commands.Dispatch) (commands.AgentResult, error) {
@@ -123,6 +35,14 @@ func (s *Service) Execute(ctx context.Context, dispatch commands.Dispatch) (comm
 	if stored, ok := state.Results[dispatch.CommandID]; ok {
 		stored.LeaseID = dispatch.LeaseID
 		stored.Runtime = s.runtime()
+		state.Results[dispatch.CommandID] = stored
+		if state.Awaiting == nil {
+			state.Awaiting = map[string]bool{}
+		}
+		state.Awaiting[dispatch.CommandID] = true
+		if err := s.journal.SaveState(state); err != nil {
+			return commands.AgentResult{}, err
+		}
 		return stored, nil
 	}
 	if !time.Now().Before(dispatch.ExpiresAt) {
@@ -162,14 +82,10 @@ func (s *Service) Execute(ctx context.Context, dispatch commands.Dispatch) (comm
 		}
 		previous := state.Configuration
 		state.Configuration = dispatch.Configuration
-		if err := s.journal.SaveState(state); err != nil {
-			s.failure = runtimeError("buffer_unavailable")
-			return result, err
-		}
 		if wasRunning {
 			if err := s.runner.Start(ctx, *state.Configuration); err != nil {
 				state.Configuration = previous
-				fail("config_apply_failed")
+				fail("port_unavailable")
 				if previous != nil {
 					if rollbackErr := s.runner.Start(ctx, *previous); rollbackErr != nil {
 						s.failure = runtimeError("config_rollback_failed")
@@ -187,8 +103,8 @@ func (s *Service) Execute(ctx context.Context, dispatch commands.Dispatch) (comm
 			fail("runtime_start_failed")
 			break
 		}
-		if s.failure != nil && s.failure.Code == "buffer_unavailable" {
-			fail("buffer_unavailable")
+		if s.failure != nil && (s.failure.Code == "buffer_unavailable" || s.failure.Code == "buffer_full") {
+			fail(s.failure.Code)
 			break
 		}
 		if !s.running {
@@ -205,6 +121,7 @@ func (s *Service) Execute(ctx context.Context, dispatch commands.Dispatch) (comm
 		s.failure = nil
 	}
 	// Save the installed snapshot before describing the applied revision.
+	state.Running = s.running
 	if err := s.journal.SaveState(state); err != nil {
 		s.failure = runtimeError("buffer_unavailable")
 		if s.running {
@@ -222,6 +139,10 @@ func (s *Service) Execute(ctx context.Context, dispatch commands.Dispatch) (comm
 		result.Result = raw
 	}
 	state.Results[dispatch.CommandID] = result
+	if state.Awaiting == nil {
+		state.Awaiting = map[string]bool{}
+	}
+	state.Awaiting[dispatch.CommandID] = true
 	state.Intent = nil
 	if err := s.journal.SaveState(state); err != nil {
 		s.failure = runtimeError("buffer_unavailable")
@@ -232,41 +153,4 @@ func (s *Service) Execute(ctx context.Context, dispatch commands.Dispatch) (comm
 		return result, err
 	}
 	return result, nil
-}
-
-func (s *Service) Failed(code string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.failure = runtimeError(code)
-	if s.running {
-		if err := s.runner.Stop(); err != nil && code != "buffer_unavailable" {
-			s.failure = runtimeError("runtime_stop_failed")
-		}
-		s.running = false
-	}
-	if err := s.journal.RecoverSessions(); err != nil {
-		s.failure = runtimeError("buffer_unavailable")
-	}
-}
-
-func (s *Service) RecoverBuffer() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.journal.mu.Lock()
-	healthy := s.journal.broken == nil && len(s.journal.pending) == 0
-	s.journal.mu.Unlock()
-	if healthy && s.failure != nil && s.failure.Code == "buffer_unavailable" {
-		s.failure = nil
-	}
-}
-
-func (s *Service) Shutdown() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if !s.running {
-		return nil
-	}
-	err := s.runner.Stop()
-	s.running = false
-	return err
 }

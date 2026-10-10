@@ -14,10 +14,10 @@
 | 05 | [Ловушки](../src/backend/docs/api/05-traps.md) | Подключён: CRUD, heartbeat/state_version, generation/token, безопасный DELETE и tombstone |
 | 06 | [Команды](../src/backend/docs/api/06-commands.md) | Подключён к TrapBoundary: apply/start/stop, snapshots, expiry, lease/result и история |
 | 07 | [События](../src/backend/docs/api/07-events.md) | Kafka-журнал → атомарный PostgreSQL ingestion/ACK, REST/snapshot cursors, дедупликация, tombstone и структурированные auth/action для поддерживающих типов; [проверки и границы](07-acceptance.md) |
-| 08 | [WSS агента](../src/backend/docs/api/08-agent-ws.md) | Backend hello/heartbeat, dispatch/result, telemetry/ack подключён; отдельный агент/Redis-буфер вне backend |
+| 08 | [WSS агента](../src/backend/docs/api/08-agent-ws.md) | Backend и cmd/agent подключены: hello/heartbeat, dispatch/result/ack, telemetry/ack, локальный Redis, восстановление snapshot/runtime и очереди |
 | 09 | [WSS фронтенда](../src/backend/docs/api/09-frontend-ws.md) | `/api/stream`, replay/ready/live, безопасные DTO, session checks, backpressure; [проверки и границы](09-acceptance.md) |
-| 10 | [Аудит](../src/backend/docs/api/10-audit.md) | Запись audit выполняется в транзакциях 02/04/05/06; единое чтение AuditEntry и audit.created ещё не подключены |
-| 11 | [Сквозная приёмка](../src/backend/docs/api/11-happy-path.md) | Проверена связка session → catalog → profile; полные сценарии A–G требуют 05–10 и агента/frontend |
+| 10 | [Аудит](../src/backend/docs/api/10-audit.md) | Подключён: единое чтение AuditEntry, фильтры/курсор, снимок автора и audit.created в общем журнале; записи атомарны с 02/04/05/06 |
+| 11 | [Сквозная приёмка](../src/backend/docs/api/11-happy-path.md) | Сквозной тест registration → profile → trap → Redis-агент → TCP → Kafka → PostgreSQL → dashboard replay → revision 2 → stop/start → DELETE/history; [проверки A–G](11-acceptance.md) |
 
 ## Подключение существующих модулей
 
@@ -31,9 +31,10 @@ DTO принадлежат своим модулям. Перемещение п�
 Общие внутренние границы описаны в
 [договоре интеграции](../src/backend/docs/api/module-integration.md).
 
-Важные незавершённые соединения: привязки Trap/Profile, единое чтение и доставка
-журналов `auth_changes`, `profile_changes` и общего журнала изменений, runtime
-агента и frontend. Наличие общего WSS-транспорта не означает готовность 08/09.
+Все журналы 02/04/05/06 публикуют audit.created в общий WSS поток. Модуль 10
+читает три хранилища через единое PostgreSQL view, не переписывая историю при
+изменении пользователя. Для старых mutation_audit миграция может восстановить
+только текущие email/role на момент миграции: исходные снимки раньше не хранились.
 
 ## Контракт и проверки
 

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 
 	"honey-forge/internal/contract"
+	"honey-forge/modules/audit"
 )
 
 type Scope struct {
@@ -31,11 +32,12 @@ type Change struct {
 }
 
 type Outcome struct {
-	ResourceID contract.ID
-	Location   string
-	Action     string
-	Metadata   Metadata
-	Changes    []Change
+	ResourceID   contract.ID
+	Location     string
+	Action       string
+	Metadata     Metadata
+	Changes      []Change
+	AuditDetails audit.Details
 }
 
 type Result struct {

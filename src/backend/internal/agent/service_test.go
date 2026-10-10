@@ -51,7 +51,7 @@ func TestApplyConfigRollsBackWhenNewListenerCannotStart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Status != commands.Failed || result.Runtime.RuntimeState != "running" || *result.Runtime.AppliedProfileRevision != 1 || r.starts != 3 {
+	if result.Status != commands.Failed || result.Error == nil || result.Error.Code != "port_unavailable" || result.Runtime.RuntimeState != "running" || *result.Runtime.AppliedProfileRevision != 1 || r.starts != 3 {
 		t.Fatalf("rollback: %+v starts=%d", result, r.starts)
 	}
 }
