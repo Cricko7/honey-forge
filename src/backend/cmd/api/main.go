@@ -42,6 +42,12 @@ func run() error {
 	if len(origins) == 0 || origins[0] == "" {
 		return fmt.Errorf("BROWSER_ORIGINS is required")
 	}
+	var trustedProxies []string
+	for _, p := range strings.Split(os.Getenv("TRUSTED_PROXIES"), ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			trustedProxies = append(trustedProxies, p)
+		}
+	}
 	startup, cancelStartup := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancelStartup()
 	brokers := strings.Split(os.Getenv("KAFKA_BROKERS"), ",")
@@ -57,7 +63,7 @@ func run() error {
 		return err
 	}
 	defer publisher.Close()
-	runtime, err := app.Open(startup, app.Config{DatabaseURL: os.Getenv("DATABASE_URL"), CursorKey: keyBytes, BrowserOrigins: origins, AgentWSURL: os.Getenv("AGENT_WS_URL"), EventPublisher: publisher})
+	runtime, err := app.Open(startup, app.Config{DatabaseURL: os.Getenv("DATABASE_URL"), CursorKey: keyBytes, BrowserOrigins: origins, AgentWSURL: os.Getenv("AGENT_WS_URL"), EventPublisher: publisher, TrustedProxies: trustedProxies})
 	cancelStartup()
 	if err != nil {
 		return err

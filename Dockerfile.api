@@ -1,0 +1,21 @@
+# Сборка и запуск Go API HoneyForge в Docker (Go на хост ставить не нужно).
+# Контекст сборки — корень репозитория: нужны src/backend и migrations.
+# ------- stage 1: сборка -------
+FROM golang:1.26-alpine AS build
+WORKDIR /src
+# Кэш зависимостей
+COPY src/backend/go.mod src/backend/go.sum ./
+RUN go mod download
+COPY src/backend ./
+# Статический бинарник (pgx/franz-go — чистый Go, CGO не нужен)
+RUN CGO_ENABLED=0 go build -trimpath -o /out/honey-forge-api ./cmd/api
+
+# ------- stage 2: рантайм -------
+FROM alpine:3.20
+RUN apk add --no-cache ca-certificates wget
+# API ищет миграции по пути ../../migrations относительно рабочей директории.
+WORKDIR /app/src/backend
+COPY --from=build /out/honey-forge-api ./honey-forge-api
+COPY migrations /app/migrations
+EXPOSE 8443
+ENTRYPOINT ["./honey-forge-api"]

@@ -1,0 +1,101 @@
+# HoneyForge — РЕАЛЬНЫЙ стек на настоящих данных (nginx).
+# Go API собирается в Docker (Go на хост не нужен). Единый origin
+# https://localhost:8443: nginx отдаёт SPA и проксирует API/WSS на Go-бэкенд.
+#
+# Перед запуском: сгенерировать сертификаты (gen-certs.ps1) и задать .env
+# (POSTGRES_PASSWORD, CURSOR_KEY). Запуск: docker compose -f docker-compose.real.yml up --build
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: honey_forge
+      POSTGRES_DB: honey_forge
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U honey_forge -d honey_forge"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  kafka:
+    image: apache/kafka:4.1.2
+    hostname: kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: CONTROLLER://:29093,PLAINTEXT_HOST://:9092,PLAINTEXT://:19092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT_HOST://127.0.0.1:29092,PLAINTEXT://kafka:19092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      CLUSTER_ID: 4L6g3nShT-eMCtK--X86sw
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server kafka:19092 >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+  redis:
+    image: redis:7.4.6
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "always", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    environment:
+      DATABASE_URL: postgres://honey_forge:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/honey_forge?sslmode=disable
+      CURSOR_KEY: ${CURSOR_KEY:?Set CURSOR_KEY}
+      BROWSER_ORIGINS: https://localhost:8443
+      KAFKA_BROKERS: kafka:19092
+      AGENT_WS_URL: wss://localhost:8443/assets/stream
+      AGENT_REDIS_URL: redis://redis:6379/0
+      TLS_CERT_FILE: /certs/localhost.crt
+      TLS_KEY_FILE: /certs/localhost.key
+      API_ADDR: ":8443"
+      GIN_MODE: release
+    volumes:
+      - ./certs:/certs:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.nginx
+      args:
+        VITE_API_BASE: https://localhost:8443
+    ports:
+      - "8443:443"
+    volumes:
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  kafka_data:
+  redis_data:

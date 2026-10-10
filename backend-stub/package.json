@@ -1,0 +1,15 @@
+{
+  "name": "honeyforge-backend-stub",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Лёгкий стаб-бэкенд HoneyForge под контракт OpenAPI (REST + WSS /api/stream) для подключения фронта без Go/Docker.",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cors": "2.8.5",
+    "express": "4.21.2",
+    "ws": "8.18.0"
+  }
+}
