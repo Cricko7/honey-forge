@@ -55,7 +55,7 @@ func TestPostgresRegistrationConcurrencyAndRotation(t *testing.T) {
 		t.Fatal("duplicate registration left partial state or extra audits")
 	}
 
-	view, raw, err := service.Login(ctx, authcore.LoginRequest{"admin@example.com", "demo-password-2026"}, "")
+	view, raw, err := service.Login(ctx, authcore.LoginRequest{Email: "admin@example.com", Password: "demo-password-2026"}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestPostgresRegistrationConcurrencyAndRotation(t *testing.T) {
 	if err != nil || viewer.User.Role != authcore.RoleViewer || viewer.User.OrganizationID != view.User.OrganizationID {
 		t.Fatalf("viewer registration: %v %+v", err, viewer)
 	}
-	if _, err := service.JoinCode(ctx, authcore.AuthContext{viewer.User.ID, viewer.User.OrganizationID, viewer.User.Role}); !errors.Is(err, authcore.ErrForbidden) {
+	if _, err := service.JoinCode(ctx, authcore.AuthContext{UserID: viewer.User.ID, OrganizationID: viewer.User.OrganizationID, Role: viewer.User.Role}); !errors.Is(err, authcore.ErrForbidden) {
 		t.Fatal("viewer accessed code")
 	}
 

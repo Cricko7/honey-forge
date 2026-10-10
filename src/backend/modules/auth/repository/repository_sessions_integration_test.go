@@ -23,7 +23,7 @@ func TestPostgresFailedLoginReplacementPreservesSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := service.Login(ctx, authcore.LoginRequest{"admin@example.com", "demo-password-2026"}, raw); err == nil {
+	if _, _, err := service.Login(ctx, authcore.LoginRequest{Email: "admin@example.com", Password: "demo-password-2026"}, raw); err == nil {
 		t.Fatal("audit failure must fail login replacement")
 	}
 	if _, err := service.ResolveSession(ctx, raw); err != nil {

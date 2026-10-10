@@ -48,7 +48,7 @@ func TestFreshConcurrentMigrations(t *testing.T) {
 				return
 			}
 			defer connection.Close()
-			errs <- Migrate(t.Context(), connection, os.DirFS("../../../migrations"))
+			errs <- Migrate(t.Context(), connection, os.DirFS("../../../../migrations"))
 		})
 	}
 	wg.Wait()

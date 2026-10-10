@@ -25,7 +25,7 @@ func testStore(t *testing.T) (*Store, *pgxpool.Pool, context.Context, Scope) {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
-	if err := postgres.Migrate(t.Context(), pool, os.DirFS("../../../migrations")); err != nil {
+	if err := postgres.Migrate(t.Context(), pool, os.DirFS("../../../../migrations")); err != nil {
 		t.Fatal(err)
 	}
 	org, user := contract.NewID(), contract.NewID()

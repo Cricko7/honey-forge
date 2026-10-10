@@ -39,5 +39,18 @@ If-Match для изменения и request_id для создания. Под
 и `go test -race -tags=integration ./...` (для Windows необходим C compiler).
 Тесты создают изолированные схемы.
 
+Связка `auth → catalog → profiles` проверяется через настоящий роутер `app.Open`
+и PostgreSQL в `internal/app/*integration_test.go`: регистрация admin/viewer,
+выбор точной версии из каталога, CRUD и валидация config, request_id/replay,
+ETag/If-Match, права и изоляция организаций, CSRF/Origin, отзыв сессии,
+границы пагинации и конкурентные POST/PATCH с проверкой атомарных записей.
+Каждый сценарий применяет Goose-миграции в новой схеме и удаляет её после теста.
+API-процесс запускать не требуется. Только эти сценарии:
+
+```powershell
+$env:TEST_DATABASE_URL = '<connection string отдельной тестовой PostgreSQL БД>'
+go test -tags=integration ./internal/app -run '^TestReal' -count=1
+```
+
 Журналы auth_changes/profile_changes транзакционны; их доставка по WSS,
 агентский TCP runtime, команды и catalog.changed пока требуют следующих модулей.

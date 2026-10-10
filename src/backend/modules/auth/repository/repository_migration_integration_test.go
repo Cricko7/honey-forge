@@ -32,7 +32,7 @@ func TestPostgresMigrationPreservesExistingUsers(t *testing.T) {
 
 	applyMigration(t, pool, filepath.Join(dir, "20261009000100_operator_sessions.sql"), "Up")
 	service := authservice.NewService(NewRepository(pool))
-	view, raw, err := service.Login(t.Context(), authcore.LoginRequest{"legacy@example.com", "demo-password-2026"}, "")
+	view, raw, err := service.Login(t.Context(), authcore.LoginRequest{Email: "legacy@example.com", Password: "demo-password-2026"}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
