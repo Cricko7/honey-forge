@@ -39,18 +39,30 @@ If-Match для изменения и request_id для создания. Под
 и `go test -race -tags=integration ./...` (для Windows необходим C compiler).
 Тесты создают изолированные схемы.
 
-Связка `auth → catalog → profiles` проверяется через настоящий роутер `app.Open`
-и PostgreSQL в `internal/app/*integration_test.go`: регистрация admin/viewer,
-выбор точной версии из каталога, CRUD и валидация config, request_id/replay,
-ETag/If-Match, права и изоляция организаций, CSRF/Origin, отзыв сессии,
-границы пагинации и конкурентные POST/PATCH с проверкой атомарных записей.
-Каждый сценарий применяет Goose-миграции в новой схеме и удаляет её после теста.
-API-процесс запускать не требуется. Только эти сценарии:
+### Сквозные тесты модулей
+
+Сценарии в `internal/app/*integration_test.go` запускают собранный `app.Open`
+с настоящими auth и catalog сервисами, профилями и PostgreSQL. Они проверяют
+регистрацию admin и viewer, получение версии типа из каталога, полный цикл
+профиля и отказ на неверной конфигурации, повторный `request_id`, ревизии и
+`If-Match`, права и изоляцию организаций, `Origin`/CSRF и отзыв сессии.
+Отдельные сценарии проверяют курсор между организациями и границей новых
+записей, а также конкурентное создание и изменение профиля: один запрос
+побеждает, остальные получают replay или конфликт; аудит, история и события
+записываются атомарно.
+
+Тесты проходят через `httptest`, без запуска API-процесса. Для каждого сценария
+создаётся отдельная PostgreSQL-схема, в неё применяются Goose-миграции, а после
+теста схема удаляется. Укажите отдельную тестовую базу и запускайте из backend:
 
 ```powershell
-$env:TEST_DATABASE_URL = '<connection string отдельной тестовой PostgreSQL БД>'
+$env:TEST_DATABASE_URL = 'postgres://user:password@localhost:5432/test_db?sslmode=disable'
 go test -tags=integration ./internal/app -run '^TestReal' -count=1
 ```
+
+`go test -tags=integration ./... -count=1` запускает все интеграционные проверки
+репозитория, а `go test -race -tags=integration ./... -count=1` дополнительно
+проверяет конкурентный код детектором гонок.
 
 Журналы auth_changes/profile_changes транзакционны; их доставка по WSS,
 агентский TCP runtime, команды и catalog.changed пока требуют следующих модулей.
