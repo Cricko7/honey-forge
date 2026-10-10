@@ -72,6 +72,18 @@ components:
       schema:
         format: uuid
         type: string
+    TrapID:
+      in: path
+      name: id
+      required: true
+      schema:
+        $ref: "#/components/schemas/ID"
+    CommandID:
+      in: path
+      name: command_id
+      required: true
+      schema:
+        $ref: "#/components/schemas/ID"
     TypeID:
       in: query
       name: type_id
@@ -450,6 +462,83 @@ components:
         X-Request-ID:
           $ref: "#/components/headers/RequestID"
   schemas:
+    Command:
+      additionalProperties: false
+      properties:
+        id:
+          $ref: "#/components/schemas/ID"
+        trap_id:
+          $ref: "#/components/schemas/ID"
+        request_id:
+          $ref: "#/components/schemas/ID"
+        action:
+          enum: [apply_config, start, stop]
+          type: string
+        params:
+          type: object
+        status:
+          enum: [queued, running, succeeded, failed, expired]
+          type: string
+        target_profile_revision:
+          oneOf:
+          - $ref: "#/components/schemas/Revision"
+          - type: "null"
+        created_at:
+          $ref: "#/components/schemas/Timestamp"
+        expires_at:
+          $ref: "#/components/schemas/Timestamp"
+        started_at:
+          type: [string, "null"]
+          format: date-time
+        finished_at:
+          type: [string, "null"]
+          format: date-time
+        result:
+          type: [object, "null"]
+        error:
+          oneOf:
+          - $ref: "#/components/schemas/RuntimeError"
+          - type: "null"
+      required: [id, trap_id, request_id, action, params, status, target_profile_revision, created_at, expires_at, started_at, finished_at, result, error]
+      type: object
+    CommandPage:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/Command"
+          type: array
+        next_cursor:
+          type: [string, "null"]
+          maxLength: 2048
+      required: [items, next_cursor]
+      type: object
+    CreateCommandRequest:
+      additionalProperties: false
+      properties:
+        request_id:
+          $ref: "#/components/schemas/ID"
+        action:
+          enum: [apply_config, start, stop]
+          type: string
+        params:
+          description: Validated against the action descriptor of the trap's exact type version.
+          type: object
+      required: [request_id, action, params]
+      type: object
+    RuntimeError:
+      additionalProperties: false
+      properties:
+        code:
+          maxLength: 64
+          minLength: 1
+          type: string
+        message:
+          maxLength: 200
+          minLength: 1
+          type: string
+      required: [code, message]
+      type: object
     Action:
       $ref: "#/components/schemas/TypeID"
     ActionDescriptor:
@@ -1002,6 +1091,119 @@ info:
   version: 0.1.0
 openapi: 3.1.0
 paths:
+  /api/traps/{id}/commands:
+    x-integration-pending: traps-module-05
+    get:
+      operationId: listTrapCommands
+      parameters:
+      - $ref: "#/components/parameters/TrapID"
+      - $ref: "#/components/parameters/Limit"
+      - $ref: "#/components/parameters/Cursor"
+      - in: query
+        name: status
+        schema:
+          enum: [queued, running, succeeded, failed, expired]
+          type: string
+      responses:
+        "200":
+          description: Commands ordered by created_at DESC, id DESC; own tombstone history remains readable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+      security:
+      - sessionCookie: []
+    post:
+      operationId: createTrapCommand
+      description: Queues a command for up to 24 hours. Exactly one queued or running command per trap. Repeating request_id with the same content returns the original command; changed content returns idempotency_conflict.
+      parameters:
+      - $ref: "#/components/parameters/TrapID"
+      - $ref: "#/components/parameters/Origin"
+      - $ref: "#/components/parameters/CSRF"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCommandRequest"
+      responses:
+        "200":
+          description: Original command for an idempotent replay.
+          headers:
+            Idempotency-Replayed:
+              schema:
+                const: "true"
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Command"
+        "201":
+          description: Command queued, not executed.
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Command"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          $ref: "#/components/responses/TooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+      security:
+      - sessionCookie: []
+  /api/traps/{id}/commands/{command_id}:
+    x-integration-pending: traps-module-05
+    get:
+      operationId: readTrapCommand
+      parameters:
+      - $ref: "#/components/parameters/TrapID"
+      - $ref: "#/components/parameters/CommandID"
+      responses:
+        "200":
+          description: One command, including its terminal runtime result if available.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Command"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+      security:
+      - sessionCookie: []
   /api/organization:
     get:
       operationId: getOrganization
