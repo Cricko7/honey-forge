@@ -56,7 +56,3 @@ docker compose -f docker-compose.real.yml down -v     # + удалить дан�
 - `docker compose -f docker-compose.real.yml logs api` — старт Go API, миграции.
 - `docker compose -f docker-compose.real.yml ps` — статусы/healthcheck.
 - 502 от nginx → API ещё не поднялся (ждёт healthy БД) или упал на миграциях.
-
-## Демо без Go/Docker-инфры
-Для быстрого показа без реального бэка есть стаб на Node: `docker compose up --build`
-(Caddy + Node-стаб, синтетические данные) — см. `DOCKER.md`.
