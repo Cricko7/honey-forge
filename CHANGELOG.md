@@ -14,12 +14,30 @@ HoneyForge — веб-платформа для развёртывания и у
 
 ## 2. Скриншот «как есть» — что видит пользователь
 URL: `https://honey-forge-seg-fault.ru/login`
-![login_screen]()
+![login_screen](screenshots/hf_login.png)
 
-→ после логина → `/app/network`
-![network_screen]()
+→ после логина попадаем на главную страницу → `/app`
+![network_screen](screenshots/hf_app.png)
 
-→ `/app/traps/<uuid>`
-![traps_screen]()
+→ переходим во вкладку "профиль" → `/app/profiles`
+![network_prof](screenshots/hf_prof.png)
+
+→ создаём "карточку" профиля → `/app/profiles`
+![network_prof](screenshots/hf_prof_card.png)
+
+→ проверяем наличие "карточки" профиля → `/app/profiles`
+![network_prof](screenshots/hf_prof_result.png)
+
+→ переходим в раздел "сеть" → `/app/network`
+![network_screen](screenshots/hf_network.png)
+
+→ переходим в раздел "добавить ловушку" и добавляем нашу ловушку → `/app/network`
+![network_screen](screenshots/hf_network_new-trap.png)
+
+→ проверяем раздел "сеть" ещё раз → `/app/network`
+![network_screen](screenshots/hf_network_result.png)
+
+→ кликаем по ловушке и смотрим информацию → `/app/traps/<uuid>`
+![traps_screen](screenshots/hf_trap_info.png)
 
 ../
