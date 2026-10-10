@@ -42,7 +42,7 @@ export default {
       },
       boxShadow: {
         glass: 'var(--shadow-glass)',
-        glow: '0 0 24px rgb(var(--brand) / 0.35)',
+        glow: '0 2px 10px rgb(var(--brand) / 0.18)',
       },
       backgroundImage: {
         'grid-fade': 'radial-gradient(circle at 50% 0%, rgb(var(--brand) / 0.12), transparent 60%)',
