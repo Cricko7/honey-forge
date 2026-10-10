@@ -19,13 +19,14 @@ import (
 )
 
 type Handler struct {
-	service *HistoryService
-	cursors *contract.CursorCodec
-	logger  *slog.Logger
+	service    *HistoryService
+	cursors    *contract.CursorCodec
+	logger     *slog.Logger
+	recordings *RecordingService
 }
 
 func NewHandler(repository *Repository, cursors *contract.CursorCodec, logger *slog.Logger) *Handler {
-	return &Handler{NewHistoryService(repository), cursors, logger}
+	return &Handler{service: NewHistoryService(repository), cursors: cursors, logger: logger, recordings: NewRecordingService(repository)}
 }
 func (h *Handler) RegisterRoutes(router *gin.Engine, session gin.HandlerFunc) {
 	group := router.Group("/api/events", session, func(c *gin.Context) {
@@ -43,6 +44,7 @@ func (h *Handler) RegisterRoutes(router *gin.Engine, session gin.HandlerFunc) {
 	}, contract.RESTBody())
 	group.GET("", h.list)
 	group.GET("/:event_id", h.read)
+	group.GET("/recordings/:session_id", h.recording)
 }
 func (h *Handler) read(c *gin.Context) {
 	id, ok := contract.RequireID(c, "event_id")

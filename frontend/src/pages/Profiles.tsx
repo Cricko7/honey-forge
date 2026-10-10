@@ -8,6 +8,13 @@ import type { CatalogEntry } from '@/types'
 
 // Шаблоны config под типы каталога — стартовая заготовка для редактора.
 function configTemplate(typeId: string): Record<string, unknown> {
+  if (typeId === 'ssh-high-interaction') {
+    return {
+      services: [{ name: 'ssh', port: 2222, username: 'root', password: 'DemoTrapOnly!' }],
+      session: { max_seconds: 300, max_connections: 4, max_recording_bytes: 1048576, max_upload_bytes: 1048576 },
+      management: { heartbeat_interval_seconds: 5, telemetry_flush_interval_ms: 500 },
+    }
+  }
   if (typeId === 'honeytoken-http') {
     const key = Array.from(crypto.getRandomValues(new Uint8Array(24)), (byte) => byte.toString(16).padStart(2, '0')).join('')
     return {

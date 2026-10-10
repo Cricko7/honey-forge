@@ -4,6 +4,7 @@ import { Card, EventTypeBadge, Spinner, EmptyState } from '@/components/ui'
 import { Modal } from '@/components/Modal'
 import { useEvents, useEvent } from '@/api/hooks'
 import { formatDateTime, flag, decodeBase64 } from '@/lib/utils'
+import { RecordingView } from '@/components/RecordingView'
 
 export function EventsPage() {
   const { data, isLoading } = useEvents({ limit: 100 })
@@ -116,6 +117,7 @@ function EventDetailModal({ id, onClose }: { id: string | null; onClose: () => v
             </div>
             <CapturedData data={event.data} />
           </div>
+          {event.type_id === 'ssh-high-interaction' && <RecordingView trapId={event.trap_id} sessionId={event.session_id} />}
         </div>
       )}
     </Modal>

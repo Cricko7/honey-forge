@@ -5,6 +5,18 @@ import type { CatalogEntry } from '@/types'
 
 export const CATALOG: CatalogEntry[] = [
   {
+    type_id: 'ssh-high-interaction', type_version: 1, title: 'SSH High Interaction',
+    description: 'Настоящий Linux shell и SFTP в отдельном контейнере на соединение. Записывает ввод, вывод и загруженные файлы.',
+    interaction_level: 'high', available_for_new_profiles: true,
+    config_schema: { type: 'object', required: ['services', 'session', 'management'], properties: {
+      services: { type: 'array' }, session: { type: 'object' }, management: { type: 'object' },
+    } },
+    event_schemas: ['connection_opened', 'session_io', 'file_opened', 'file_chunk', 'file_closed', 'connection_closed']
+      .map((name) => ({ event_type: `service.${name}`, title: name, data_schema: {} })),
+    actions: ['start', 'stop', 'apply_config'].map((action) => ({ action, title: action, params_schema: {}, result_schema: {} })),
+    ui: { field_order: ['/services', '/session', '/management'], widgets: { '/services/0/password': 'password' } },
+  },
+  {
     type_id: 'honeytoken-http',
     type_version: 1,
     title: 'HTTP Honeytokens',

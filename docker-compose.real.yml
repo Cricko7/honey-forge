@@ -158,6 +158,8 @@ services:
       DECOY_TCP_IMAGE: ${DECOY_TCP_IMAGE:-honeyforge/tcp-decoy:local}
       DECOY_REDIS_IMAGE: ${DECOY_REDIS_IMAGE:-honeyforge/redis-decoy:local}
       DECOY_HONEYTOKEN_IMAGE: ${DECOY_HONEYTOKEN_IMAGE:-honeyforge/honeytoken-decoy:local}
+      DECOY_SSH_IMAGE: ${DECOY_SSH_IMAGE:-honeyforge/ssh-decoy:local}
+      SSH_SANDBOX_IMAGE: ${SSH_SANDBOX_IMAGE:-honeyforge/ssh-sandbox:local}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./certs:/certs:ro
@@ -174,7 +176,28 @@ services:
         condition: service_completed_successfully
       decoy-honeytoken-image:
         condition: service_completed_successfully
+      decoy-ssh-image:
+        condition: service_completed_successfully
+      ssh-sandbox-image:
+        condition: service_completed_successfully
     restart: unless-stopped
+
+  decoy-ssh-image:
+    build:
+      context: .
+      dockerfile: deploy/decoys/Dockerfile
+      target: ssh
+    image: ${DECOY_SSH_IMAGE:-honeyforge/ssh-decoy:local}
+    entrypoint: ["/bin/true"]
+    restart: "no"
+
+  ssh-sandbox-image:
+    build:
+      context: .
+      dockerfile: deploy/decoys/Dockerfile.sandbox
+    image: ${SSH_SANDBOX_IMAGE:-honeyforge/ssh-sandbox:local}
+    entrypoint: ["/bin/true"]
+    restart: "no"
 
 volumes:
   postgres_data:

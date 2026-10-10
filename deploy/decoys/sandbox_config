@@ -1,0 +1,16 @@
+HostKey /home/sandbox/.ssh/host_key
+AuthorizedKeysFile /home/sandbox/.ssh/authorized_keys
+PidFile /tmp/sshd.pid
+UsePAM no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+PermitRootLogin no
+PermitEmptyPasswords no
+AllowUsers sandbox
+DisableForwarding yes
+PermitUserEnvironment no
+PermitTTY yes
+PrintMotd no
+PrintLastLog no
+Subsystem sftp internal-sftp

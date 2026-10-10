@@ -1,0 +1,11 @@
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends openssh-server bash coreutils \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --uid 1000 --create-home --shell /bin/bash sandbox \
+    && passwd -d sandbox && mkdir -p /run/sshd
+COPY deploy/decoys/sandbox_config /etc/ssh/sandbox_config
+COPY deploy/decoys/sandbox-entrypoint.sh /sandbox-entrypoint.sh
+RUN chmod 0555 /sandbox-entrypoint.sh
+USER 1000:1000
+WORKDIR /home/sandbox
+ENTRYPOINT ["/sandbox-entrypoint.sh"]

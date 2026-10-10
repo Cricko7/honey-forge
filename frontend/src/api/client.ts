@@ -1,4 +1,5 @@
 import type {
+  SessionRecording,
   CatalogEntry,
   Command,
   CommandAction,
@@ -235,6 +236,17 @@ export const api = {
       return e
     }
     return real(`/api/events/${id}`)
+  },
+
+  async getRecording(trapId: string, sessionId: string): Promise<SessionRecording> {
+    if (USE_MOCK) {
+      await delay()
+      const items = mockApi.listEvents({ trap_id: trapId, limit: 100 }).items
+        .filter((e) => e.session_id === sessionId && e.type_id === 'ssh-high-interaction')
+      const events = items.map((e) => mockApi.getEvent(e.event_id)!).sort((a, b) => a.session_sequence - b.session_sequence)
+      return { trap_id: trapId, session_id: sessionId, complete: false, events }
+    }
+    return real(`/api/events/recordings/${encodeURIComponent(sessionId)}?trap_id=${encodeURIComponent(trapId)}`)
   },
 }
 

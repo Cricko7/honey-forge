@@ -8,6 +8,7 @@ import (
 	"honey-forge/internal/decoys/honeytrap"
 
 	"honey-forge/internal/decoys/redistrap"
+	"honey-forge/internal/decoys/sshtrap"
 	"honey-forge/internal/decoys/tcptrap"
 	"honey-forge/modules/agentws"
 	"honey-forge/modules/events"
@@ -23,6 +24,10 @@ type Starter func(context.Context, profiles.Snapshot, string, func(context.Conte
 
 func Select(snapshot profiles.Snapshot) (Starter, error) {
 	switch {
+	case snapshot.TypeID == "ssh-high-interaction" && snapshot.TypeVersion == 1:
+		return func(ctx context.Context, snapshot profiles.Snapshot, host string, sink func(context.Context, events.AgentEvent) error) (Runtime, error) {
+			return sshtrap.Start(ctx, snapshot, host, sshtrap.Sink(sink))
+		}, nil
 	case snapshot.TypeID == "honeytoken-http" && snapshot.TypeVersion == 1:
 		return func(ctx context.Context, snapshot profiles.Snapshot, host string, sink func(context.Context, events.AgentEvent) error) (Runtime, error) {
 			return honeytrap.Start(ctx, snapshot, host, honeytrap.Sink(sink))
@@ -45,6 +50,7 @@ func SupportedTypes() []agentws.SupportedType {
 		{TypeID: "tcp-banner", TypeVersion: 1, Actions: []string{"start", "stop", "apply_config"}},
 		{TypeID: "redis-emulator", TypeVersion: 1, Actions: []string{"start", "stop", "apply_config"}},
 		{TypeID: "honeytoken-http", TypeVersion: 1, Actions: []string{"start", "stop", "apply_config"}},
+		{TypeID: "ssh-high-interaction", TypeVersion: 1, Actions: []string{"start", "stop", "apply_config"}},
 	}
 }
 
@@ -64,6 +70,12 @@ func ForType(typeID string) ([]agentws.SupportedType, error) {
 // Ports validates the exact snapshot and returns ports exposed by its runtime.
 func Ports(ctx context.Context, snapshot profiles.Snapshot) ([]int, error) {
 	switch {
+	case snapshot.TypeID == "ssh-high-interaction" && snapshot.TypeVersion == 1:
+		config, err := sshtrap.ParseConfig(ctx, snapshot)
+		if err != nil {
+			return nil, err
+		}
+		return []int{config.Services[0].Port}, nil
 	case snapshot.TypeID == "honeytoken-http" && snapshot.TypeVersion == 1:
 		config, err := honeytrap.ParseConfig(ctx, snapshot)
 		if err != nil {

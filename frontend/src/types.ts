@@ -114,6 +114,13 @@ export interface Event extends EventSummary {
   }
 }
 
+export interface SessionRecording {
+  trap_id: UUID
+  session_id: UUID
+  complete: boolean
+  events: Event[]
+}
+
 export interface Command {
   id: UUID
   trap_id: UUID
