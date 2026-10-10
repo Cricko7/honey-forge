@@ -15,6 +15,9 @@ import (
 // RecordResult calls validate while holding the command and trap locks. A
 // repeated terminal result is acknowledged without changing the stored runtime.
 func (r *Repository) RecordResult(ctx context.Context, org, trapID string, input commands.AgentResult, now time.Time, validate func(context.Context, commands.Trap, commands.Command, commands.AgentResult) error) (time.Time, error) {
+	// PostgreSQL persists timestamps at microsecond precision. The first ack
+	// must use the same UTC representation as a replay read from storage.
+	now = now.UTC().Truncate(time.Microsecond)
 	if validate == nil {
 		return time.Time{}, commands.ErrResultInvalid
 	}

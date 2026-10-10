@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"honey-forge/internal/contract"
 	"net/http"
 	"sync"
 	"time"
@@ -13,6 +12,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+
+	"honey-forge/internal/contract"
 )
 
 const (
@@ -82,11 +83,13 @@ func Upgrade(c *gin.Context, capability contract.Capability, policies ...*contra
 	conn.EnableWriteCompression(false)
 	return &Socket{conn: conn, capability: capability}, nil
 }
+
 func fail(c *gin.Context, code string) error {
 	err := contract.NewError(code)
 	contract.Fail(c, err)
 	return err
 }
+
 func (s *Socket) Close() error { return s.conn.Close() }
 
 func (s *Socket) SetReadDeadline(deadline time.Time) error {
@@ -162,6 +165,7 @@ func (s *Socket) Read(ctx context.Context) (contract.Envelope, error) {
 	}
 	return envelope, nil
 }
+
 func (s *Socket) Write(ctx context.Context, envelope contract.Envelope) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -195,12 +199,15 @@ func (s *Socket) Write(ctx context.Context, envelope contract.Envelope) error {
 	}
 	return nil
 }
+
 func (s *Socket) Reply(ctx context.Context, request contract.Envelope, messageType string, payload map[string]any) error {
 	return s.send(ctx, &request.MessageID, messageType, payload)
 }
+
 func (s *Socket) Notify(ctx context.Context, messageType string, payload map[string]any) error {
 	return s.send(ctx, nil, messageType, payload)
 }
+
 func (s *Socket) send(ctx context.Context, reply *contract.ID, messageType string, payload map[string]any) error {
 	b, err := json.Marshal(payload)
 	if err != nil {
@@ -212,6 +219,7 @@ func (s *Socket) send(ctx context.Context, reply *contract.ID, messageType strin
 	}
 	return s.Write(ctx, contract.Envelope{MessageID: contract.NewID(), Type: messageType, ReplyTo: reply, Payload: raw})
 }
+
 func (s *Socket) closeCode(code int) error {
 	if err := s.conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(code, ""), time.Now().Add(time.Second)); err != nil {
 		return fmt.Errorf("close stream: %w", err)

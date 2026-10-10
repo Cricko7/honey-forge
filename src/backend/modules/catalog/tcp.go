@@ -3,8 +3,9 @@ package catalog
 import (
 	"context"
 	"encoding/json"
-	"honey-forge/internal/contract"
 	"math/big"
+
+	"honey-forge/internal/contract"
 )
 
 type tcpConfig struct {
@@ -18,6 +19,7 @@ type tcpConfig struct {
 		MaxBytes schemaInteger `json:"max_payload_bytes"`
 	} `json:"logging"`
 }
+
 type tcpPayload struct {
 	Listener  string        `json:"listener_name"`
 	Base64    string        `json:"payload_base64"`

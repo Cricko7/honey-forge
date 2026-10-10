@@ -6,10 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"honey-forge/internal/contract"
 	"strings"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
+
+	"honey-forge/internal/contract"
 )
 
 type Schema struct{ compiled *jsonschema.Schema }
@@ -18,6 +19,7 @@ type offlineLoader struct{}
 func (offlineLoader) Load(string) (any, error) {
 	return nil, fmt.Errorf("external schema loading is forbidden")
 }
+
 func Compile(raw json.RawMessage) (*Schema, error) {
 	if err := contract.CheckJSON(raw); err != nil {
 		return nil, contract.NewError("validation_failed")
@@ -105,6 +107,7 @@ func (s *Schema) Validate(raw json.RawMessage, path string) error {
 	}
 	return nil
 }
+
 func collectFields(e *jsonschema.ValidationError, prefix string, fields *[]contract.FieldError) {
 	if len(*fields) >= contract.MaxFieldErrors {
 		return

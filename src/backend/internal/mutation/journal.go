@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"honey-forge/internal/contract"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+
+	"honey-forge/internal/contract"
 )
 
 func readAccess(ctx context.Context, organizationID contract.ID) error {

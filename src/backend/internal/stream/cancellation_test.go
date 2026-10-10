@@ -4,13 +4,14 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
-	"honey-forge/internal/contract"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+
+	"honey-forge/internal/contract"
 )
 
 func TestReadCancellation(t *testing.T) {

@@ -31,11 +31,13 @@ func Created(c *gin.Context, location string, body any) {
 	c.Header("Location", location)
 	c.JSON(201, body)
 }
+
 func NoContent(c *gin.Context) { c.Status(204) }
 func ProfileResponse(c *gin.Context, id ID, revision Revision, status int, body any) {
 	c.Header("ETag", ProfileETag(id, revision))
 	c.JSON(status, body)
 }
+
 func CatalogResponse(c *gin.Context, etag string, body any) {
 	c.Header("Cache-Control", "private, max-age=0, must-revalidate")
 	c.Header("ETag", etag)
@@ -45,6 +47,7 @@ func CatalogResponse(c *gin.Context, etag string, body any) {
 	}
 	c.JSON(200, body)
 }
+
 func matchesETag(value, etag string) bool {
 	for _, candidate := range strings.Split(value, ",") {
 		candidate = strings.TrimSpace(candidate)
@@ -54,6 +57,7 @@ func matchesETag(value, etag string) bool {
 	}
 	return false
 }
+
 func CreatedOrReplayed(c *gin.Context, location string, body any, replayed bool) {
 	if replayed {
 		c.JSON(200, body)
@@ -61,6 +65,7 @@ func CreatedOrReplayed(c *gin.Context, location string, body any, replayed bool)
 	}
 	Created(c, location, body)
 }
+
 func RequestQuery(c *gin.Context, allowed ...string) (url.Values, bool) {
 	v, err := url.ParseQuery(c.Request.URL.RawQuery)
 	if err != nil {
@@ -73,6 +78,7 @@ func RequestQuery(c *gin.Context, allowed ...string) (url.Values, bool) {
 	}
 	return v, true
 }
+
 func CheckTrapRevision(c *gin.Context, current Revision) bool {
 	expected, ok := ExpectedTrapRevision(c)
 	if !ok {

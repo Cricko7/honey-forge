@@ -1,8 +1,7 @@
 # Совместимость common, catalog и backend из origin/main
 
-Auth/organizations и profiles из `origin/main` (49fe686) включены в общий
-checkout. Исходные незакоммиченные файлы предварительно сохранены в резервной
-копии. Git merge/push не выполнялись.
+Auth/organizations, catalog и profiles подключены к общей сборке.
+Порядок подключения и оставшиеся этапы описаны в [карте модулей](README.md).
 
 - Единственный Go-модуль расположен в `src/backend`; весь код входит в `go test ./...`.
 - Миграции auth, profiles, common и catalog находятся в корневом `migrations/`.

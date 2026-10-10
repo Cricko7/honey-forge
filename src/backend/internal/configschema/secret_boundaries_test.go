@@ -16,6 +16,7 @@ func TestSecretAssignmentAndClearConflict(t *testing.T) {
 		t.Fatalf("%s %v", full, err)
 	}
 }
+
 func TestRecursiveSecretRedaction(t *testing.T) {
 	s, err := Compile(json.RawMessage(`{"type":"object","properties":{"secret":{"type":"string","writeOnly":true},"next":{"$ref":"#"}}}`))
 	if err != nil {
@@ -26,6 +27,7 @@ func TestRecursiveSecretRedaction(t *testing.T) {
 		t.Fatalf("%s %v %v", public, fields, err)
 	}
 }
+
 func TestEffectiveConfigLimit(t *testing.T) {
 	s, err := Compile(json.RawMessage(`{"type":"object","properties":{"secret":{"type":"string","writeOnly":true},"visible":{"type":"string"}}}`))
 	if err != nil {

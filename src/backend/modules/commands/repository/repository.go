@@ -79,6 +79,14 @@ func scan(row pgx.Row) (commands.Command, error) {
 
 	c.CreatedAt = c.CreatedAt.UTC()
 	c.ExpiresAt = c.ExpiresAt.UTC()
+	if c.StartedAt != nil {
+		utc := c.StartedAt.UTC()
+		c.StartedAt = &utc
+	}
+	if c.FinishedAt != nil {
+		utc := c.FinishedAt.UTC()
+		c.FinishedAt = &utc
+	}
 	return c, nil
 }
 
@@ -163,6 +171,11 @@ func (r *Repository) Create(ctx context.Context, org, trapID, requestID string, 
 		if err != nil {
 			return commands.CreateResult{}, err
 		}
+		// Identity, params, target revision and deadlines are immutable. Rebuild
+		// the initial response rather than exposing later execution progress.
+		created.Status = commands.Queued
+		created.StartedAt, created.FinishedAt = nil, nil
+		created.Result, created.Error = nil, nil
 	}
 
 	return commands.CreateResult{Command: created, Replayed: result.Replayed}, nil

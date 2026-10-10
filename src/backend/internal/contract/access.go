@@ -20,19 +20,23 @@ type Principal struct {
 	TrapID         ID
 	Role           Role
 }
+
 type principalKey struct{}
 
 // WithPrincipal is for the authentication module, never for client supplied IDs.
 func WithPrincipal(ctx context.Context, p Principal) context.Context {
 	return context.WithValue(ctx, principalKey{}, p)
 }
+
 func PrincipalFrom(ctx context.Context) (Principal, bool) {
 	p, ok := ctx.Value(principalKey{}).(Principal)
 	return p, ok
 }
+
 func SetPrincipal(c *gin.Context, p Principal) {
 	c.Request = c.Request.WithContext(WithPrincipal(c.Request.Context(), p))
 }
+
 func Authorize(ctx context.Context, roles ...Role) error {
 	p, ok := PrincipalFrom(ctx)
 	if !ok {
@@ -45,6 +49,7 @@ func Authorize(ctx context.Context, roles ...Role) error {
 	}
 	return NewError("forbidden")
 }
+
 func RequireRole(c *gin.Context, roles ...Role) bool {
 	if err := Authorize(c.Request.Context(), roles...); err != nil {
 		Fail(c, err.(*Error))
@@ -52,6 +57,7 @@ func RequireRole(c *gin.Context, roles ...Role) bool {
 	}
 	return true
 }
+
 func RequireOrganization(ctx context.Context, organizationID ID) error {
 	p, ok := PrincipalFrom(ctx)
 	if !ok {
@@ -62,6 +68,7 @@ func RequireOrganization(ctx context.Context, organizationID ID) error {
 	}
 	return nil
 }
+
 func RequireAgentTrap(ctx context.Context, trapID ID) error {
 	if err := AuthorizeCapability(ctx, AgentStream); err != nil {
 		return err

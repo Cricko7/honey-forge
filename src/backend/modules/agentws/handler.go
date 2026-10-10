@@ -64,8 +64,9 @@ func (h *Handler) Serve(c *gin.Context) {
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	defer cancel()
 	session := &agentSession{identity: identity, token: token, socket: socket, ctx: ctx, cancel: cancel, connectionID: string(contract.NewID())}
+	session.ctx = WithSession(ctx, identity, session.connectionID)
 	if err := h.run(session); err != nil && !errors.Is(err, context.Canceled) {
-		slog.ErrorContext(c.Request.Context(), "agent stream failed", "request_id", c.Writer.Header().Get("X-Request-ID"), "trap_id", identity.TrapID, "error", err)
+		slog.ErrorContext(c.Request.Context(), "agent stream failed", "request_id", c.Writer.Header().Get("X-Request-ID"), "trap_id", identity.TrapID, "error_type", fmt.Sprintf("%T", err))
 
 		// The close code is safe for the agent; causes are kept out of the wire.
 		_ = socket.CloseCode(1011, "internal")
@@ -77,7 +78,7 @@ func validIdentity(identity Identity) bool {
 }
 
 func sameIdentity(left, right Identity) bool {
-	return left.OrganizationID == right.OrganizationID && left.TrapID == right.TrapID && left.TypeID == right.TypeID && left.TypeVersion == right.TypeVersion && slices.Equal(left.RequiredActions, right.RequiredActions)
+	return left.CredentialGeneration == right.CredentialGeneration && left.OrganizationID == right.OrganizationID && left.TrapID == right.TrapID && left.TypeID == right.TypeID && left.TypeVersion == right.TypeVersion && slices.Equal(left.RequiredActions, right.RequiredActions)
 }
 
 func authError(err error) *contract.Error {
@@ -134,7 +135,14 @@ func (h *Handler) run(session *agentSession) (runErr error) {
 	}
 	entry.current = session
 	session.active.Store(true)
-	state, err := h.gateway.Observe(session.ctx, session.identity, session.connectionID, hello.Runtime)
+	var state State
+	if observer, ok := h.gateway.(interface {
+		Hello(context.Context, Identity, string, AgentHello) (State, error)
+	}); ok {
+		state, err = observer.Hello(session.ctx, session.identity, session.connectionID, hello)
+	} else {
+		state, err = h.gateway.Observe(session.ctx, session.identity, session.connectionID, hello.Runtime)
+	}
 	entry.mu.Unlock()
 	if err != nil {
 		_ = session.replyError(first, err)

@@ -81,6 +81,7 @@ func (r *Repository) agentTransaction(ctx context.Context, org, trapID string, f
 // Claim fences an earlier connection with a new lease. Module 08 authenticates
 // the current connection and checks its supported type and action before calling.
 func (r *Repository) Claim(ctx context.Context, org, trapID string, now time.Time) (*commands.Dispatch, error) {
+	now = now.UTC().Truncate(time.Microsecond)
 	if err := agentAccess(ctx, org, trapID); err != nil {
 		return nil, err
 	}
@@ -145,26 +146,33 @@ func (r *Repository) Claim(ctx context.Context, org, trapID string, now time.Tim
 }
 
 func (r *Repository) ExtendLease(ctx context.Context, org, trapID, commandID, leaseID string, now time.Time) (time.Time, error) {
+	now = now.UTC().Truncate(time.Microsecond)
 	if err := agentAccess(ctx, org, trapID); err != nil {
 		return time.Time{}, err
 	}
 
 	var expires time.Time
-	err := r.pool.QueryRow(ctx, `UPDATE commands SET lease_expires_at=LEAST(expires_at,$5::timestamptz + interval '60 seconds') WHERE organization_id=$1 AND trap_id=$2 AND id=$3 AND lease_id=$4 AND status='running' AND expires_at>$5 AND lease_expires_at>=$5 RETURNING lease_expires_at`, org, trapID, commandID, leaseID, now.UTC()).Scan(&expires)
-	if errors.Is(err, pgx.ErrNoRows) {
-		var deadline time.Time
-		var status commands.Status
-		lookup := r.pool.QueryRow(ctx, `SELECT expires_at,status FROM commands WHERE organization_id=$1 AND trap_id=$2 AND id=$3`, org, trapID, commandID).Scan(&deadline, &status)
-		if lookup == nil && (status == commands.Expired || !now.Before(deadline)) {
-			return time.Time{}, commands.ErrExpired
+	// Lock and fence the trap in the same transaction as progress, just like
+	// Claim/RecordResult. Rotation or session replacement revokes the old lease.
+	err := r.agentTransaction(ctx, org, trapID, func(tx pgx.Tx, trap commands.Trap) error {
+		err := tx.QueryRow(ctx, `UPDATE commands SET lease_expires_at=LEAST(expires_at,$5::timestamptz + interval '60 seconds') WHERE organization_id=$1 AND trap_id=$2 AND id=$3 AND lease_id=$4 AND status='running' AND expires_at>$5 AND lease_expires_at>=$5 RETURNING lease_expires_at`, org, trapID, commandID, leaseID, now.UTC()).Scan(&expires)
+		if errors.Is(err, pgx.ErrNoRows) {
+			var deadline time.Time
+			var status commands.Status
+			lookup := tx.QueryRow(ctx, `SELECT expires_at,status FROM commands WHERE organization_id=$1 AND trap_id=$2 AND id=$3`, org, trapID, commandID).Scan(&deadline, &status)
+			if lookup == nil && (status == commands.Expired || !now.Before(deadline)) {
+				return commands.ErrExpired
+			}
+			if lookup != nil && !errors.Is(lookup, pgx.ErrNoRows) {
+				return fmt.Errorf("check command deadline: %w", lookup)
+			}
+			return commands.ErrStaleLease
 		}
-		if lookup != nil && !errors.Is(lookup, pgx.ErrNoRows) {
-			return time.Time{}, fmt.Errorf("check command deadline: %w", lookup)
+		if err != nil {
+			return fmt.Errorf("update command lease: %w", err)
 		}
-
-		return time.Time{}, commands.ErrStaleLease
-	}
-
+		return nil
+	})
 	if err != nil {
 		return time.Time{}, fmt.Errorf("extend command lease: %w", err)
 	}

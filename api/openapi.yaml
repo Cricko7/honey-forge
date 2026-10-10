@@ -1074,6 +1074,400 @@ components:
       - role
       - created_at
       type: object
+    CreateTrapRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        request_id:
+          $ref: '#/components/schemas/ID'
+        name:
+          $ref: '#/components/schemas/Name'
+        description:
+          $ref: '#/components/schemas/Description'
+          default: ''
+        profile_id:
+          $ref: '#/components/schemas/ID'
+      required:
+      - request_id
+      - name
+      - profile_id
+    PatchTrapRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          $ref: '#/components/schemas/Name'
+        description:
+          $ref: '#/components/schemas/Description'
+      required: []
+      minProperties: 1
+    AgentStatus:
+      type: object
+      additionalProperties: false
+      properties:
+        agent_version:
+          type: string
+          minLength: 1
+          maxLength: 64
+        hostname:
+          type: string
+          minLength: 1
+          maxLength: 255
+        buffered_events:
+          type: integer
+          minimum: 0
+        buffer_bytes:
+          type: integer
+          minimum: 0
+        buffer_capacity_bytes:
+          type: integer
+          minimum: 1
+        buffer_state:
+          type: string
+          enum:
+          - ok
+          - full
+          - unavailable
+        last_error:
+          anyOf:
+          - $ref: '#/components/schemas/RuntimeError'
+          - type: 'null'
+      required:
+      - agent_version
+      - hostname
+      - buffered_events
+      - buffer_bytes
+      - buffer_capacity_bytes
+      - buffer_state
+      - last_error
+    Trap:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/ID'
+        name:
+          $ref: '#/components/schemas/Name'
+        description:
+          $ref: '#/components/schemas/Description'
+        profile_id:
+          $ref: '#/components/schemas/ID'
+        type_id:
+          $ref: '#/components/schemas/TypeID'
+        type_version:
+          $ref: '#/components/schemas/TypeVersion'
+        interaction_level:
+          type: string
+        revision:
+          $ref: '#/components/schemas/Revision'
+        state_version:
+          $ref: '#/components/schemas/Revision'
+        created_at:
+          $ref: '#/components/schemas/Timestamp'
+        updated_at:
+          $ref: '#/components/schemas/Timestamp'
+        connectivity:
+          type: string
+          enum:
+          - online
+          - offline
+        last_seen_at:
+          anyOf:
+          - $ref: '#/components/schemas/Timestamp'
+          - type: 'null'
+        runtime_state:
+          type: string
+          enum:
+          - unknown
+          - running
+          - stopped
+          - error
+        desired_state:
+          type: string
+          enum:
+          - running
+          - stopped
+        desired_profile_revision:
+          anyOf:
+          - $ref: '#/components/schemas/Revision'
+          - type: 'null'
+        applied_profile_revision:
+          anyOf:
+          - $ref: '#/components/schemas/Revision'
+          - type: 'null'
+        agent:
+          anyOf:
+          - $ref: '#/components/schemas/AgentStatus'
+          - type: 'null'
+        active_command_id:
+          anyOf:
+          - $ref: '#/components/schemas/ID'
+          - type: 'null'
+      required:
+      - id
+      - name
+      - description
+      - profile_id
+      - type_id
+      - type_version
+      - interaction_level
+      - revision
+      - state_version
+      - created_at
+      - updated_at
+      - connectivity
+      - last_seen_at
+      - runtime_state
+      - desired_state
+      - desired_profile_revision
+      - applied_profile_revision
+      - agent
+      - active_command_id
+    TrapPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Trap'
+        next_cursor:
+          anyOf:
+          - $ref: '#/components/schemas/Cursor'
+          - type: 'null'
+      required:
+      - items
+      - next_cursor
+    AgentCredentialsRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        expected_generation:
+          type: integer
+          minimum: 0
+          maximum: 2147483646
+      required:
+      - expected_generation
+    AgentCredentials:
+      type: object
+      additionalProperties: false
+      properties:
+        trap_id:
+          $ref: '#/components/schemas/ID'
+        token:
+          type: string
+          description: Opaque secret, returned once; valid until rotation/revocation/deletion.
+        generation:
+          $ref: '#/components/schemas/Revision'
+        agent_ws_url:
+          type: string
+          format: uri
+          pattern: ^wss://
+        issued_at:
+          $ref: '#/components/schemas/Timestamp'
+      required:
+      - trap_id
+      - token
+      - generation
+      - agent_ws_url
+      - issued_at
+    AgentCredentialsStatus:
+      type: object
+      additionalProperties: false
+      properties:
+        trap_id:
+          $ref: '#/components/schemas/ID'
+        generation:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+        active:
+          type: boolean
+        issued_at:
+          anyOf:
+          - $ref: '#/components/schemas/Timestamp'
+          - type: 'null'
+      required:
+      - trap_id
+      - generation
+      - active
+      - issued_at
+    EventSummary:
+      type: object
+      additionalProperties: false
+      properties:
+        event_id:
+          $ref: '#/components/schemas/ID'
+        event_type:
+          $ref: '#/components/schemas/TypeID'
+        type_id:
+          $ref: '#/components/schemas/TypeID'
+        type_version:
+          $ref: '#/components/schemas/TypeVersion'
+        profile_revision:
+          $ref: '#/components/schemas/Revision'
+        occurred_at:
+          $ref: '#/components/schemas/Timestamp'
+        session_id:
+          $ref: '#/components/schemas/ID'
+        session_sequence:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+        source:
+          type: object
+          additionalProperties: false
+          properties:
+            ip:
+              type: string
+              description: Canonical IPv4/IPv6 literal; no hostname or zone.
+            port:
+              type: integer
+              minimum: 1
+              maximum: 65535
+          required:
+          - ip
+          - port
+        destination:
+          type: object
+          additionalProperties: false
+          properties:
+            protocol:
+              type: string
+              minLength: 1
+              maxLength: 32
+            port:
+              type: integer
+              minimum: 1
+              maximum: 65535
+          required:
+          - protocol
+          - port
+        trap_id:
+          $ref: '#/components/schemas/ID'
+        received_at:
+          $ref: '#/components/schemas/Timestamp'
+      required:
+      - event_id
+      - event_type
+      - type_id
+      - type_version
+      - profile_revision
+      - occurred_at
+      - session_id
+      - session_sequence
+      - source
+      - destination
+      - trap_id
+      - received_at
+    Event:
+      type: object
+      additionalProperties: false
+      properties:
+        event_id:
+          $ref: '#/components/schemas/ID'
+        event_type:
+          $ref: '#/components/schemas/TypeID'
+        type_id:
+          $ref: '#/components/schemas/TypeID'
+        type_version:
+          $ref: '#/components/schemas/TypeVersion'
+        profile_revision:
+          $ref: '#/components/schemas/Revision'
+        occurred_at:
+          $ref: '#/components/schemas/Timestamp'
+        session_id:
+          $ref: '#/components/schemas/ID'
+        session_sequence:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+        source:
+          type: object
+          additionalProperties: false
+          properties:
+            ip:
+              type: string
+              description: Canonical IPv4/IPv6 literal; no hostname or zone.
+            port:
+              type: integer
+              minimum: 1
+              maximum: 65535
+          required:
+          - ip
+          - port
+        destination:
+          type: object
+          additionalProperties: false
+          properties:
+            protocol:
+              type: string
+              minLength: 1
+              maxLength: 32
+            port:
+              type: integer
+              minimum: 1
+              maximum: 65535
+          required:
+          - protocol
+          - port
+        trap_id:
+          $ref: '#/components/schemas/ID'
+        received_at:
+          $ref: '#/components/schemas/Timestamp'
+        data:
+          type: object
+          description: Original captured values; exact type catalog validates data.
+        source_enrichment:
+          type: object
+          additionalProperties: false
+          properties:
+            country_code:
+              anyOf:
+              - type: string
+              - type: 'null'
+            asn:
+              anyOf:
+              - type: integer
+                minimum: 1
+                maximum: 4294967295
+              - type: 'null'
+          required:
+          - country_code
+          - asn
+      required:
+      - event_id
+      - event_type
+      - type_id
+      - type_version
+      - profile_revision
+      - occurred_at
+      - session_id
+      - session_sequence
+      - source
+      - destination
+      - trap_id
+      - received_at
+      - data
+      - source_enrichment
+    EventPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/EventSummary'
+        next_cursor:
+          anyOf:
+          - $ref: '#/components/schemas/Cursor'
+          - type: 'null'
+        stream_cursor:
+          $ref: '#/components/schemas/Cursor'
+      required:
+      - items
+      - next_cursor
+      - stream_cursor
   securitySchemes:
     OperatorSession:
       description: Module 02 must resolve the active server session; client roles/organization IDs are never trusted.
@@ -1086,13 +1480,412 @@ components:
       name: __Host-session
       type: apiKey
 info:
-  description: Integrated common, authentication, organizations, profiles and immutable trap type catalog. Authenticated mutations require Origin and X-CSRF-Token.
+  description: Integrated operator authentication, catalog, profiles, traps, agent credentials, commands, agent WSS and durable event history. Authenticated mutations require Origin and X-CSRF-Token.
   title: HoneyForge API
   version: 0.1.0
 openapi: 3.1.0
 paths:
+  /api/traps:
+    get:
+      operationId: listTraps
+      security:
+      - sessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      - name: profile_id
+        in: query
+        schema:
+          $ref: '#/components/schemas/ID'
+      - name: connectivity
+        in: query
+        schema:
+          type: string
+          enum:
+          - online
+          - offline
+      responses:
+        '200':
+          description: Live registrations ordered by created_at DESC/id DESC. Cursor retains the first-page creation boundary and is scoped to organization and filters.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrapPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+    post:
+      operationId: createTrap
+      security:
+      - sessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRF'
+      responses:
+        '201':
+          description: Registers an offline/unknown/stopped trap at revision=state_version=1; no token or implicit configuration/start.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trap'
+          headers:
+            Location:
+              schema:
+                type: string
+              description: /api/traps/{id}
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '409':
+          description: 'Conflict: idempotency_conflict, request_already_used, revision_exhausted, trap_type_unavailable, agent_credentials_changed, command_in_progress, trap_offline, trap_not_stopped or trap_buffer_not_empty.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '200':
+          description: Initial creation DTO on replay; GET returns current state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trap'
+          headers:
+            Idempotency-Replayed:
+              schema:
+                const: 'true'
+                type: string
+            Location:
+              schema:
+                type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTrapRequest'
+  /api/traps/{id}:
+    parameters:
+    - $ref: '#/components/parameters/TrapID'
+    get:
+      operationId: readTrap
+      security:
+      - sessionCookie: []
+      parameters: []
+      responses:
+        '200':
+          description: Current trap. No ETag; state_version orders full DTO changes. last_seen_at is accepted hello/heartbeat server time. Offline does not imply stopped.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trap'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+    patch:
+      operationId: patchTrap
+      security:
+      - sessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRF'
+      - $ref: '#/components/parameters/ExpectedRevision'
+      responses:
+        '200':
+          description: Only name/description. No-op preserves revision/updated_at; heartbeat and commands do not conflict with editable revision.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trap'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '409':
+          description: 'Conflict: idempotency_conflict, request_already_used, revision_exhausted, trap_type_unavailable, agent_credentials_changed, command_in_progress, trap_offline, trap_not_stopped or trap_buffer_not_empty.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchTrapRequest'
+    delete:
+      operationId: deleteTrap
+      security:
+      - sessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRF'
+      - $ref: '#/components/parameters/ExpectedRevision'
+      responses:
+        '204':
+          description: Tombstones registration and revokes token/WSS. Requires no active command/ingestion, current online hello, stopped desired/runtime and empty healthy buffer. Never-issued registrations can be deleted offline. History remains readable; repeated DELETE is 404.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '409':
+          description: 'Conflict: idempotency_conflict, request_already_used, revision_exhausted, trap_type_unavailable, agent_credentials_changed, command_in_progress, trap_offline, trap_not_stopped or trap_buffer_not_empty.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+  /api/traps/{id}/agent-credentials:
+    parameters:
+    - $ref: '#/components/parameters/TrapID'
+    get:
+      operationId: readAgentCredentials
+      security:
+      - sessionCookie: []
+      parameters: []
+      responses:
+        '200':
+          description: Admin only. Generation 0/active false/issued_at null before first issue. Token is never returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentCredentialsStatus'
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: 'Strong ETag: "agent-credentials:<trap_id>:<generation>".'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+    post:
+      operationId: issueAgentCredentials
+      security:
+      - sessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRF'
+      responses:
+        '200':
+          description: Admin only. Atomically compares expected_generation, issues one secret and immediately revokes previous token/WSS (4401). Lost-response retry is 409 agent_credentials_changed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentCredentials'
+          headers:
+            ETag:
+              schema:
+                type: string
+              description: 'Strong ETag: "agent-credentials:<trap_id>:<generation>".'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '409':
+          description: 'Conflict: idempotency_conflict, request_already_used, revision_exhausted, trap_type_unavailable, agent_credentials_changed, command_in_progress, trap_offline, trap_not_stopped or trap_buffer_not_empty.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentCredentialsRequest'
+    delete:
+      operationId: revokeAgentCredentials
+      security:
+      - sessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRF'
+      - name: If-Match
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^"agent-credentials:[0-9a-f-]+:[0-9]+"$
+      responses:
+        '204':
+          description: Admin only. Exact current ETag; increments generation on actual revocation, current inactive generation is a no-op. Closes WSS 4401; does not stop the service.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '409':
+          description: 'Conflict: idempotency_conflict, request_already_used, revision_exhausted, trap_type_unavailable, agent_credentials_changed, command_in_progress, trap_offline, trap_not_stopped or trap_buffer_not_empty.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+  /api/events:
+    get:
+      operationId: listEvents
+      security:
+      - sessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      - in: query
+        name: trap_id
+        schema:
+          $ref: '#/components/schemas/ID'
+      - in: query
+        name: from
+        schema:
+          $ref: '#/components/schemas/Timestamp'
+      - in: query
+        name: to
+        schema:
+          $ref: '#/components/schemas/Timestamp'
+      - in: query
+        name: source_ip
+        schema:
+          type: string
+      - in: query
+        name: event_type
+        schema:
+          $ref: '#/components/schemas/TypeID'
+      - in: query
+        name: session_id
+        schema:
+          $ref: '#/components/schemas/ID'
+      responses:
+        '200':
+          description: Own summaries including tombstone traps. All filters AND; order occurred_at DESC/event_id DESC. Late events stay outside original page boundary. stream_cursor is retained across pagination.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/events/{event_id}:
+    get:
+      operationId: readEvent
+      security:
+      - sessionCookie: []
+      parameters:
+      - in: path
+        name: event_id
+        required: true
+        schema:
+          $ref: '#/components/schemas/ID'
+      responses:
+        '200':
+          description: Immutable own details including original captured data and tombstone history.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
   /api/traps/{id}/commands:
-    x-integration-pending: traps-module-05
     get:
       operationId: listTrapCommands
       parameters:
@@ -1125,7 +1918,7 @@ paths:
       - sessionCookie: []
     post:
       operationId: createTrapCommand
-      description: Queues a command for up to 24 hours. Exactly one queued or running command per trap. Repeating request_id with the same content returns the original command; changed content returns idempotency_conflict.
+      description: Queues a command for up to 24 hours. Exactly one queued or running command per trap. Repeating request_id with the same content returns the initial queued command even after execution; read GET for current status. Changed content returns idempotency_conflict.
       parameters:
       - $ref: "#/components/parameters/TrapID"
       - $ref: "#/components/parameters/Origin"
@@ -1179,7 +1972,6 @@ paths:
       security:
       - sessionCookie: []
   /api/traps/{id}/commands/{command_id}:
-    x-integration-pending: traps-module-05
     get:
       operationId: readTrapCommand
       parameters:

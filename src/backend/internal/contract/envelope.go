@@ -38,6 +38,7 @@ func DecodeEnvelope(b []byte) (Envelope, error) {
 	}
 	return envelope, nil
 }
+
 func escapePointer(s string) string {
 	return strings.ReplaceAll(strings.ReplaceAll(s, "~", "~0"), "/", "~1")
 }

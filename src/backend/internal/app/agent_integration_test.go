@@ -8,14 +8,14 @@ import (
 	"testing"
 )
 
-func TestAgentRouteRequiresBoundaries(t *testing.T) {
+func TestAgentRouteRejectsMissingCredentials(t *testing.T) {
 	runtime := openIntegrationRuntime(t)
 
 	response := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/assets/stream", nil)
 	runtime.Router.ServeHTTP(response, request)
 
-	if response.Code != http.StatusServiceUnavailable {
+	if response.Code != http.StatusUnauthorized {
 		t.Fatalf("agent route returned %d", response.Code)
 	}
 }

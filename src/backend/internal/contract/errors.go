@@ -25,7 +25,13 @@ var errorsByCode = map[string]struct {
 	status  int
 	message string
 }{
-	"config_invalid": {422, "Trap configuration is invalid"}, "telemetry_invalid": {422, "Telemetry event is invalid"}, "unsupported_action": {422, "Action is not supported by this type version"}, "command_params_invalid": {422, "Command parameters are invalid"}, "command_result_invalid": {422, "Command result is invalid"},
+	"trap_type_unavailable":     {409, "Trap type is unavailable for new traps"},
+	"agent_credentials_changed": {409, "Agent credentials have changed"},
+	"command_in_progress":       {409, "Another command is in progress"},
+	"trap_offline":              {409, "Trap must be online before deletion"},
+	"trap_not_stopped":          {409, "Trap must be stopped before deletion"},
+	"trap_buffer_not_empty":     {409, "Trap telemetry buffer must be empty before deletion"},
+	"config_invalid":            {422, "Trap configuration is invalid"}, "telemetry_invalid": {422, "Telemetry event is invalid"}, "unsupported_action": {422, "Action is not supported by this type version"}, "command_params_invalid": {422, "Command parameters are invalid"}, "command_result_invalid": {422, "Command result is invalid"},
 	"invalid_json": {400, "Invalid JSON body"}, "invalid_query": {400, "Invalid query parameters"}, "invalid_id": {400, "Invalid resource identifier"}, "invalid_cursor": {400, "Invalid pagination cursor"}, "invalid_precondition": {400, "Invalid precondition header"},
 	"unauthenticated": {401, "Authentication required"}, "invalid_credentials": {401, "Invalid email or password"}, "agent_unauthenticated": {401, "Invalid agent credentials"},
 	"forbidden": {403, "Insufficient permissions"}, "csrf_failed": {403, "CSRF validation failed"}, "origin_not_allowed": {403, "Origin is not allowed"},

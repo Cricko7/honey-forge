@@ -2,11 +2,12 @@ package catalog
 
 import (
 	"errors"
-	"honey-forge/internal/contract"
 	"log/slog"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+
+	"honey-forge/internal/contract"
 )
 
 type Handler struct {

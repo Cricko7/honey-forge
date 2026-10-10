@@ -5,8 +5,6 @@ package catalog
 import (
 	"context"
 	"encoding/json"
-	"honey-forge/internal/contract"
-	"honey-forge/internal/postgres"
 	"os"
 	"strings"
 	"sync"
@@ -14,6 +12,9 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"honey-forge/internal/contract"
+	"honey-forge/internal/postgres"
 )
 
 func TestRepositoryInstall(t *testing.T) {

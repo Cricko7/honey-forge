@@ -3,9 +3,10 @@ package mutation
 import (
 	"context"
 	"fmt"
-	"honey-forge/internal/contract"
 
 	"github.com/jackc/pgx/v5"
+
+	"honey-forge/internal/contract"
 )
 
 // AgentWrite fixes events/runtime observations and their notifications atomically.

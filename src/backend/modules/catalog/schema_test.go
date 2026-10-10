@@ -2,9 +2,10 @@ package catalog
 
 import (
 	"encoding/json"
-	"honey-forge/internal/contract"
 	"strings"
 	"testing"
+
+	"honey-forge/internal/contract"
 )
 
 func TestDynamicSchemas(t *testing.T) {

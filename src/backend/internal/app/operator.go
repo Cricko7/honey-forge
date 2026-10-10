@@ -18,7 +18,7 @@ import (
 	profileservice "honey-forge/modules/profiles/service"
 )
 
-// RegisterServices connects both feature modules and the catalog to one real session.
+// RegisterServices connects modules 02, 03 and 04 in plan order to one real session.
 func RegisterServices(
 	router *gin.Engine,
 	browser *contract.BrowserPolicy,
@@ -33,11 +33,13 @@ func RegisterServices(
 	if err := handler.RegisterRoutes(router); err != nil {
 		return fmt.Errorf("register auth: %w", err)
 	}
+
+	RegisterSessionCatalog(router, handler, catalogService)
+
 	if err := profilehttp.NewHandler(profiles, logger).RegisterRoutes(router, handler.RequireSession()); err != nil {
 		return fmt.Errorf("register profiles: %w", err)
 	}
 
-	RegisterSessionCatalog(router, handler, catalogService)
 	router.GET("/healthz", healthCheck)
 	return nil
 }

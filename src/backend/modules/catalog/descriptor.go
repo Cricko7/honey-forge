@@ -3,11 +3,12 @@ package catalog
 import (
 	"encoding/json"
 	"fmt"
-	"honey-forge/internal/configschema"
-	"honey-forge/internal/contract"
 	"strings"
 
 	"github.com/gin-gonic/gin/binding"
+
+	"honey-forge/internal/configschema"
+	"honey-forge/internal/contract"
 )
 
 func compileEntry(def Definition) (*compiledEntry, error) {

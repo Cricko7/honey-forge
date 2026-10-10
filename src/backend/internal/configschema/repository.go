@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"honey-forge/internal/contract"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"honey-forge/internal/contract"
 )
 
 // SchemaStore retains the exact immutable versions used by all feature modules.
@@ -39,6 +40,7 @@ func (s *SchemaStore) Register(ctx context.Context, typeID string, version contr
 	}
 	return nil
 }
+
 func (s *SchemaStore) Get(ctx context.Context, typeID string, version contract.TypeVersion) (*Schema, error) {
 	var raw []byte
 	if err := s.pool.QueryRow(ctx, `SELECT schema FROM schema_versions WHERE type_id=$1 AND type_version=$2`, typeID, version).Scan(&raw); err != nil {

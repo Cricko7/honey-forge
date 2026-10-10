@@ -4,14 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"honey-forge/internal/contract"
-	"honey-forge/internal/postgres"
 	"os"
 	"sync"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"honey-forge/internal/contract"
+	"honey-forge/internal/postgres"
 )
 
 func testStore(t *testing.T) (*Store, *pgxpool.Pool, context.Context, Scope) {

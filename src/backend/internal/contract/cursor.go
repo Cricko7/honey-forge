@@ -22,6 +22,7 @@ type CursorPosition struct {
 	Boundary string
 	After    string
 }
+
 type CursorCodec struct{ aead cipher.AEAD }
 
 func NewCursorCodec(key []byte) (*CursorCodec, error) {
@@ -38,6 +39,7 @@ func NewCursorCodec(key []byte) (*CursorCodec, error) {
 	}
 	return &CursorCodec{aead}, nil
 }
+
 func (c *CursorCodec) Encode(scope CursorScope, position CursorPosition) (string, error) {
 	if !ValidID(string(scope.OrganizationID)) || scope.Collection == "" || position.Boundary == "" {
 		return "", NewError("invalid_cursor")
@@ -56,6 +58,7 @@ func (c *CursorCodec) Encode(scope CursorScope, position CursorPosition) (string
 	}
 	return token, nil
 }
+
 func (c *CursorCodec) Decode(scope CursorScope, token string) (CursorPosition, error) {
 	invalid := NewError("invalid_cursor")
 	if token == "" || len(token) > MaxCursorLength {
@@ -76,6 +79,7 @@ func (c *CursorCodec) Decode(scope CursorScope, token string) (CursorPosition, e
 	}
 	return p, nil
 }
+
 func cursorScope(scope CursorScope) []byte {
 	b, err := json.Marshal(struct {
 		Organization string

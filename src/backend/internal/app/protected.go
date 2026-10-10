@@ -2,9 +2,10 @@ package app
 
 import (
 	"errors"
-	"honey-forge/internal/contract"
 
 	"github.com/gin-gonic/gin"
+
+	"honey-forge/internal/contract"
 )
 
 // Authenticate is the consumed boundary supplied by real module 02 session validation.

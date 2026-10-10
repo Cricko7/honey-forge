@@ -32,6 +32,7 @@ type Timestamp time.Time
 func (t Timestamp) MarshalJSON() ([]byte, error) {
 	return json.Marshal(time.Time(t).UTC().Format(time.RFC3339Nano))
 }
+
 func (t *Timestamp) UnmarshalJSON(b []byte) error {
 	var s string
 	if err := json.Unmarshal(b, &s); err != nil {
@@ -87,11 +88,13 @@ func NewID() ID {
 	b[8] = (b[8] & 63) | 128
 	return ID(fmt.Sprintf("%x-%x-%x-%x-%x", b[:4], b[4:6], b[6:8], b[8:10], b[10:]))
 }
+
 func NormalizeName(s string) string { return strings.TrimSpace(s) }
 func ValidName(s string) bool {
 	n := utf8.RuneCountInString(NormalizeName(s))
 	return n >= 1 && n <= 100
 }
+
 func NextRevision(r Revision) (Revision, error) {
 	if r < 1 || r > MaxRevision {
 		return 0, NewError("validation_failed")
@@ -101,12 +104,14 @@ func NextRevision(r Revision) (Revision, error) {
 	}
 	return r + 1, nil
 }
+
 func CheckConfig(config json.RawMessage) error {
 	if len(config) > MaxConfigBytes {
 		return NewError("config_too_large")
 	}
 	return nil
 }
+
 func DecodeBytes(s string, max int) ([]byte, error) {
 	b, err := base64.StdEncoding.Strict().DecodeString(s)
 	if err != nil {

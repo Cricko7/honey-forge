@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"honey-forge/internal/contract"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
+
+	"honey-forge/internal/contract"
 )
 
 func TestJournalReplayAndSnapshot(t *testing.T) {

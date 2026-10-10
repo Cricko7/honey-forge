@@ -2,14 +2,15 @@ package catalog
 
 import (
 	"encoding/json"
-	"honey-forge/internal/configschema"
-	"honey-forge/internal/contract"
 	"net/http/httptest"
 	"os"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/goccy/go-yaml"
+
+	"honey-forge/internal/configschema"
+	"honey-forge/internal/contract"
 )
 
 func TestOpenAPIResponse(t *testing.T) {

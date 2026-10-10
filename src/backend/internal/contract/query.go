@@ -27,6 +27,7 @@ func CheckQuery(values url.Values, allowed ...string) *Error {
 	}
 	return nil
 }
+
 func ParseListQuery(values url.Values, filters ...string) (ListQuery, *Error) {
 	allowed := append([]string{"limit", "cursor"}, filters...)
 	if e := CheckQuery(values, allowed...); e != nil {

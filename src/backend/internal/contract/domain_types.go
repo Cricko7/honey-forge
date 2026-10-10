@@ -27,6 +27,7 @@ func (id *ID) UnmarshalJSON(b []byte) error {
 	*id = ID(strings.ToLower(s))
 	return nil
 }
+
 func (n *Name) UnmarshalJSON(b []byte) error {
 	var s string
 	if err := json.Unmarshal(b, &s); err != nil {
@@ -38,6 +39,7 @@ func (n *Name) UnmarshalJSON(b []byte) error {
 	*n = Name(NormalizeName(s))
 	return nil
 }
+
 func (d *Description) UnmarshalJSON(b []byte) error {
 	var s string
 	if err := json.Unmarshal(b, &s); err != nil {
@@ -49,6 +51,7 @@ func (d *Description) UnmarshalJSON(b []byte) error {
 	*d = Description(s)
 	return nil
 }
+
 func (t *TypeID) UnmarshalJSON(b []byte) error {
 	var s string
 	if err := json.Unmarshal(b, &s); err != nil {
@@ -60,6 +63,7 @@ func (t *TypeID) UnmarshalJSON(b []byte) error {
 	*t = TypeID(s)
 	return nil
 }
+
 func (r *Revision) UnmarshalJSON(b []byte) error {
 	value, err := domainInteger(b)
 	if err != nil {
@@ -68,6 +72,7 @@ func (r *Revision) UnmarshalJSON(b []byte) error {
 	*r = Revision(value)
 	return nil
 }
+
 func (v *TypeVersion) UnmarshalJSON(b []byte) error {
 	value, err := domainInteger(b)
 	if err != nil {
@@ -76,6 +81,7 @@ func (v *TypeVersion) UnmarshalJSON(b []byte) error {
 	*v = TypeVersion(value)
 	return nil
 }
+
 func domainInteger(b []byte) (int64, error) {
 	s := string(b)
 	if s == "" {
@@ -95,6 +101,7 @@ func domainInteger(b []byte) (int64, error) {
 	}
 	return value, nil
 }
+
 func (b *Bytes) UnmarshalJSON(raw []byte) error {
 	var s string
 	if err := json.Unmarshal(raw, &s); err != nil {
@@ -107,6 +114,7 @@ func (b *Bytes) UnmarshalJSON(raw []byte) error {
 	*b = value
 	return nil
 }
+
 func (Bytes) AllowsNull() bool { return false }
 func (b Bytes) MarshalJSON() ([]byte, error) {
 	return json.Marshal(base64.StdEncoding.EncodeToString(b))

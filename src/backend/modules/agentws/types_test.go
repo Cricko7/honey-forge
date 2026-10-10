@@ -41,6 +41,16 @@ func TestValidateHello(t *testing.T) {
 	}
 }
 
+func TestTelemetryQuarantineRuntime(t *testing.T) {
+	runtime := commands.AgentRuntime{RuntimeState: "stopped", BufferState: "ok", BufferedEvents: 1, BufferCapacityBytes: 1024, LastError: &commands.RuntimeError{Code: "telemetry_invalid", Message: "captured secret"}}
+	if err := validateRuntime(runtime); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.LastError.Message != "Telemetry event is invalid" {
+		t.Fatal("unsafe runtime error")
+	}
+}
+
 func TestValidateBatch(t *testing.T) {
 	id := string(contract.NewID())
 	other := string(contract.NewID())

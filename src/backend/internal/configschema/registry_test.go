@@ -2,10 +2,11 @@ package configschema
 
 import (
 	"encoding/json"
-	"honey-forge/internal/contract"
-	"honey-forge/internal/postgres"
 	"os"
 	"testing"
+
+	"honey-forge/internal/contract"
+	"honey-forge/internal/postgres"
 )
 
 func TestImmutableVersionsAcrossRestart(t *testing.T) {

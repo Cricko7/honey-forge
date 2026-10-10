@@ -4,6 +4,7 @@ package mutation
 
 import (
 	"encoding/json"
+
 	"honey-forge/internal/contract"
 )
 
@@ -22,11 +23,13 @@ type Metadata struct {
 	TypeVersion  *contract.TypeVersion `json:"type_version,omitempty"`
 	Count        *int                  `json:"count,omitempty"`
 }
+
 type Change struct {
 	Type       string
 	ResourceID contract.ID
 	Metadata   Metadata
 }
+
 type Outcome struct {
 	ResourceID contract.ID
 	Location   string
@@ -34,12 +37,14 @@ type Outcome struct {
 	Metadata   Metadata
 	Changes    []Change
 }
+
 type Result struct {
 	ResourceID     contract.ID
 	Location       string
 	StreamSequence int64
 	Replayed       bool
 }
+
 type RecordedChange struct {
 	Sequence   int64
 	Type       string

@@ -15,6 +15,7 @@ var runtimeMessages = map[string]string{
 	"unsupported_action":     "Action is unsupported by this agent",
 	"command_expired":        "Command has expired",
 	"buffer_unavailable":     "Telemetry buffer is unavailable",
+	"telemetry_invalid":      "Telemetry event is invalid",
 }
 
 // NormalizeRuntimeError rejects unknown codes and prevents an agent supplied

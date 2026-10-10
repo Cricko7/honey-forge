@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"honey-forge/internal/contract"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"honey-forge/internal/contract"
 )
 
 type Store struct{ pool *pgxpool.Pool }
@@ -90,6 +91,7 @@ func (s *Store) Write(ctx context.Context, organizationID contract.ID, write Wri
 		return err
 	})
 }
+
 func (s *Store) Delete(ctx context.Context, organizationID, resourceID contract.ID, write WriteFunc) error {
 	if err := authorize(ctx, organizationID); err != nil {
 		return err
@@ -140,6 +142,7 @@ func authorize(ctx context.Context, organizationID contract.ID) error {
 	}
 	return nil
 }
+
 func (s *Store) transaction(ctx context.Context, organizationID contract.ID, fn func(pgx.Tx) error) (err error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {

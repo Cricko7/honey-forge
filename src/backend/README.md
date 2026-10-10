@@ -1,10 +1,11 @@
-# Операторы, организации и профили
+# Операторы, профили и жизненный цикл ловушек
 
 Auth/organizations и profiles подключены к общей сборке common/catalog.
-Модуль commands готов к подключению после реализации traps (05); текущие маршруты API его не публикуют. Состояние и границы: [modules/commands/README.md](modules/commands/README.md).
-Серверная часть WSS агента (08) подключена через границы для модулей 05/07.
-Пока реальные реализации этих границ отсутствуют, `/assets/stream` возвращает
-503. Контракт и проверки: [modules/agentws/README.md](modules/agentws/README.md).
+Ловушки (05), реквизиты агента, команды (06), PostgreSQL-приём и история событий
+подключены к общей сборке. `/assets/stream` использует настоящие token/generation,
+состояние ловушки и транзакционное хранилище событий. Без реквизитов handshake
+возвращает 401. Контракт и проверки: [modules/traps/README.md](modules/traps/README.md),
+[modules/events/README.md](modules/events/README.md), [modules/agentws/README.md](modules/agentws/README.md).
 Единственный Go-модуль и единственная сборка API находятся в этой директории.
 Миграции: `../../migrations/`; полный OpenAPI: [../../api/openapi.yaml](../../api/openapi.yaml).
 
@@ -138,4 +139,4 @@ go test -tags=integration ./internal/app -run '^TestReal' -count=1
 проверяет конкурентный код детектором гонок.
 
 Журналы auth_changes/profile_changes транзакционны; их доставка по WSS,
-агентский TCP runtime, команды и catalog.changed пока требуют следующих модулей.
+агентский TCP runtime и frontend replay/live пока требуют отдельных компонентов.

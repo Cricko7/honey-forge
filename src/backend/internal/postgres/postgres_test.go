@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"honey-forge/internal/contract"
 	"os"
 	"strings"
 	"sync"
@@ -10,6 +9,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"honey-forge/internal/contract"
 )
 
 func TestFreshConcurrentMigrations(t *testing.T) {

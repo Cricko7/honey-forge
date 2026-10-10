@@ -3,11 +3,12 @@ package configschema
 import (
 	"bytes"
 	"encoding/json"
-	"honey-forge/internal/contract"
 	"sort"
 	"strconv"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
+
+	"honey-forge/internal/contract"
 )
 
 func (s *Schema) PublicConfig(full json.RawMessage) (json.RawMessage, []string, error) {
@@ -104,6 +105,7 @@ func object(raw json.RawMessage) (map[string]any, error) {
 	}
 	return value, nil
 }
+
 func (s *Schema) secretPaths(value map[string]any) []string {
 	set := map[string]bool{}
 	walkSecrets(s.compiled, value, "", set, map[*jsonschema.Schema]bool{})
@@ -114,6 +116,7 @@ func (s *Schema) secretPaths(value map[string]any) []string {
 	sort.Strings(paths)
 	return paths
 }
+
 func walkSecrets(s *jsonschema.Schema, value any, path string, set map[string]bool, seen map[*jsonschema.Schema]bool) {
 	if s == nil || seen[s] {
 		return

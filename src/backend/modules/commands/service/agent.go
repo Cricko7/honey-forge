@@ -106,9 +106,13 @@ func (a *Agent) RecordResult(ctx context.Context, org, trapID string, input comm
 			}
 
 			var outcome struct {
-				Revision *int32 `json:"applied_profile_revision"`
+				Revision     *int32  `json:"applied_profile_revision"`
+				RuntimeState *string `json:"runtime_state"`
 			}
 			if err := json.Unmarshal(result.Result, &outcome); err != nil || !sameRevision(outcome.Revision, result.Runtime.AppliedProfileRevision) {
+				return commands.ErrResultInvalid
+			}
+			if outcome.RuntimeState != nil && *outcome.RuntimeState != result.Runtime.RuntimeState {
 				return commands.ErrResultInvalid
 			}
 		}

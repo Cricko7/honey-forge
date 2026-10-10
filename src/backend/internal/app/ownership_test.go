@@ -1,12 +1,13 @@
 package app
 
 import (
-	"honey-forge/internal/contract"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
+
+	"honey-forge/internal/contract"
 )
 
 func TestOwnershipBeforeBody(t *testing.T) {

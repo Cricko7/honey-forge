@@ -20,4 +20,5 @@ func (n *Nullable[T]) UnmarshalJSON(b []byte) error {
 	n.set = true
 	return nil
 }
+
 func (n Nullable[T]) MarshalJSON() ([]byte, error) { return json.Marshal(n.Value) }

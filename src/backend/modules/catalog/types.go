@@ -3,6 +3,7 @@ package catalog
 
 import (
 	"encoding/json"
+
 	"honey-forge/internal/contract"
 )
 
@@ -18,17 +19,20 @@ type CatalogEntry struct {
 	Actions                 []ActionDescriptor   `json:"actions" validate:"min=3,dive"`
 	UI                      UIHints              `json:"ui"`
 }
+
 type EventDescriptor struct {
 	EventType  contract.EventType `json:"event_type" validate:"required,type_id"`
 	Title      string             `json:"title" validate:"min=1,max=100"`
 	DataSchema json.RawMessage    `json:"data_schema"`
 }
+
 type ActionDescriptor struct {
 	Action       contract.Action `json:"action" validate:"required,type_id"`
 	Title        string          `json:"title" validate:"min=1,max=100"`
 	ParamsSchema json.RawMessage `json:"params_schema"`
 	ResultSchema json.RawMessage `json:"result_schema"`
 }
+
 type UIHints struct {
 	FieldOrder []string          `json:"field_order"`
 	Widgets    map[string]string `json:"widgets" validate:"dive,oneof=text textarea number checkbox select password array object"`
@@ -41,6 +45,7 @@ type Definition struct {
 	SupportsAuthentication bool
 	SupportsServiceActions bool
 }
+
 type Query struct {
 	Limit     int
 	Cursor    string

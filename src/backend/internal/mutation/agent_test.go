@@ -2,10 +2,11 @@ package mutation
 
 import (
 	"context"
-	"honey-forge/internal/contract"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
+
+	"honey-forge/internal/contract"
 )
 
 func TestAgentChanges(t *testing.T) {

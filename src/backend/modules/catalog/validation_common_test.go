@@ -2,10 +2,11 @@ package catalog
 
 import (
 	"encoding/json"
-	"honey-forge/internal/contract"
-	"honey-forge/internal/mutation"
 	"strings"
 	"testing"
+
+	"honey-forge/internal/contract"
+	"honey-forge/internal/mutation"
 )
 
 // Check the actual catalog -> module 01 boundary rather than duplicating schema

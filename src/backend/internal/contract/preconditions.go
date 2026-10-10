@@ -58,6 +58,7 @@ func ExpectedProfileRevision(c *gin.Context, id ID) (Revision, bool) {
 	}
 	return revision, true
 }
+
 func ExpectedTrapRevision(c *gin.Context) (Revision, bool) {
 	values := c.Request.Header.Values("X-Expected-Revision")
 	if len(values) == 0 {
@@ -75,6 +76,7 @@ func ExpectedTrapRevision(c *gin.Context) (Revision, bool) {
 	}
 	return r, true
 }
+
 func parseRevision(s string) (Revision, error) {
 	if s == "" {
 		return 0, fmt.Errorf("empty revision")
@@ -90,6 +92,7 @@ func parseRevision(s string) (Revision, error) {
 	}
 	return Revision(n), nil
 }
+
 func RequireID(c *gin.Context, name string) (ID, bool) {
 	s := c.Param(name)
 	if !ValidID(s) {

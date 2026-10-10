@@ -4,15 +4,16 @@ package repository
 
 import (
 	"errors"
-	profilescore "honey-forge/modules/profiles"
 	"testing"
+
+	profilescore "honey-forge/modules/profiles"
 
 	"github.com/jackc/pgx/v5"
 )
 
 func TestPostgresProfileBindingRace(t *testing.T) {
 	pool := profilePool(t)
-	if _, e := pool.Exec(t.Context(), `CREATE TABLE traps(id uuid PRIMARY KEY,organization_id uuid NOT NULL,profile_id uuid NOT NULL,deleted_at timestamptz,FOREIGN KEY(organization_id,profile_id) REFERENCES profiles(organization_id,id))`); e != nil {
+	if _, e := pool.Exec(t.Context(), `INSERT INTO catalog_versions(type_id,type_version,entry) VALUES('demo',1,'{"type_id":"demo","type_version":1}')`); e != nil {
 		t.Fatal(e)
 	}
 
@@ -32,7 +33,7 @@ func TestPostgresProfileBindingRace(t *testing.T) {
 				return e
 			}
 
-			if _, e := tx.Exec(t.Context(), `INSERT INTO traps(id,organization_id,profile_id)VALUES($1,$2,$3)`, newID(), orgID, created.Profile.ID); e != nil {
+			if _, e := tx.Exec(t.Context(), `INSERT INTO traps(id,organization_id,profile_id,type_id,type_version,interaction_level,name,description,created_at,updated_at,initial_trap) VALUES($1,$2,$3,'demo',1,'low','Binding','',clock_timestamp(),clock_timestamp(),'{}')`, newID(), orgID, created.Profile.ID); e != nil {
 				return e
 			}
 

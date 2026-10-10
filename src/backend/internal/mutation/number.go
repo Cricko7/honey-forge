@@ -32,6 +32,7 @@ func canonicalNumber(number json.Number) json.Number {
 	}
 	return json.Number(trimmed + "e" + exponent.String())
 }
+
 func normalizeNumbers(v any) any {
 	switch value := v.(type) {
 	case json.Number:

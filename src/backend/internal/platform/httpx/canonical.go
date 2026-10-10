@@ -20,6 +20,7 @@ func CanonicalJSON(v any) ([]byte, error) {
 	}
 	return json.Marshal(normalizeNumbers(value))
 }
+
 func normalizeNumbers(v any) any {
 	switch x := v.(type) {
 	case json.Number:

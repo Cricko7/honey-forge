@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"honey-forge/internal/app"
 	"log/slog"
 	"net"
 	"net/http"
@@ -14,6 +13,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"honey-forge/internal/app"
 )
 
 func main() {
@@ -41,7 +42,7 @@ func run() error {
 		return fmt.Errorf("BROWSER_ORIGINS is required")
 	}
 	startup, cancelStartup := context.WithTimeout(context.Background(), 15*time.Second)
-	runtime, err := app.Open(startup, app.Config{DatabaseURL: os.Getenv("DATABASE_URL"), CursorKey: keyBytes, BrowserOrigins: origins})
+	runtime, err := app.Open(startup, app.Config{DatabaseURL: os.Getenv("DATABASE_URL"), CursorKey: keyBytes, BrowserOrigins: origins, AgentWSURL: os.Getenv("AGENT_WS_URL")})
 	cancelStartup()
 	if err != nil {
 		return err

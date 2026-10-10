@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"honey-forge/internal/contract"
 
 	"github.com/jackc/pgx/v5"
+
+	"honey-forge/internal/contract"
 )
 
 func record(ctx context.Context, tx pgx.Tx, organizationID contract.ID, outcome Outcome) (int64, error) {
@@ -20,6 +21,7 @@ func record(ctx context.Context, tx pgx.Tx, organizationID contract.ID, outcome 
 	}
 	return recordChanges(ctx, tx, organizationID, outcome.Changes)
 }
+
 func recordChanges(ctx context.Context, tx pgx.Tx, organizationID contract.ID, changes []Change) (int64, error) {
 	var sequence int64
 	for _, change := range changes {

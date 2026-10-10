@@ -59,6 +59,7 @@ func TestAgentResultValidation(t *testing.T) {
 		{"success", func(*commands.AgentResult) {}, nil},
 		{"wrong status", func(v *commands.AgentResult) { v.Status = commands.Queued }, commands.ErrResultInvalid},
 		{"wrong revision", func(v *commands.AgentResult) { bad := int32(3); v.Runtime.AppliedProfileRevision = &bad }, commands.ErrResultInvalid},
+		{"contradictory runtime", func(v *commands.AgentResult) { v.Runtime.RuntimeState = "running" }, commands.ErrResultInvalid},
 		{"unsafe error code", func(v *commands.AgentResult) {
 			v.Status = commands.Failed
 			v.Result = nil

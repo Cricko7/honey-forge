@@ -136,6 +136,7 @@ func CheckJSON(b []byte) error {
 	}
 	return nil
 }
+
 func scanValue(d *json.Decoder) error {
 	token, err := d.Token()
 	if err != nil {

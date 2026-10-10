@@ -44,10 +44,12 @@ func NewBrowserPolicy(origins []string) (*BrowserPolicy, error) {
 	}
 	return p, nil
 }
+
 func ValidHTTPSOrigin(s string) bool {
 	u, err := url.Parse(s)
 	return err == nil && u.Scheme == "https" && u.Host != "" && u.Hostname() != "" && u.User == nil && u.Path == "" && u.RawQuery == "" && u.Fragment == "" && !u.ForceQuery
 }
+
 func (p *BrowserPolicy) CheckOrigin(c *gin.Context) bool {
 	values := c.Request.Header.Values("Origin")
 	if len(values) != 1 || !p.origins[values[0]] {

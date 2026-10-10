@@ -5,10 +5,11 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"honey-forge/internal/configschema"
-	"honey-forge/internal/contract"
 	"sort"
 	"strconv"
+
+	"honey-forge/internal/configschema"
+	"honey-forge/internal/contract"
 )
 
 type typeKey struct {

@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"honey-forge/internal/contract"
 	"strings"
 	"sync"
 	"testing"
+
+	"honey-forge/internal/contract"
 )
 
 func testService(t *testing.T, defs ...Definition) *Service {

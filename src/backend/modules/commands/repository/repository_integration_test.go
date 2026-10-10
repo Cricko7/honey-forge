@@ -22,6 +22,9 @@ func TestPostgresCommandLifecycle(t *testing.T) {
 	for _, query := range []string{
 		`INSERT INTO organizations(id,name,join_code) VALUES('` + testOrg + `','Demo',repeat('A',32))`,
 		`INSERT INTO users(id,organization_id,email,password_hash,role) VALUES('` + testUser + `','` + testOrg + `','admin@example.com','hash','admin')`,
+		`INSERT INTO catalog_versions(type_id,type_version,entry) VALUES('tcp-banner',1,'{"type_id":"tcp-banner","type_version":1}')`,
+		`WITH p AS (INSERT INTO profiles(id,organization_id,type_id,type_version,interaction_level,revision,created_at) VALUES('44444444-4444-4444-8444-444444444444','` + testOrg + `','tcp-banner',1,'low',1,now()) RETURNING id) INSERT INTO profile_revisions(profile_id,revision,name,description,config,secret_fields_set,updated_at) SELECT id,1,'Fixture','','{}','[]',now() FROM p`,
+		`INSERT INTO traps(id,organization_id,profile_id,type_id,type_version,interaction_level,name,description,created_at,updated_at,initial_trap) VALUES('` + testTrap + `','` + testOrg + `','44444444-4444-4444-8444-444444444444','tcp-banner',1,'low','Fixture','',now(),now(),'{}')`,
 		`CREATE TABLE test_traps(id uuid PRIMARY KEY,organization_id uuid NOT NULL,profile_id uuid,type_id text NOT NULL,type_version integer NOT NULL,applied_revision integer,active_command_id uuid,state_version bigint NOT NULL DEFAULT 1,deleted_at timestamptz)`,
 		`INSERT INTO test_traps(id,organization_id,type_id,type_version) VALUES('` + testTrap + `','` + testOrg + `','tcp-banner',1)`,
 	} {

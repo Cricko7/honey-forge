@@ -18,11 +18,12 @@ import (
 )
 
 type Identity struct {
-	OrganizationID  string
-	TrapID          string
-	TypeID          string
-	TypeVersion     int32
-	RequiredActions []string
+	CredentialGeneration int64
+	OrganizationID       string
+	TrapID               string
+	TypeID               string
+	TypeVersion          int32
+	RequiredActions      []string
 }
 
 type State struct {

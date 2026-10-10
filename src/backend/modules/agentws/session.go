@@ -126,7 +126,20 @@ func (h *Handler) withActive(entry *sessionEntry, session *agentSession, action 
 		return context.Canceled
 	}
 
-	return action(session.ctx)
+	err = action(session.ctx)
+	if err != nil {
+		// Credentials/deletion can commit between authentication and the
+		// feature's transactional fence. Deliver the required revocation close
+		// before Serve closes the socket on that failed operation.
+		current, authErr := h.gateway.Authenticate(session.ctx, session.token)
+		var api *contract.Error
+		if errors.As(authErr, &api) && api.Code == "agent_unauthenticated" || authErr == nil && !sameIdentity(current, session.identity) {
+			_ = session.socket.CloseCode(4401, "authentication_revoked")
+			session.cancel()
+			return context.Canceled
+		}
+	}
+	return err
 }
 
 func (h *Handler) claim(entry *sessionEntry, session *agentSession, supported map[string]bool, pending **commandLease) error {
@@ -229,9 +242,15 @@ func (h *Handler) handleMessage(entry *sessionEntry, session *agentSession, mess
 				return err
 			}
 
-			// A replayed terminal result has its current runtime applied as a
-			// heartbeat; the immutable command outcome stays unchanged.
-			_, err = h.gateway.Observe(ctx, session.identity, session.connectionID, body.Runtime)
+			// A replayed terminal result updates the current runtime without
+			// refreshing last_seen_at; the immutable outcome stays unchanged.
+			if reporter, ok := h.gateway.(interface {
+				Report(context.Context, Identity, string, commands.AgentRuntime) (State, error)
+			}); ok {
+				_, err = reporter.Report(ctx, session.identity, session.connectionID, body.Runtime)
+			} else {
+				_, err = h.gateway.Observe(ctx, session.identity, session.connectionID, body.Runtime)
+			}
 			return err
 		})
 		if err != nil {

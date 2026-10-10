@@ -16,6 +16,7 @@ func parts(path string) []string {
 	}
 	return p
 }
+
 func at(root any, path string) (any, bool) {
 	value := root
 	for _, key := range parts(path) {
@@ -38,6 +39,7 @@ func at(root any, path string) (any, bool) {
 	}
 	return value, true
 }
+
 func put(root map[string]any, path string, value any) bool {
 	p := parts(path)
 	if len(p) == 0 {
@@ -74,6 +76,7 @@ func put(root map[string]any, path string, value any) bool {
 	}
 	return false
 }
+
 func remove(root map[string]any, path string) {
 	p := parts(path)
 	if len(p) == 0 {

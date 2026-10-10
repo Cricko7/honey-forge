@@ -3,11 +3,12 @@ package mutation
 import (
 	"context"
 	"encoding/json"
-	"honey-forge/internal/contract"
 	"math"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
+
+	"honey-forge/internal/contract"
 )
 
 func TestNotificationWriteFailureRollsBackAudit(t *testing.T) {

@@ -25,6 +25,7 @@ func Open(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 	}
 	return pool, nil
 }
+
 func Migrate(ctx context.Context, pool *pgxpool.Pool, files fs.FS) error {
 	db := stdlib.OpenDBFromPool(pool)
 	defer db.Close()

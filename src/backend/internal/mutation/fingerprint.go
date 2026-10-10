@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/json"
+
 	"honey-forge/internal/contract"
 )
 
@@ -26,4 +27,5 @@ func Fingerprint(normalized json.RawMessage) ([32]byte, error) {
 	}
 	return sha256.Sum256(b), nil
 }
+
 func equalFingerprint(a, b []byte) bool { return subtle.ConstantTimeCompare(a, b) == 1 }

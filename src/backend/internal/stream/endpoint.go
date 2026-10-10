@@ -2,9 +2,10 @@ package stream
 
 import (
 	"fmt"
-	"honey-forge/internal/contract"
 	"net/url"
 	"path"
+
+	"honey-forge/internal/contract"
 )
 
 // AgentEndpoint is immutable installation configuration. Profile config cannot
@@ -21,6 +22,7 @@ func NewAgentEndpoint(origin, streamPath string) (AgentEndpoint, error) {
 	}
 	return AgentEndpoint{origin, streamPath}, nil
 }
+
 func (e AgentEndpoint) URL() string { return "wss" + e.origin[len("https"):] + e.path }
 func (e AgentEndpoint) SeparateFrom(operatorOrigin string) bool {
 	return e.origin != operatorOrigin && contract.ValidHTTPSOrigin(operatorOrigin)
