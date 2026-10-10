@@ -95,6 +95,34 @@ services:
       - api
     restart: unless-stopped
 
+  # Агент одной ловушки tcp-banner. По умолчанию НЕ стартует (profile "agent"),
+  # т.к. требует реквизиты конкретной ловушки. Поднять после создания ловушки:
+  #   1) POST /api/traps/{id}/agent-credentials  -> token, trap_id
+  #   2) $env:AGENT_TRAP_ID=..; $env:AGENT_TOKEN=..
+  #   3) docker compose -f docker-compose.real.yml --profile agent up --build -d agent
+  # Подключается к api по WSS (api есть в SAN сертификата). Журнал — общий redis,
+  # отдельная БД 1. Один агент обслуживает одну ловушку; для N портов — N сервисов
+  # с отдельными реквизитами (TODO: авто-провижининг N приманок — отдельная задача).
+  agent:
+    profiles: ["agent"]
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    environment:
+      AGENT_WS_URL: wss://api:8443/assets/stream
+      AGENT_TRAP_ID: ${AGENT_TRAP_ID:?Set AGENT_TRAP_ID}
+      AGENT_TOKEN: ${AGENT_TOKEN:?Set AGENT_TOKEN}
+      AGENT_REDIS_URL: redis://redis:6379/1
+      AGENT_CA_FILE: /certs/localhost.crt
+    volumes:
+      - ./certs:/certs:ro
+    ports:
+      - "2222:2222"
+    depends_on:
+      - api
+      - redis
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   kafka_data:
