@@ -1522,7 +1522,7 @@ components:
           $ref: '#/components/schemas/Timestamp'
         data:
           type: object
-          description: Original captured values; exact type catalog validates data. Supported service types preserve username/password/input without trimming or masking. Captured text must be displayed as text, never executed. UTF-8 limits are 1024 bytes per username/password and 4096 bytes per input; null credentials differ from empty strings.
+          description: Original captured values; exact type catalog validates data. honeytoken.triggered carries only service, token_id, kind and method; its fake values and HTTP headers are excluded. Supported service types preserve username/password/input without trimming or masking. Captured text must be displayed as text, never executed. UTF-8 limits are 1024 bytes per username/password and 4096 bytes per input; null credentials differ from empty strings.
         source_enrichment:
           type: object
           additionalProperties: false
@@ -2632,7 +2632,7 @@ paths:
       summary: createSession
   /api/trap-types:
     get:
-      description: Installed types include tcp-banner/1 (low) and redis-emulator/1 (medium). Redis uses the same apply_config/start/stop command flow and agent credentials; its config has one service with name, port and writeOnly password plus management timings. Its event schemas cover service.connection_opened, service.auth_attempt, service.action and service.connection_closed. Sorted by type_id ASC, type_version ASC. Cursors bind the organization, filters and immutable catalog snapshot. All pages share the full catalog ETag. If-None-Match is applied only to the first page; cursor pages always return 200. Unknown/repeated query parameters are rejected. No catalog CRUD.
+      description: Installed types include tcp-banner/1 (low), redis-emulator/1 (medium) and honeytoken-http/1 (medium). Honeytokens use the existing profiles/traps/commands flow, one HTTP service and 1-32 tokens with unique id, kind (key/file/url), path and writeOnly value. Their honeytoken.triggered data contains service, token_id, kind and method (GET), never the key; token membership and destination are checked against the issued snapshot. Distribution and trigger URLs are on the trap port, not the control API. See api/12-honeytokens.md. Redis uses the same apply_config/start/stop command flow and agent credentials; its config has one service with name, port and writeOnly password plus management timings. Its event schemas cover service.connection_opened, service.auth_attempt, service.action and service.connection_closed. Sorted by type_id ASC, type_version ASC. Cursors bind the organization, filters and immutable catalog snapshot. All pages share the full catalog ETag. If-None-Match is applied only to the first page; cursor pages always return 200. Unknown/repeated query parameters are rejected. No catalog CRUD.
       operationId: listTrapTypes
       parameters:
       - $ref: "#/components/parameters/Limit"

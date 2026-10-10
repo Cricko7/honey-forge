@@ -1,0 +1,364 @@
+{
+  "actions": [
+    {
+      "title": "start",
+      "result_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$ref": "#/$defs/RuntimeResult",
+        "$defs": {
+          "RuntimeResult": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "runtime_state",
+              "applied_profile_revision"
+            ],
+            "properties": {
+              "runtime_state": {
+                "type": "string",
+                "enum": [
+                  "running",
+                  "stopped"
+                ]
+              },
+              "applied_profile_revision": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1,
+                "maximum": 2147483647
+              }
+            }
+          }
+        }
+      },
+      "action": "start",
+      "params_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$ref": "#/$defs/EmptyObject",
+        "$defs": {
+          "EmptyObject": {
+            "type": "object",
+            "additionalProperties": false,
+            "maxProperties": 0
+          }
+        }
+      }
+    },
+    {
+      "title": "stop",
+      "result_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$ref": "#/$defs/RuntimeResult",
+        "$defs": {
+          "RuntimeResult": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "runtime_state",
+              "applied_profile_revision"
+            ],
+            "properties": {
+              "runtime_state": {
+                "type": "string",
+                "enum": [
+                  "running",
+                  "stopped"
+                ]
+              },
+              "applied_profile_revision": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1,
+                "maximum": 2147483647
+              }
+            }
+          }
+        }
+      },
+      "action": "stop",
+      "params_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$ref": "#/$defs/EmptyObject",
+        "$defs": {
+          "EmptyObject": {
+            "type": "object",
+            "additionalProperties": false,
+            "maxProperties": 0
+          }
+        }
+      }
+    },
+    {
+      "title": "apply_config",
+      "result_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$ref": "#/$defs/RuntimeResult",
+        "$defs": {
+          "RuntimeResult": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "runtime_state",
+              "applied_profile_revision"
+            ],
+            "properties": {
+              "runtime_state": {
+                "type": "string",
+                "enum": [
+                  "running",
+                  "stopped"
+                ]
+              },
+              "applied_profile_revision": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1,
+                "maximum": 2147483647
+              }
+            }
+          }
+        }
+      },
+      "action": "apply_config",
+      "params_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$ref": "#/$defs/ApplyConfigParams",
+        "$defs": {
+          "ApplyConfigParams": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "profile_revision"
+            ],
+            "properties": {
+              "profile_revision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2147483647
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "type_version": 1,
+  "title": "HTTP honeytokens",
+  "interaction_level": "medium",
+  "ui": {
+    "field_order": [
+      "/services",
+      "/tokens",
+      "/management"
+    ],
+    "widgets": {
+      "/services": "array",
+      "/tokens": "array",
+      "/management": "object"
+    }
+  },
+  "config_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "services",
+      "tokens",
+      "management"
+    ],
+    "properties": {
+      "services": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 1,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "port"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            }
+          }
+        }
+      },
+      "management": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "heartbeat_interval_seconds",
+          "telemetry_flush_interval_ms"
+        ],
+        "properties": {
+          "heartbeat_interval_seconds": {
+            "type": "integer",
+            "minimum": 5,
+            "maximum": 10
+          },
+          "telemetry_flush_interval_ms": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 1000
+          }
+        }
+      },
+      "tokens": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 32,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "kind",
+            "path",
+            "value"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "key",
+                "file",
+                "url"
+              ]
+            },
+            "path": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 256,
+              "pattern": "^/[a-zA-Z0-9/_-]+(?:\\.[a-zA-Z0-9_-]+)?$"
+            },
+            "value": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096,
+              "writeOnly": true
+            }
+          }
+        }
+      }
+    }
+  },
+  "type_id": "honeytoken-http",
+  "available_for_new_profiles": true,
+  "event_schemas": [
+    {
+      "event_type": "service.connection_opened",
+      "title": "Connection opened",
+      "data_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "service"
+        ],
+        "properties": {
+          "service": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+          }
+        }
+      }
+    },
+    {
+      "event_type": "honeytoken.triggered",
+      "title": "Honeytoken triggered",
+      "data_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "service",
+          "token_id",
+          "kind",
+          "method"
+        ],
+        "properties": {
+          "service": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+          },
+          "token_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "key",
+              "file",
+              "url"
+            ]
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "GET"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "event_type": "service.connection_closed",
+      "title": "Connection closed",
+      "data_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "service",
+          "duration_ms",
+          "bytes_received",
+          "reason"
+        ],
+        "properties": {
+          "service": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "bytes_received": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "peer_closed",
+              "idle_timeout",
+              "service_stopped",
+              "network_error",
+              "quit"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "description": "Serves fake API keys, downloadable files and URLs; records matching accesses through the existing agent telemetry stream."
+}

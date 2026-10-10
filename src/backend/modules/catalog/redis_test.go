@@ -10,7 +10,7 @@ import (
 
 func TestRedisBuiltinContract(t *testing.T) {
 	defs := BuiltinDefinitions()
-	if len(defs) != 2 || defs[1].Entry.TypeID != "redis-emulator" || defs[1].Entry.InteractionLevel != "medium" || !defs[1].SupportsAuthentication || !defs[1].SupportsServiceActions {
+	if len(defs) != 3 || defs[1].Entry.TypeID != "redis-emulator" || defs[1].Entry.InteractionLevel != "medium" || !defs[1].SupportsAuthentication || !defs[1].SupportsServiceActions {
 		t.Fatalf("Redis descriptor missing: %+v", defs)
 	}
 	s := testService(t, defs...)

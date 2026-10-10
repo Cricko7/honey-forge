@@ -147,7 +147,7 @@ func (j *Journal) apply(rec record) {
 				a.Bytes += d.Original
 				j.active[e.SessionID] = a
 			}
-			if e.EventType == "service.auth_attempt" || e.EventType == "service.action" {
+			if e.EventType == "service.auth_attempt" || e.EventType == "service.action" || e.EventType == "honeytoken.triggered" {
 				a := j.active[e.SessionID]
 				a.Last = e
 				var d struct {

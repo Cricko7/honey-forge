@@ -136,6 +136,15 @@ services:
     entrypoint: ["/bin/true"]
     restart: "no"
 
+  decoy-honeytoken-image:
+    build:
+      context: .
+      dockerfile: deploy/decoys/Dockerfile
+      target: honeytokens
+    image: ${DECOY_HONEYTOKEN_IMAGE:-honeyforge/honeytoken-decoy:local}
+    entrypoint: ["/bin/true"]
+    restart: "no"
+
   orchestrator:
     build:
       context: .
@@ -148,6 +157,7 @@ services:
       DECOY_NETWORK: ${DECOY_NETWORK:-hf-decoys}
       DECOY_TCP_IMAGE: ${DECOY_TCP_IMAGE:-honeyforge/tcp-decoy:local}
       DECOY_REDIS_IMAGE: ${DECOY_REDIS_IMAGE:-honeyforge/redis-decoy:local}
+      DECOY_HONEYTOKEN_IMAGE: ${DECOY_HONEYTOKEN_IMAGE:-honeyforge/honeytoken-decoy:local}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./certs:/certs:ro
@@ -161,6 +171,8 @@ services:
       decoy-tcp-image:
         condition: service_completed_successfully
       decoy-redis-image:
+        condition: service_completed_successfully
+      decoy-honeytoken-image:
         condition: service_completed_successfully
     restart: unless-stopped
 

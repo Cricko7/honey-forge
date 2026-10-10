@@ -1,9 +1,33 @@
 import type { CatalogEntry } from '@/types'
 
 // Каталог типов ловушек — взят из api/03-catalog.md (immutable-версии).
-// Два поддерживаемых типа: tcp-banner/1 (Low) и redis-emulator/1 (Medium).
+// В mock-режиме повторяет встроенные типы; реальный режим читает каталог API.
 
 export const CATALOG: CatalogEntry[] = [
+  {
+    type_id: 'honeytoken-http',
+    type_version: 1,
+    title: 'HTTP Honeytokens',
+    description: 'Ключи, файлы и URL-приманки. Использование приманки создаёт honeytoken.triggered.',
+    interaction_level: 'medium',
+    available_for_new_profiles: true,
+    config_schema: {
+      type: 'object',
+      required: ['services', 'tokens', 'management'],
+      properties: { services: { type: 'array' }, tokens: { type: 'array' }, management: { type: 'object' } },
+    },
+    event_schemas: [
+      { event_type: 'service.connection_opened', title: 'HTTP-сессия открыта', data_schema: {} },
+      { event_type: 'honeytoken.triggered', title: 'Приманка сработала', data_schema: {} },
+      { event_type: 'service.connection_closed', title: 'HTTP-сессия закрыта', data_schema: {} },
+    ],
+    actions: [
+      { action: 'start', title: 'Запустить', params_schema: {}, result_schema: {} },
+      { action: 'stop', title: 'Остановить', params_schema: {}, result_schema: {} },
+      { action: 'apply_config', title: 'Применить конфиг', params_schema: {}, result_schema: {} },
+    ],
+    ui: { field_order: ['/services', '/tokens', '/management'], widgets: {} },
+  },
   {
     type_id: 'tcp-banner',
     type_version: 1,

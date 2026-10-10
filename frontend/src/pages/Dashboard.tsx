@@ -131,7 +131,7 @@ export function DashboardPage() {
         <StatCard
           icon={ShieldAlert}
           label="Попытки входа"
-          value={String(events.filter((e) => e.event_type.includes('auth') || e.event_type.includes('payload')).length)}
+          value={String(events.filter((e) => e.event_type.includes('auth') || e.event_type.includes('payload') || e.event_type === 'honeytoken.triggered').length)}
           delta="перехвачено"
         />
         <StatCard

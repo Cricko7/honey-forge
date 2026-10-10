@@ -176,7 +176,15 @@ function genEvent(trap: Trap, occurredAt: string): Event {
   let destPort: number
   let proto: string
 
-  if (isRedis) {
+  if (trap.type_id === 'honeytoken-http') {
+    const profile = profiles.find((p) => p.id === trap.profile_id)
+    const service = (profile?.config.services as { name: string; port: number }[] | undefined)?.[0]
+    const token = (profile?.config.tokens as { id: string; kind: string }[] | undefined)?.[0]
+    destPort = service?.port ?? 8080
+    proto = 'tcp'
+    eventType = 'honeytoken.triggered'
+    data = { service: service?.name ?? 'web', token_id: token?.id ?? 'backup-key', kind: token?.kind ?? 'key', method: 'GET' }
+  } else if (isRedis) {
     const roll = Math.random()
     destPort = 6379
     proto = 'redis'
@@ -299,8 +307,16 @@ export const mockApi = {
     config: Record<string, unknown>
   }): Profile {
     // writeOnly-поля (password) не возвращаются — фиксируем их как secret_fields_set
+    const config = structuredClone(input.config)
     const secretFields = input.type_id === 'redis-emulator' ? ['/services/0/password'] : []
-    const level = input.type_id === 'redis-emulator' ? 'medium' : 'low'
+    if (input.type_id === 'honeytoken-http') {
+      const tokens = config.tokens as { value?: string }[]
+      tokens.forEach((token, i) => {
+        secretFields.push(`/tokens/${i}/value`)
+        delete token.value
+      })
+    }
+    const level = input.type_id === 'redis-emulator' || input.type_id === 'honeytoken-http' ? 'medium' : 'low'
     const profile: Profile = {
       id: uuid(),
       name: input.name,
@@ -308,7 +324,7 @@ export const mockApi = {
       type_id: input.type_id,
       type_version: input.type_version,
       interaction_level: level,
-      config: input.config,
+      config,
       secret_fields_set: secretFields,
       revision: 1,
       created_at: now(),

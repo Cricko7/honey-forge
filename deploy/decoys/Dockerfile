@@ -15,3 +15,6 @@ ENV DECOY_TYPE=tcp-banner
 
 FROM runtime AS redis
 ENV DECOY_TYPE=redis-emulator
+
+FROM runtime AS honeytokens
+ENV DECOY_TYPE=honeytoken-http

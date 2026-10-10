@@ -14,13 +14,14 @@ import (
 )
 
 type DockerCLI struct {
-	Run        func(context.Context, []byte, ...string) ([]byte, error)
-	Network    string
-	WSURL      string
-	RedisURL   string
-	CAFile     string
-	TCPImage   string
-	RedisImage string
+	Run             func(context.Context, []byte, ...string) ([]byte, error)
+	Network         string
+	WSURL           string
+	RedisURL        string
+	CAFile          string
+	TCPImage        string
+	RedisImage      string
+	HoneytokenImage string
 }
 
 func runDocker(ctx context.Context, input []byte, args ...string) ([]byte, error) {
@@ -217,6 +218,8 @@ func (d DockerCLI) Deploy(ctx context.Context, target Target, token string, gene
 		image = d.TCPImage
 	case target.Snapshot.TypeID == "redis-emulator" && target.Snapshot.TypeVersion == 1:
 		image = d.RedisImage
+	case target.Snapshot.TypeID == "honeytoken-http" && target.Snapshot.TypeVersion == 1:
+		image = d.HoneytokenImage
 	}
 	if image == "" || d.Network == "" || d.WSURL == "" || d.RedisURL == "" || token == "" {
 		return fmt.Errorf("incomplete trap deployment configuration")

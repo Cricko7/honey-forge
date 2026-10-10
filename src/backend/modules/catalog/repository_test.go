@@ -90,7 +90,7 @@ func TestRepositoryInstall(t *testing.T) {
 		t.Fatal(err)
 	}
 	var count int
-	if err := pool.QueryRow(t.Context(), "SELECT count(*) FROM catalog_versions").Scan(&count); err != nil || count != 3 {
+	if err := pool.QueryRow(t.Context(), "SELECT count(*) FROM catalog_versions").Scan(&count); err != nil || count != len(BuiltinDefinitions())+1 {
 		t.Fatalf("versions: %d %v", count, err)
 	}
 	for _, query := range []string{"UPDATE catalog_versions SET entry='{}'::jsonb", "DELETE FROM catalog_versions"} {

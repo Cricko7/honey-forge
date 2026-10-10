@@ -8,6 +8,18 @@ import type { CatalogEntry } from '@/types'
 
 // Шаблоны config под типы каталога — стартовая заготовка для редактора.
 function configTemplate(typeId: string): Record<string, unknown> {
+  if (typeId === 'honeytoken-http') {
+    const key = Array.from(crypto.getRandomValues(new Uint8Array(24)), (byte) => byte.toString(16).padStart(2, '0')).join('')
+    return {
+      services: [{ name: 'web', port: 8080 }],
+      tokens: [
+        { id: 'backup-key', kind: 'key', path: '/v1/backups', value: key },
+        { id: 'backup-file', kind: 'file', path: '/backup.txt', value: 'Demo backup: no real data.' },
+        { id: 'report-url', kind: 'url', path: '/reports/latest', value: 'Report ready.' },
+      ],
+      management: { heartbeat_interval_seconds: 5, telemetry_flush_interval_ms: 500 },
+    }
+  }
   if (typeId === 'redis-emulator') {
     return {
       services: [{ name: 'redis', port: 6379, password: 'S3cretTrap!' }],

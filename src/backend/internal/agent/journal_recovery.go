@@ -28,7 +28,7 @@ func (j *Journal) RecoverSessions() error {
 		}
 		fields := map[string]any{"duration_ms": max(int64(0), time.Since(a.Started).Milliseconds()), "bytes_received": a.Bytes, "reason": "service_stopped"}
 		kind := "tcp.connection_closed"
-		if strings.HasPrefix(a.Last.EventType, "service.") {
+		if strings.HasPrefix(a.Last.EventType, "service.") || a.Last.EventType == "honeytoken.triggered" {
 			kind = "service.connection_closed"
 			fields["service"] = data.Service
 		} else {

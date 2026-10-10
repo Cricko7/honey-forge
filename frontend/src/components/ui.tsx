@@ -66,7 +66,7 @@ export function LevelBadge({ level }: { level: string }) {
 }
 
 export function EventTypeBadge({ type }: { type: string }) {
-  const danger = type.includes('auth') || type.includes('payload') || type.includes('action')
+  const danger = type.includes('auth') || type.includes('payload') || type.includes('action') || type === 'honeytoken.triggered'
   return (
     <span
       className={cn(
