@@ -15,14 +15,24 @@ import ReactFlow, {
   MarkerType,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
-import { Plus, Bug, Database, Server, Zap, KeyRound, TerminalSquare, RotateCcw } from 'lucide-react'
+import { Plus, Bug, Database, Server, Zap, KeyRound, TerminalSquare, RotateCcw, AlertTriangle, Shuffle } from 'lucide-react'
 import { TrapNode, type TrapNodeData } from './network/TrapNode'
-import { useCanManage, useTraps, useCatalog, useCreateProfile, useCreateTrap, useLiveStream } from '@/api/hooks'
+import { useCanManage, useTraps, useCatalog, useCreateProfile, useCreateTrap, useLiveStream, useProfiles } from '@/api/hooks'
 import { Modal } from '@/components/Modal'
 import { LevelBadge } from '@/components/ui'
 import { ApiError } from '@/api/client'
+import { configPorts } from '@/lib/profile-config'
 import { useThemeColors } from '@/lib/theme'
 import type { CatalogEntry } from '@/types'
+
+// Случайный порт из «пользовательского» диапазона, не пересекающийся с занятыми.
+function randomFreePort(used: Set<number> | Map<number, unknown>): number {
+  for (let i = 0; i < 100; i++) {
+    const p = 1025 + Math.floor(Math.random() * (65500 - 1025))
+    if (!used.has(p)) return p
+  }
+  return 1025
+}
 
 const ATTACK = '#f43f5e'
 
@@ -33,13 +43,6 @@ const TYPE_ICON: Record<string, typeof Bug> = {
   'honeytoken-http': KeyRound,
   'ssh-high-interaction': TerminalSquare,
 }
-const DEFAULT_PORT: Record<string, number> = {
-  'tcp-banner': 2222,
-  'redis-emulator': 6379,
-  'honeytoken-http': 8080,
-  'ssh-high-interaction': 2022,
-}
-
 // Валидный дефолт-конфиг под config_schema типа — чтобы создавать ловушку
 // любого типа прямо из конструктора без ручного JSON.
 function defaultConfig(typeId: string, port: number): Record<string, unknown> {
@@ -85,10 +88,27 @@ export function NetworkBuilderPage() {
   const c = useThemeColors()
   const { data: trapsPage } = useTraps()
   const { data: catalogPage } = useCatalog()
+  const { data: profilesPage } = useProfiles()
   const createProfile = useCreateProfile()
   const createTrap = useCreateTrap()
 
   const traps = useMemo(() => trapsPage?.items ?? [], [trapsPage])
+
+  // Порты, уже занятые ловушками (порт → имя ловушки): два процесса не могут
+  // слушать один порт на одном адресе, поэтому дубли запрещаем ещё в форме.
+  const usedPorts = useMemo(() => {
+    const profiles = profilesPage?.items ?? []
+    const byId = new Map(profiles.map((p) => [p.id, p]))
+    const map = new Map<number, string>()
+    for (const trap of traps) {
+      const profile = byId.get(trap.profile_id)
+      if (!profile) continue
+      for (const port of configPorts(profile.config)) {
+        if (!map.has(port)) map.set(port, trap.name)
+      }
+    }
+    return map
+  }, [traps, profilesPage])
   const catalog = useMemo(
     () => (catalogPage?.items ?? []).filter((e) => e.available_for_new_profiles),
     [catalogPage],
@@ -264,6 +284,7 @@ export function NetworkBuilderPage() {
         open={canManage && addOpen}
         onClose={() => setAddOpen(false)}
         catalog={catalog}
+        usedPorts={usedPorts}
         creating={createProfile.isPending || createTrap.isPending}
         onCreate={async (name, entry, port) => {
           const config = defaultConfig(entry.type_id, port)
@@ -285,18 +306,20 @@ function AddTrapModal({
   open,
   onClose,
   catalog,
+  usedPorts,
   onCreate,
   creating,
 }: {
   open: boolean
   onClose: () => void
   catalog: CatalogEntry[]
+  usedPorts: Map<number, string>
   onCreate: (name: string, entry: CatalogEntry, port: number) => Promise<void>
   creating: boolean
 }) {
   const [name, setName] = useState('')
   const [typeKey, setTypeKey] = useState('')
-  const [port, setPort] = useState<number>(2222)
+  const [port, setPort] = useState<number>(0)
   const [error, setError] = useState<string | null>(null)
 
   const selected = useMemo(
@@ -304,23 +327,28 @@ function AddTrapModal({
     [catalog, typeKey],
   )
 
-  // Выбрать первый тип при открытии; порт — дефолтный для типа.
+  // Выбрать первый тип при открытии.
   useEffect(() => {
     if (open && catalog.length && !typeKey) {
       const first = catalog[0]
       setTypeKey(`${first.type_id}/${first.type_version}`)
     }
   }, [open, catalog, typeKey])
+
+  // Каждый раз при открытии формы подставляем новый случайный свободный порт.
   useEffect(() => {
-    if (selected) setPort(DEFAULT_PORT[selected.type_id] ?? 2222)
-  }, [selected])
+    if (open) setPort(randomFreePort(usedPorts))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  const portValid = Number.isInteger(port) && port >= 1 && port <= 65535
+  const conflictTrap = portValid ? usedPorts.get(port) : undefined
+  const hasConflict = !!conflictTrap
+  const canSubmit = !!name.trim() && !!selected && portValid && !hasConflict && !creating
 
   async function submit() {
     setError(null)
-    if (!selected || !name.trim()) {
-      setError('Выберите тип и укажите имя')
-      return
-    }
+    if (!selected || !name.trim() || !portValid || hasConflict) return
     try {
       await onCreate(name.trim(), selected, port)
       setName('')
@@ -375,31 +403,87 @@ function AddTrapModal({
             <input className="input" placeholder="dmz-ssh-03" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div>
-            <label className="label">Порт приманки</label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="label mb-0">Порт приманки</label>
+              <button
+                type="button"
+                onClick={() => setPort(randomFreePort(usedPorts))}
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-muted hover:text-brand transition-colors"
+                title="Подставить случайный свободный порт"
+              >
+                <Shuffle size={12} /> случайный
+              </button>
+            </div>
             <input
-              className="input"
+              className={`input ${hasConflict || !portValid ? 'border-danger focus:ring-danger/40 focus:border-danger' : ''}`}
               type="number"
               min={1}
               max={65535}
-              value={port}
+              value={port || ''}
               onChange={(e) => setPort(Number(e.target.value))}
             />
           </div>
         </div>
 
-        <div className="flex items-start gap-2 text-xs text-muted bg-brand/5 border border-brand/15 rounded-xl p-3">
-          <Bug size={14} className="text-brand mt-0.5 shrink-0" />
-          Панель сама создаст профиль по дефолт-конфигу типа, поднимет контейнер приманки и запустит
-          listener на указанном порту. Тонкую настройку конфига можно сделать на странице «Профили».
-        </div>
+        {/* Премиальное сообщение о конфликте/некорректном порте */}
+        {!portValid ? (
+          <div role="alert" className="flex items-start gap-3 rounded-xl border border-warn/30 bg-warn/10 p-3.5 animate-fadeIn">
+            <div className="h-8 w-8 rounded-lg bg-warn/15 text-warn grid place-items-center shrink-0">
+              <AlertTriangle size={16} />
+            </div>
+            <div className="text-sm">
+              <div className="font-medium text-warn">Некорректный порт</div>
+              <p className="text-xs text-warn/90 mt-0.5 leading-relaxed">
+                Укажите номер порта от 1 до 65535.
+              </p>
+            </div>
+          </div>
+        ) : hasConflict ? (
+          <div role="alert" className="flex items-start gap-3 rounded-xl border border-danger/30 bg-danger/10 p-3.5 animate-fadeIn">
+            <div className="h-8 w-8 rounded-lg bg-danger/15 text-danger grid place-items-center shrink-0">
+              <AlertTriangle size={16} />
+            </div>
+            <div className="min-w-0 text-sm">
+              <div className="font-medium text-danger">Порт {port} уже занят</div>
+              <p className="text-xs text-danger/80 mt-0.5 leading-relaxed">
+                Ловушка «{conflictTrap}» уже слушает этот порт. На одном адресе два процесса не
+                могут работать на одном порту — выберите другой.
+              </p>
+              <button
+                type="button"
+                onClick={() => setPort(randomFreePort(usedPorts))}
+                className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-danger hover:underline"
+              >
+                <Shuffle size={13} /> Подобрать свободный порт
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-start gap-2 text-xs text-muted bg-brand/5 border border-brand/15 rounded-xl p-3">
+            <Bug size={14} className="text-brand mt-0.5 shrink-0" />
+            Панель сама создаст профиль по дефолт-конфигу типа, поднимет контейнер приманки и
+            запустит listener на порту {port}. Тонкую настройку конфига можно сделать на странице
+            «Профили».
+          </div>
+        )}
 
-        {error && <p className="text-xs text-danger">{error}</p>}
+        {error && (
+          <div role="alert" className="flex items-start gap-3 rounded-xl border border-danger/30 bg-danger/10 p-3.5 animate-fadeIn">
+            <div className="h-8 w-8 rounded-lg bg-danger/15 text-danger grid place-items-center shrink-0">
+              <AlertTriangle size={16} />
+            </div>
+            <div className="text-sm">
+              <div className="font-medium text-danger">Не удалось создать ловушку</div>
+              <p className="text-xs text-danger/80 mt-0.5 leading-relaxed">{error}</p>
+            </div>
+          </div>
+        )}
 
         <div className="flex justify-end gap-2">
           <button className="btn-ghost" onClick={onClose}>
             Отмена
           </button>
-          <button className="btn-primary" disabled={!name || !selected || creating} onClick={submit}>
+          <button className="btn-primary" disabled={!canSubmit} onClick={submit}>
             {creating ? 'Создание…' : 'Создать ловушку'}
           </button>
         </div>
