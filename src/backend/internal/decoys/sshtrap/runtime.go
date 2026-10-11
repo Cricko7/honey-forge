@@ -16,6 +16,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 	"honey-forge/internal/decoys/camouflage"
+	"honey-forge/internal/platform/traffic"
 	"honey-forge/modules/profiles"
 )
 
@@ -63,7 +64,7 @@ func start(ctx context.Context, snapshot profiles.Snapshot, host string, sink Si
 		return nil, nil
 	}}
 	serverConfig.AddHostKey(signer)
-	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", net.JoinHostPort(host, strconv.Itoa(service.Port)))
+	listener, err := traffic.Listen(ctx, "tcp", net.JoinHostPort(host, strconv.Itoa(service.Port)))
 	if err != nil {
 		return nil, fmt.Errorf("listen SSH: %w", err)
 	}

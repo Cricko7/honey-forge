@@ -9,18 +9,22 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"honey-forge/internal/platform/traffic"
 	"honey-forge/modules/events"
 )
 
 type LocalClient struct {
-	conn    *websocket.Conn
-	mu      sync.Mutex // serializes event/ack exchanges
-	replies chan map[string]json.RawMessage
-	done    chan struct{}
-	readErr error // read only after done closes
+	traffic        chan traffic.Frame
+	TrafficDropped atomic.Uint64
+	conn           *websocket.Conn
+	mu             sync.Mutex // serializes event/ack exchanges
+	replies        chan map[string]json.RawMessage
+	done           chan struct{}
+	readErr        error // read only after done closes
 }
 
 func DialLocal(ctx context.Context, address, token string, certificate []byte) (*LocalClient, error) {
@@ -49,7 +53,9 @@ func dialLocalPipe(ctx context.Context, address, token string, certificate []byt
 	}
 	conn.SetReadLimit(16 * 1024)
 	c := &LocalClient{conn: conn, replies: make(chan map[string]json.RawMessage, 1), done: make(chan struct{})}
+	c.traffic = make(chan traffic.Frame, traffic.QueueCapacity)
 	go c.readReplies()
+	go c.sendTraffic()
 	return c, nil
 }
 

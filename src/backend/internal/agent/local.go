@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -17,19 +18,23 @@ import (
 	"honey-forge/internal/configschema"
 	"honey-forge/internal/contract"
 	"honey-forge/internal/platform/httpx"
+	"honey-forge/internal/platform/traffic"
 	"honey-forge/modules/catalog"
 	"honey-forge/modules/events"
 	"honey-forge/modules/profiles"
 )
 
 type Local struct {
-	Journal  *Journal
-	Token    string
-	Ready    chan struct{}
-	Failures chan string
-	mu       sync.Mutex
-	snapshot profiles.Snapshot
-	schemas  map[eventSchemaKey]*configschema.Schema
+	Traffic         chan traffic.Frame
+	TrafficDropped  atomic.Uint64
+	ReceivedTraffic *traffic.Inbox
+	Journal         *Journal
+	Token           string
+	Ready           chan struct{}
+	Failures        chan string
+	mu              sync.Mutex
+	snapshot        profiles.Snapshot
+	schemas         map[eventSchemaKey]*configschema.Schema
 }
 
 type eventSchemaKey struct {
@@ -40,6 +45,8 @@ type eventSchemaKey struct {
 
 func NewLocal(j *Journal, token string) (*Local, error) {
 	l := &Local{Journal: j, Token: token, Ready: make(chan struct{}, 1), Failures: make(chan string, 1), schemas: map[eventSchemaKey]*configschema.Schema{}}
+	l.Traffic = make(chan traffic.Frame, traffic.QueueCapacity)
+	l.ReceivedTraffic = traffic.NewInbox(traffic.QueueCapacity)
 	for _, definition := range catalog.BuiltinDefinitions() {
 		for _, e := range definition.Entry.EventSchemas {
 			schema, err := configschema.Compile(e.DataSchema)
@@ -120,6 +127,23 @@ func (l *Local) Handler(ctx context.Context) *gin.Engine {
 				default:
 				}
 				return
+			}
+			if notice.Type == "trap.traffic" {
+				var body struct {
+					Type  string        `json:"type"`
+					Frame traffic.Frame `json:"frame"`
+				}
+				valid := contract.CheckJSON(raw) == nil && httpx.StrictObject(raw, reflect.TypeOf(body)) && json.Unmarshal(raw, &body) == nil
+				if !valid || l.acceptTraffic(body.Frame) != nil {
+					if err := writeLocal(conn, map[string]any{"error": map[string]string{"code": "validation_failed"}}); err != nil {
+						return
+					}
+					continue
+				}
+				if err := writeLocal(conn, map[string]any{"traffic_connection_id": body.Frame.ConnectionID}); err != nil {
+					return
+				}
+				continue
 			}
 			var e events.AgentEvent
 			l.mu.Lock()

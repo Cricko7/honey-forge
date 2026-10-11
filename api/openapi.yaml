@@ -462,6 +462,51 @@ components:
         X-Request-ID:
           $ref: "#/components/headers/RequestID"
   schemas:
+    TrapLink:
+      type: object
+      additionalProperties: false
+      required: [source_id, target_id]
+      description: Directed passive copy of source inbound TCP bytes to the target agent. Source and target must be distinct live traps in the same organization. Cycles and fan-out are allowed; received copies are never forwarded again.
+      properties:
+        source_id:
+          $ref: '#/components/schemas/ID'
+        target_id:
+          $ref: '#/components/schemas/ID'
+    TrafficFrame:
+      type: object
+      additionalProperties: false
+      required: [connection_id, sequence, kind, remote_address, local_address]
+      properties:
+        connection_id:
+          $ref: '#/components/schemas/ID'
+        sequence:
+          type: integer
+          format: int64
+          minimum: 1
+        kind:
+          type: string
+          enum: [open, data, close]
+        remote_address:
+          type: string
+          maxLength: 255
+        local_address:
+          type: string
+          maxLength: 255
+        data:
+          type: [string, 'null']
+          contentEncoding: base64
+          description: At most 8192 decoded bytes. Required and nonempty for data; null or omitted for open/close. Original wire bytes, including encrypted SSH packets; no protocol decoding or telemetry truncation.
+    TrafficDelivery:
+      type: object
+      additionalProperties: false
+      required: [source_id, target_id, frame]
+      properties:
+        source_id:
+          $ref: '#/components/schemas/ID'
+        target_id:
+          $ref: '#/components/schemas/ID'
+        frame:
+          $ref: '#/components/schemas/TrafficFrame'
     StreamSubscribe:
       type: object
       additionalProperties: false
@@ -1679,6 +1724,106 @@ info:
   version: 0.1.0
 openapi: 3.1.0
 paths:
+  /api/trap-links:
+    get:
+      operationId: listTrapLinks
+      summary: List directed traffic links between live organization traps
+      description: Admin and viewer access. Returns all links ordered by source_id then target_id; no query parameters, pagination or request body.
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          description: Organization links, with an empty array when there are none
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TrapLink'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/Error'
+    post:
+      operationId: createTrapLink
+      summary: Connect two traps for passive incoming traffic mirroring
+      description: Admin only. Unknown/deleted/cross-organization endpoints return 404. Self links return 422; an existing direction returns 409 trap_link_exists. Reverse links are independent. Takes effect on subsequent mirrored frames, including active connections; buffered frames already accepted may still arrive after deletion. Neither trap revision changes.
+      security:
+      - sessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRF'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrapLink'
+      responses:
+        '201':
+          description: Link persisted
+          headers:
+            Location:
+              description: /api/trap-links/{source_id}/{target_id}
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrapLink'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+  /api/trap-links/{source}/{target}:
+    parameters:
+    - name: source
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/ID'
+    - name: target
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/ID'
+    delete:
+      operationId: deleteTrapLink
+      summary: Remove one direction of traffic mirroring
+      security:
+      - sessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRF'
+      responses:
+        '204':
+          description: Link removed; reverse links are unaffected
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /api/stream:
     get:
       operationId: subscribeFrontendStream
@@ -2824,6 +2969,29 @@ x-limits:
   websocket_message_bytes: 262144
 x-websockets:
   agent:
+    traffic_mirroring:
+      opt_in: agent.hello payload traffic_mirroring=true; agent.welcome returns traffic_mirroring=true when supported. Old agents receive no traffic messages.
+      messages:
+        traffic.frame:
+          $ref: '#/components/schemas/TrafficFrame'
+        traffic.received:
+          $ref: '#/components/schemas/TrafficDelivery'
+        traffic.ack:
+          type: object
+          required: [connection_id, sequence, queued_targets, skipped_targets]
+          properties:
+            connection_id:
+              $ref: '#/components/schemas/ID'
+            sequence:
+              type: integer
+              format: int64
+            queued_targets:
+              type: integer
+              minimum: 0
+            skipped_targets:
+              type: integer
+              minimum: 0
+      behavior: Best-effort live copies of bytes read from inbound TCP connections, never responses. Separate from telemetry; not written to event storage or replayed. Server derives source from credentials and destinations from persisted organization links. Received copies go to the agent's passive Inbox and are never run through a protocol or mirrored again. Each local sender and server destination queue holds at most 64 frames; overflow/offline/non-opted-in destinations skip copies. traffic.ack confirms queue admission, not receipt or processing. Inbox retains the latest 64 frames with an eviction counter. Sequence gaps signal lost frames. Route changes apply per frame; adding a link mid-connection need not produce an open frame. Source byte buffers are independent and are not changed by copying.
     path: /assets/stream
     roles:
     - agent

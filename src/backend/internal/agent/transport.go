@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"mime"
 	"net/http"
 	"time"
@@ -12,6 +13,7 @@ import (
 
 	"honey-forge/internal/beacon"
 	"honey-forge/internal/contract"
+	"honey-forge/internal/platform/traffic"
 	"honey-forge/modules/agentws"
 	"honey-forge/modules/commands"
 	"honey-forge/modules/profiles"
@@ -48,7 +50,7 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 	if len(supported) == 0 {
 		supported = []agentws.SupportedType{{TypeID: "tcp-banner", TypeVersion: 1, Actions: []string{"start", "stop", "apply_config"}}}
 	}
-	helloID, err := w.send("agent.hello", agentws.AgentHello{BootID: opts.BootID, AgentVersion: "1.0", Hostname: opts.Hostname, SupportedTypes: supported, Runtime: s.Runtime()})
+	helloID, err := w.send("agent.hello", agentws.AgentHello{TrafficMirroring: true, BootID: opts.BootID, AgentVersion: "1.0", Hostname: opts.Hostname, SupportedTypes: supported, Runtime: s.Runtime()})
 	if err != nil {
 		return err
 	}
@@ -67,9 +69,10 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 		return err
 	}
 	var body struct {
-		TrapID        string             `json:"trap_id"`
-		Interval      int                `json:"heartbeat_interval_seconds"`
-		Configuration *profiles.Snapshot `json:"current_configuration"`
+		TrafficMirroring bool               `json:"traffic_mirroring"`
+		TrapID           string             `json:"trap_id"`
+		Interval         int                `json:"heartbeat_interval_seconds"`
+		Configuration    *profiles.Snapshot `json:"current_configuration"`
 	}
 	if welcome.Type != "agent.welcome" || welcome.ReplyTo == nil || *welcome.ReplyTo != helloID || payload(welcome, &body) != nil || body.TrapID != opts.TrapID {
 		return fmt.Errorf("invalid backend welcome")
@@ -140,6 +143,12 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 			return err
 		case code := <-local.Failures:
 			s.Failed(code)
+		case frame := <-local.Traffic:
+			if body.TrafficMirroring {
+				if _, err := w.send("traffic.frame", frame); err != nil {
+					return err
+				}
+			}
 		case <-heartbeat.C:
 			heartbeat.Reset(beacon.Delay(s.HeartbeatInterval()))
 			if err := s.PollRunner(p); err != nil {
@@ -180,6 +189,26 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 			}
 		case message := <-incoming:
 			switch message.Type {
+			case "traffic.received":
+				var delivery traffic.Delivery
+				if !body.TrafficMirroring || payload(message, &delivery) != nil || delivery.TargetID != opts.TrapID || !contract.ValidID(delivery.SourceID) || traffic.CheckFrame(delivery.Frame) != nil {
+					return fmt.Errorf("invalid mirrored traffic")
+				}
+				inbox := local.ReceivedTraffic
+				if opts.TrafficInbox != nil {
+					inbox = opts.TrafficInbox
+				}
+				inbox.Receive(delivery)
+			case "traffic.ack":
+				var ack struct {
+					SkippedTargets int `json:"skipped_targets"`
+				}
+				if err := payload(message, &ack); err != nil {
+					return err
+				}
+				if ack.SkippedTargets > 0 {
+					slog.DebugContext(ctx, "raw traffic copy skipped", "targets", ack.SkippedTargets)
+				}
 			case "telemetry.ack":
 				if pending == nil || message.ReplyTo == nil || *message.ReplyTo != pendingMessage {
 					return fmt.Errorf("unexpected telemetry acknowledgement")

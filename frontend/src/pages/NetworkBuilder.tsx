@@ -5,23 +5,24 @@ import ReactFlow, {
   BackgroundVariant,
   Controls,
   MiniMap,
-  addEdge,
   useEdgesState,
   useNodesState,
   type Connection,
   type Edge,
+  type EdgeChange,
   type Node,
   type NodeTypes,
   MarkerType,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
-import { Plus, Bug, Database, Server, Zap, KeyRound, TerminalSquare, RotateCcw, AlertTriangle, Shuffle } from 'lucide-react'
+import { Plus, Bug, Database, Server, Zap, KeyRound, TerminalSquare, RotateCcw, AlertTriangle, Shuffle, Trash2 } from 'lucide-react'
 import { TrapNode, type TrapNodeData } from './network/TrapNode'
-import { useCanManage, useTraps, useCatalog, useCreateProfile, useCreateTrap, useLiveStream, useProfiles } from '@/api/hooks'
+import { useCanManage, useTraps, useCatalog, useCreateProfile, useCreateTrap, useLiveStream, useProfiles, useTrapLinks, useCreateTrapLink, useDeleteTrapLink } from '@/api/hooks'
 import { Modal } from '@/components/Modal'
 import { LevelBadge } from '@/components/ui'
 import { ApiError } from '@/api/client'
 import { configPorts } from '@/lib/profile-config'
+import { canConnectTraps, trapLinkKey } from '@/lib/network-links'
 import { useThemeColors } from '@/lib/theme'
 import type { CatalogEntry } from '@/types'
 
@@ -91,6 +92,11 @@ export function NetworkBuilderPage() {
   const { data: profilesPage } = useProfiles()
   const createProfile = useCreateProfile()
   const createTrap = useCreateTrap()
+  const { data: linksPage, error: linksError } = useTrapLinks()
+  const createLink = useCreateTrapLink()
+  const deleteLink = useDeleteTrapLink()
+  const links = useMemo(() => linksPage?.items ?? [], [linksPage])
+  const [linkError, setLinkError] = useState<string | null>(null)
 
   const traps = useMemo(() => trapsPage?.items ?? [], [trapsPage])
 
@@ -149,9 +155,11 @@ export function NetworkBuilderPage() {
         kind: 'gateway',
       },
       draggable: canManage,
+      deletable: false,
     }
 
     const trapNodes: Node<TrapNodeData>[] = traps.map((t, i) => ({
+      deletable: false,
       id: t.id,
       type: 'trap',
       position: layout[t.id] ?? { x: 120 + (i % 4) * 230, y: 200 + Math.floor(i / 4) * 180 },
@@ -174,6 +182,7 @@ export function NetworkBuilderPage() {
         id: `gateway-${t.id}`,
         source: 'gateway',
         target: t.id,
+        deletable: false,
         animated: !!attackPulse[t.id],
         style: {
           stroke: attackPulse[t.id] ? ATTACK : c.line,
@@ -181,17 +190,49 @@ export function NetworkBuilderPage() {
         },
         markerEnd: { type: MarkerType.ArrowClosed, color: attackPulse[t.id] ? ATTACK : c.line },
       }))
-      // пользовательские связи (нарисованные вручную) сохраняем
-      const userEdges = prev.filter((e) => !e.id.startsWith('gateway-'))
+      const userEdges: Edge[] = links
+        .filter((link) => traps.some((t) => t.id === link.source_id) && traps.some((t) => t.id === link.target_id))
+        .map((link) => ({
+          id: trapLinkKey(link), source: link.source_id, target: link.target_id,
+          type: 'smoothstep',
+          selected: prev.find((edge) => edge.id === trapLinkKey(link))?.selected,
+          label: 'копия трафика', style: { stroke: c.brand, strokeWidth: 2 },
+          labelStyle: { fill: c.brand, fontSize: 11 },
+          labelBgStyle: { fill: c.panel },
+          markerEnd: { type: MarkerType.ArrowClosed, color: c.brand },
+        }))
       return [...autoEdges, ...userEdges]
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [traps, attackPulse, c, canManage, layoutRevision])
+  }, [traps, links, attackPulse, c, canManage, layoutRevision])
 
-  const onConnect = useCallback(
-    (c: Connection) => setEdges((eds) => addEdge({ ...c, markerEnd: { type: MarkerType.ArrowClosed } }, eds)),
-    [setEdges],
-  )
+  const onConnect = useCallback((connection: Connection) => {
+    if (!canManage || createLink.isPending || !canConnectTraps(connection.source, connection.target, traps, links)) return
+    setLinkError(null)
+    createLink.mutate({ source_id: connection.source!, target_id: connection.target! }, {
+      onError: (err) => setLinkError(err instanceof ApiError ? err.message : 'Не удалось сохранить связь'),
+    })
+  }, [canManage, createLink, traps, links])
+
+  function removeLink(edge: Edge) {
+    if (!canManage || deleteLink.isPending || edge.source === 'gateway') return
+    setLinkError(null)
+    deleteLink.mutate({ source_id: edge.source, target_id: edge.target }, {
+      onError: (err) => setLinkError(err instanceof ApiError ? err.message : 'Не удалось удалить связь'),
+    })
+  }
+
+  function changeEdges(changes: EdgeChange[]) {
+    onEdgesChange(changes.filter((change) => change.type !== 'remove'))
+    for (const change of changes) {
+      if (change.type === 'remove') {
+        const edge = edges.find((edge) => edge.id === change.id)
+        if (edge) removeLink(edge)
+      }
+    }
+  }
+
+  const selectedLink = edges.find((edge) => edge.selected && edge.source !== 'gateway')
 
   // Авто-сохранение раскладки: позиция каждого узла пишется в localStorage
   // при завершении перетаскивания — вручную ничего сохранять не нужно.
@@ -220,10 +261,13 @@ export function NetworkBuilderPage() {
         <div>
           <h1 className="text-xl font-semibold">Конструктор сети</h1>
           <p className="text-sm text-muted">
-            {canManage ? 'Карта ловушек организации · перетаскивайте узлы, стройте связи, кликните для деталей' : 'Карта ловушек организации · только просмотр, кликните для деталей'}
+            {canManage ? 'Тяните из правого выхода в верхний вход · A → B копирует входящий трафик агенту B' : 'Карта ловушек организации · только просмотр, кликните для деталей'}
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {canManage && selectedLink && <button className="btn-ghost text-danger" disabled={deleteLink.isPending} onClick={() => removeLink(selectedLink)}>
+            <Trash2 size={16} /> Удалить связь
+          </button>}
           {attackCount > 0 && (
             <span className="chip bg-danger/10 text-danger animate-pulseGlow">
               <Zap size={12} /> {attackCount} под атакой
@@ -239,14 +283,20 @@ export function NetworkBuilderPage() {
       </div>
 
       <div className="flex-1 relative">
+        {(linkError || linksError) && <div role="alert" className="absolute top-4 left-4 z-20 card px-4 py-3 text-danger text-sm">
+          {linkError ?? 'Не удалось загрузить связи ловушек'}
+        </div>}
         <ReactFlow
+          key={nodes.length > 1 ? 'traps' : 'gateway'}
           nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChange}
-          onEdgesChange={canManage ? onEdgesChange : undefined}
+          onEdgesChange={canManage ? changeEdges : undefined}
           onConnect={canManage ? onConnect : undefined}
+          isValidConnection={(connection) => canManage && !!linksPage && !createLink.isPending && canConnectTraps(connection.source, connection.target, traps, links)}
           nodesDraggable={canManage}
           nodesConnectable={canManage}
+          connectOnClick={false}
           edgesFocusable={canManage}
           deleteKeyCode={canManage ? ['Backspace', 'Delete'] : null}
           onNodeClick={onNodeClick}
@@ -268,6 +318,7 @@ export function NetworkBuilderPage() {
         {/* Легенда */}
         <div className="absolute bottom-4 left-4 card px-4 py-3 text-xs space-y-1.5 z-10">
           <div className="font-semibold text-fg mb-1">Легенда</div>
+          <div className="flex items-center gap-2 text-muted"><span className="text-brand-soft">→</span> Копия входящих байтов · онлайн-агенты</div>
           <div className="flex items-center gap-2 text-muted">
             <Server size={12} className="text-brand-soft" /> tcp-banner (Low)
           </div>

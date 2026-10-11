@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"honey-forge/internal/platform/traffic"
 	"honey-forge/modules/events"
 	"honey-forge/modules/profiles"
 )
@@ -37,7 +38,7 @@ func Start(ctx context.Context, snapshot profiles.Snapshot, host string, sink Si
 		return nil, fmt.Errorf("event sink is required")
 	}
 
-	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", net.JoinHostPort(host, strconv.Itoa(config.Services[0].Port)))
+	listener, err := traffic.Listen(ctx, "tcp", net.JoinHostPort(host, strconv.Itoa(config.Services[0].Port)))
 	if err != nil {
 		return nil, fmt.Errorf("listen HTTP service: %w", err)
 	}

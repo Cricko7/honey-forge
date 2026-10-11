@@ -2,6 +2,7 @@
 // snake_case сохраняем специально: это формат обмена с backend.
 
 export type UUID = string
+export interface TrapLink { source_id: UUID; target_id: UUID }
 export type Timestamp = string // RFC 3339, UTC Z
 
 export type Role = 'admin' | 'viewer'

@@ -76,6 +76,13 @@ func (h *Handler) serveMessages(entry *sessionEntry, session *agentSession, hell
 		select {
 		case <-session.ctx.Done():
 			return session.ctx.Err()
+		case delivery := <-session.traffic:
+			// Recheck credentials at delivery, including replacement/revocation races.
+			if err := h.withActive(entry, session, func(ctx context.Context) error {
+				return session.socket.Notify(ctx, "traffic.received", map[string]any{"source_id": delivery.SourceID, "target_id": delivery.TargetID, "frame": delivery.Frame})
+			}); err != nil {
+				return err
+			}
 		case next := <-messages:
 			if next.err != nil {
 				var apiError *contract.Error
@@ -176,6 +183,8 @@ func (h *Handler) claim(entry *sessionEntry, session *agentSession, supported ma
 
 func (h *Handler) handleMessage(entry *sessionEntry, session *agentSession, message contract.Envelope, busy *atomic.Bool, pending **commandLease) error {
 	switch message.Type {
+	case "traffic.frame":
+		return h.handleTraffic(entry, session, message)
 	case "agent.heartbeat":
 		var body heartbeat
 		if err := decodePayload(message.Payload, &body); err != nil {
