@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"log/slog"
 	"os"
@@ -13,6 +11,7 @@ import (
 
 	"honey-forge/internal/agent"
 	"honey-forge/internal/decoys"
+	"honey-forge/internal/platform/tlsconfig"
 )
 
 func main() {
@@ -29,20 +28,17 @@ func run() error {
 	if len(os.Args) == 2 && os.Args[1] == "--worker" {
 		return agent.RunTrap(ctx)
 	}
-	config := &tls.Config{MinVersion: tls.VersionTLS12}
-	if path := os.Getenv("AGENT_CA_FILE"); path != "" {
-		pem, err := os.ReadFile(path)
-		if err != nil {
-			return fmt.Errorf("read agent CA: %w", err)
-		}
-		roots, err := x509.SystemCertPool()
-		if err != nil {
-			roots = x509.NewCertPool()
-		}
-		if !roots.AppendCertsFromPEM(pem) {
-			return fmt.Errorf("AGENT_CA_FILE has no certificates")
-		}
-		config.RootCAs = roots
+	config, err := tlsconfig.Client(os.Getenv("AGENT_CA_FILE"))
+	if err != nil {
+		return fmt.Errorf("configure agent TLS: %w", err)
+	}
+	redisCA := os.Getenv("AGENT_REDIS_CA_FILE")
+	if redisCA == "" {
+		redisCA = os.Getenv("AGENT_CA_FILE")
+	}
+	redisTLS, err := tlsconfig.Client(redisCA)
+	if err != nil {
+		return fmt.Errorf("configure Redis TLS: %w", err)
 	}
 	token, err := secret("AGENT_TOKEN", os.Getenv("AGENT_TOKEN_FILE"))
 	if err != nil {
@@ -59,7 +55,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	return agent.Run(ctx, agent.Options{URL: os.Getenv("AGENT_WS_URL"), Token: token, TrapID: os.Getenv("AGENT_TRAP_ID"), RedisURL: redisURL, TLS: config, SupportedTypes: supported})
+	return agent.Run(ctx, agent.Options{URL: os.Getenv("AGENT_WS_URL"), Token: token, TrapID: os.Getenv("AGENT_TRAP_ID"), RedisURL: redisURL, TLS: config, RedisTLS: redisTLS, SupportedTypes: supported})
 }
 
 func secret(name, file string) (string, error) {

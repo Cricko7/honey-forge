@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"honey-forge/internal/app"
+	"honey-forge/internal/platform/tlsconfig"
 	"honey-forge/modules/events"
 )
 
@@ -58,7 +59,11 @@ func run() error {
 	if topic == "" {
 		topic = "honey-forge.telemetry"
 	}
-	publisher, err := events.NewKafkaPublisher(brokers, topic)
+	kafkaTLS, err := tlsconfig.Client(os.Getenv("KAFKA_CA_FILE"))
+	if err != nil {
+		return fmt.Errorf("configure Kafka TLS: %w", err)
+	}
+	publisher, err := events.NewKafkaPublisher(brokers, topic, kafkaTLS)
 	if err != nil {
 		return err
 	}

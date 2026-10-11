@@ -13,39 +13,14 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_PASSWORD: test
-          POSTGRES_DB: honey_forge_test
-        ports: [5432:5432]
-        options: >-
-          --health-cmd "pg_isready -U postgres -d honey_forge_test"
-          --health-interval 5s --health-timeout 3s --health-retries 20
-      kafka:
-        image: apache/kafka:4.1.2
-        ports: [29092:29092]
-        env:
-          KAFKA_NODE_ID: 1
-          KAFKA_PROCESS_ROLES: broker,controller
-          KAFKA_LISTENERS: PLAINTEXT://:29092,CONTROLLER://:9093
-          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://127.0.0.1:29092
-          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
-          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@127.0.0.1:9093
-          KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-          CLUSTER_ID: 4L6g3nShT-eMCtK--X86sw
-          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-          KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-          KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-          KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-          KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-        options: >-
-          --health-cmd "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:29092"
-          --health-interval 10s --health-timeout 5s --health-retries 15
     steps:
       - uses: actions/checkout@v4
+      - name: Start TLS infrastructure
+        env:
+          POSTGRES_PASSWORD: test
+        run: |
+          sh ./gen-certs.sh
+          docker compose up -d --wait --wait-timeout 180
       - uses: actions/setup-go@v5
         with:
           go-version-file: src/backend/go.mod
@@ -60,11 +35,14 @@ jobs:
       - name: Backend unit tests
         working-directory: src/backend
         run: go test -race ./... -count=1
-      - name: PostgreSQL and Kafka integration tests
+      - name: PostgreSQL, Kafka and Redis TLS integration tests
         working-directory: src/backend
         env:
-          TEST_DATABASE_URL: postgres://postgres:test@127.0.0.1:5432/honey_forge_test?sslmode=disable
+          TEST_DATABASE_URL: postgres://honey_forge:test@127.0.0.1:5432/honey_forge?sslmode=verify-full&sslrootcert=${{ github.workspace }}/certs/ca.crt
           TEST_KAFKA_BROKERS: 127.0.0.1:29092
+          TEST_KAFKA_CA_FILE: ${{ github.workspace }}/certs/ca.crt
+          TEST_REDIS_URL: rediss://127.0.0.1:6379/0
+          TEST_REDIS_CA_FILE: ${{ github.workspace }}/certs/ca.crt
         run: go test -race -tags=integration ./... -count=1
       - name: Optional SSH sandbox acceptance
         if: vars.ENABLE_SSH_ACCEPTANCE == 'true'
@@ -86,6 +64,11 @@ jobs:
           npm ci
           npm test
           npm run build
+      - name: Stop test infrastructure
+        if: always()
+        env:
+          POSTGRES_PASSWORD: test
+        run: docker compose down
 
   deploy:
     needs: build-and-test

@@ -7,12 +7,16 @@
 services:
   postgres:
     image: postgres:17
+    entrypoint: ["/bin/sh", "/tls/postgres.sh"]
     environment:
       POSTGRES_USER: honey_forge
       POSTGRES_DB: honey_forge
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./deploy/tls/postgres.sh:/tls/postgres.sh:ro
+      - ./certs/postgres.crt:/certs/postgres.crt:ro
+      - ./certs/postgres.key:/certs/postgres.key:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U honey_forge -d honey_forge"]
       interval: 5s
@@ -25,10 +29,15 @@ services:
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: CONTROLLER://:29093,PLAINTEXT_HOST://:9092,PLAINTEXT://:19092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT_HOST://127.0.0.1:29092,PLAINTEXT://kafka:19092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_LISTENERS: CONTROLLER://:29093,TLS_HOST://:9092,TLS://:19092
+      KAFKA_ADVERTISED_LISTENERS: TLS_HOST://127.0.0.1:29092,TLS://kafka:19092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:SSL,TLS:SSL,TLS_HOST:SSL
+      KAFKA_INTER_BROKER_LISTENER_NAME: TLS
+      KAFKA_SSL_KEYSTORE_TYPE: PEM
+      KAFKA_SSL_KEYSTORE_LOCATION: /certs/kafka.pem
+      KAFKA_SSL_TRUSTSTORE_TYPE: PEM
+      KAFKA_SSL_TRUSTSTORE_LOCATION: /certs/ca.crt
+      KAFKA_SSL_ENABLED_PROTOCOLS: TLSv1.2,TLSv1.3
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
       CLUSTER_ID: 4L6g3nShT-eMCtK--X86sw
@@ -38,19 +47,26 @@ services:
       KAFKA_LOG_DIRS: /var/lib/kafka/data
     volumes:
       - kafka_data:/var/lib/kafka/data
+      - ./certs/kafka.pem:/certs/kafka.pem:ro
+      - ./certs/ca.crt:/certs/ca.crt:ro
+      - ./certs/kafka-client.properties:/certs/kafka-client.properties:ro
     healthcheck:
-      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server kafka:19092 >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server kafka:19092 --command-config /certs/kafka-client.properties >/dev/null 2>&1 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 15
 
   redis:
     image: redis:7.4.6
-    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "always", "--maxmemory-policy", "noeviction"]
+    entrypoint: ["/bin/sh", "/tls/redis.sh"]
     volumes:
       - redis_data:/data
+      - ./deploy/tls/redis.sh:/tls/redis.sh:ro
+      - ./certs/redis.crt:/certs/redis.crt:ro
+      - ./certs/redis.key:/certs/redis.key:ro
+      - ./certs/ca.crt:/certs/ca.crt:ro
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "--tls", "--cacert", "/certs/ca.crt", "ping"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -60,19 +76,22 @@ services:
       context: .
       dockerfile: Dockerfile.api
     environment:
-      DATABASE_URL: postgres://honey_forge:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/honey_forge?sslmode=disable
+      DATABASE_URL: postgres://honey_forge:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/honey_forge?sslmode=verify-full&sslrootcert=/certs/ca.crt
       CURSOR_KEY: ${CURSOR_KEY:?Set CURSOR_KEY}
       BROWSER_ORIGINS: https://localhost:8443
       KAFKA_BROKERS: kafka:19092
+      KAFKA_CA_FILE: /certs/ca.crt
       AGENT_WS_URL: wss://localhost:8443/assets/stream
-      AGENT_REDIS_URL: redis://redis:6379/0
+      AGENT_REDIS_URL: rediss://redis:6379/0
       AUTO_DEPLOY_TRAPS: "true"
       TLS_CERT_FILE: /certs/localhost.crt
       TLS_KEY_FILE: /certs/localhost.key
       API_ADDR: ":8443"
       GIN_MODE: release
     volumes:
-      - ./certs:/certs:ro
+      - ./certs/localhost.crt:/certs/localhost.crt:ro
+      - ./certs/localhost.key:/certs/localhost.key:ro
+      - ./certs/ca.crt:/certs/ca.crt:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -91,7 +110,9 @@ services:
     ports:
       - "8443:443"
     volumes:
-      - ./certs:/etc/nginx/certs:ro
+      - ./certs/localhost.crt:/etc/nginx/certs/localhost.crt:ro
+      - ./certs/localhost.key:/etc/nginx/certs/localhost.key:ro
+      - ./certs/ca.crt:/etc/nginx/certs/ca.crt:ro
     depends_on:
       - api
     restart: unless-stopped
@@ -107,10 +128,10 @@ services:
       AGENT_WS_URL: wss://api:8443/assets/stream
       AGENT_TRAP_ID: ${AGENT_TRAP_ID:-}
       AGENT_TOKEN: ${AGENT_TOKEN:-}
-      AGENT_REDIS_URL: redis://redis:6379/1
-      AGENT_CA_FILE: /certs/localhost.crt
+      AGENT_REDIS_URL: rediss://redis:6379/1
+      AGENT_CA_FILE: /certs/ca.crt
     volumes:
-      - ./certs:/certs:ro
+      - ./certs/ca.crt:/certs/ca.crt:ro
     ports:
       - "2222:2222"
     depends_on:
@@ -150,10 +171,10 @@ services:
       context: .
       dockerfile: deploy/decoys/Dockerfile.orchestrator
     environment:
-      DATABASE_URL: postgres://honey_forge:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/honey_forge?sslmode=disable
+      DATABASE_URL: postgres://honey_forge:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/honey_forge?sslmode=verify-full&sslrootcert=/certs/ca.crt
       AGENT_WS_URL: wss://api:8443/assets/stream
-      AGENT_REDIS_URL: redis://redis:6379/0
-      AGENT_CA_FILE: /certs/localhost.crt
+      AGENT_REDIS_URL: rediss://redis:6379/0
+      AGENT_CA_FILE: /certs/ca.crt
       DECOY_NETWORK: ${DECOY_NETWORK:-hf-decoys}
       DECOY_TCP_IMAGE: ${DECOY_TCP_IMAGE:-honeyforge/tcp-decoy:local}
       DECOY_REDIS_IMAGE: ${DECOY_REDIS_IMAGE:-honeyforge/redis-decoy:local}
@@ -162,7 +183,7 @@ services:
       SSH_SANDBOX_IMAGE: ${SSH_SANDBOX_IMAGE:-honeyforge/ssh-sandbox:local}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./certs:/certs:ro
+      - ./certs/ca.crt:/certs/ca.crt:ro
     depends_on:
       postgres:
         condition: service_healthy

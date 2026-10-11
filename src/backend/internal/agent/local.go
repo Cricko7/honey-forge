@@ -72,6 +72,10 @@ func (l *Local) Handler(ctx context.Context) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Recovery())
 	router.GET("/trap-stream", func(c *gin.Context) {
+		if c.Request.TLS == nil {
+			c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"code": "forbidden", "message": "Local TLS connection required"}})
+			return
+		}
 		if c.Request.URL.RawQuery != "" || len(c.Request.Header.Values("Origin")) > 0 {
 			c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"code": "forbidden", "message": "Local agent connection required"}})
 			return
@@ -164,8 +168,12 @@ type LocalClient struct {
 	mu   sync.Mutex
 }
 
-func DialLocal(ctx context.Context, url, token string) (*LocalClient, error) {
-	conn, response, err := (&websocket.Dialer{HandshakeTimeout: 5 * time.Second}).DialContext(ctx, url, http.Header{"Authorization": []string{"Bearer " + token}})
+func DialLocal(ctx context.Context, url, token string, certificate []byte) (*LocalClient, error) {
+	config, err := localClientTLS(url, certificate)
+	if err != nil {
+		return nil, err
+	}
+	conn, response, err := (&websocket.Dialer{HandshakeTimeout: 5 * time.Second, TLSClientConfig: config}).DialContext(ctx, url, http.Header{"Authorization": []string{"Bearer " + token}})
 	if response != nil && response.Body != nil {
 		response.Body.Close()
 	}

@@ -66,9 +66,11 @@ go build ./...
 пропускаются.
 
 ```powershell
-$env:TEST_DATABASE_URL = 'postgres://user:password@127.0.0.1:5432/honey_forge_test?sslmode=disable'
+$env:TEST_DATABASE_URL = 'postgres://user:password@127.0.0.1:5432/honey_forge_test?sslmode=verify-full&sslrootcert=C:/certs/ca.crt'
 $env:TEST_KAFKA_BROKERS = '127.0.0.1:29092'
-$env:TEST_REDIS_URL = 'redis://127.0.0.1:6379/0'
+$env:TEST_KAFKA_CA_FILE = 'C:\certs\ca.crt'
+$env:TEST_REDIS_URL = 'rediss://127.0.0.1:6379/0'
+$env:TEST_REDIS_CA_FILE = 'C:\certs\ca.crt'
 go test -tags=integration ./... -count=1
 go test -race -tags=integration ./... -count=1
 ```
@@ -81,22 +83,27 @@ go test -race -tags=integration ./... -count=1
 | Переменная | Назначение |
 |---|---|
 | `POSTGRES_PASSWORD` | Обязательный пароль PostgreSQL для Docker Compose. |
-| `DATABASE_URL` | Обязательная строка подключения API к PostgreSQL. |
+| `DATABASE_URL` | Обязательная строка подключения к PostgreSQL с `sslmode=verify-full`; для своего CA задайте `sslrootcert`. |
 | `CURSOR_KEY` | Обязательный постоянный ключ: 32 байта в Base64; сохраните его между перезапусками. |
 | `BROWSER_ORIGINS` | Обязательные разрешённые HTTPS-origin браузера, через запятую. Для этих origin сервер отдаёт CORS-заголовки (Allow-Origin/Credentials) и отвечает на preflight; отдельный origin фронтенда (`app.example.org`) работает без общего прокси. |
 | `TRUSTED_PROXIES` | Необязательные адреса/CIDR обратного прокси (например `127.0.0.1,::1` для nginx на loopback), через запятую. Заданы — API берёт ClientIP из `X-Forwarded-For`, и лимит входа считается на реального клиента, а не на общий адрес прокси. Пусто — прокси не доверяется. |
 | `TLS_CERT_FILE`, `TLS_KEY_FILE` | Обязательные пути к сертификату и закрытому ключу HTTPS. |
 | `KAFKA_BROKERS` | Обязательные адреса брокеров Kafka, через запятую. |
+| `KAFKA_CA_FILE` | CA брокеров Kafka; пусто — системные доверенные CA. TLS 1.2+ и проверка имени обязательны. |
 | `KAFKA_TELEMETRY_TOPIC` | Тема телеметрии; по умолчанию `honey-forge.telemetry`. |
 | `AGENT_WS_URL` | Необязательный внешний WSS URL вида `wss://host/assets/stream`; по умолчанию строится из первого `BROWSER_ORIGINS`. |
 | `API_ADDR` | Адрес API; по умолчанию `:8443`. |
 | `GIN_MODE` | Для развёрнутого сервера задайте `release`. |
-| `AGENT_REDIS_URL` | Обязательный Redis URL локального буфера агента; например `redis://127.0.0.1:6379/0`. |
+| `AGENT_REDIS_URL` | Обязательный TLS URL буфера агента, например `rediss://127.0.0.1:6379/0`; открытый Redis и `skip_verify=true` запрещены. |
+| `AGENT_CA_FILE` | CA управляющего API; пусто — системные доверенные CA. |
+| `AGENT_REDIS_CA_FILE` | CA Redis; по умолчанию используется `AGENT_CA_FILE`, затем системные CA. Оркестратор передаёт отдельный CA через Docker secret. |
+| `TEST_KAFKA_CA_FILE`, `TEST_REDIS_CA_FILE` | CA тестовых Kafka и Redis; пусто — системные доверенные CA. |
 | `TEST_DATABASE_URL`, `TEST_KAFKA_BROKERS`, `TEST_REDIS_URL` | Для полной интеграционной приёмки. |
 | `TEST_REDIS_SERVER_PATH` | Путь к redis-server для проверки аварийного рестарта отдельного тестового Redis. |
 
-Секреты передаются через окружение и не сохраняются в Git. Для удалённой
-PostgreSQL используйте TLS вместо локального `sslmode=disable` из примера ниже.
+Секреты передаются через окружение и не сохраняются в Git. Все соединения
+телеметрии, включая локальные PostgreSQL/Kafka/Redis, требуют TLS с проверкой
+сертификата. Переход на открытый канал при ошибке TLS запрещён.
 
 ## 5. Базы данных
 
@@ -116,12 +123,15 @@ TLS-файлам. Значения `POSTGRES_PASSWORD` и `CURSOR_KEY` сген�
 ```powershell
 $env:POSTGRES_PASSWORD = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
 $env:CURSOR_KEY = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
-$env:DATABASE_URL = "postgres://honey_forge:$([Uri]::EscapeDataString($env:POSTGRES_PASSWORD))@127.0.0.1:5432/honey_forge?sslmode=disable"
+.\gen-certs.ps1
+$tlsCA = (Resolve-Path certs/ca.crt).Path.Replace('\', '/')
+$env:DATABASE_URL = "postgres://honey_forge:$([Uri]::EscapeDataString($env:POSTGRES_PASSWORD))@127.0.0.1:5432/honey_forge?sslmode=verify-full&sslrootcert=$tlsCA"
 $env:BROWSER_ORIGINS = 'https://localhost:3000'
 $env:KAFKA_BROKERS = '127.0.0.1:29092'
+$env:KAFKA_CA_FILE = $tlsCA
 $env:AGENT_WS_URL = 'wss://localhost:8443/assets/stream'
-$env:TLS_CERT_FILE = 'C:\certs\localhost.crt'
-$env:TLS_KEY_FILE = 'C:\certs\localhost.key'
+$env:TLS_CERT_FILE = (Resolve-Path certs/localhost.crt).Path
+$env:TLS_KEY_FILE = (Resolve-Path certs/localhost.key).Path
 $env:API_ADDR = ':8443'
 $env:GIN_MODE = 'release'
 docker compose up -d postgres kafka

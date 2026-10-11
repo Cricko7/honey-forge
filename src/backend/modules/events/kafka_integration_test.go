@@ -14,6 +14,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 
 	"honey-forge/internal/contract"
+	"honey-forge/internal/platform/tlsconfig"
 	"honey-forge/modules/agentws"
 )
 
@@ -23,12 +24,16 @@ func TestKafkaJournal(t *testing.T) {
 		t.Skip("TEST_KAFKA_BROKERS required")
 	}
 	topic := "honey-forge-test-" + string(contract.NewID())
-	publisher, err := NewKafkaPublisher(strings.Split(brokers, ","), topic)
+	config, err := tlsconfig.Client(os.Getenv("TEST_KAFKA_CA_FILE"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	publisher, err := NewKafkaPublisher(strings.Split(brokers, ","), topic, config)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(publisher.Close)
-	reader, err := kgo.NewClient(kgo.SeedBrokers(strings.Split(brokers, ",")...), kgo.ConsumeTopics(topic), kgo.ConsumeResetOffset(kgo.NewOffset().AtStart()))
+	reader, err := kgo.NewClient(kgo.SeedBrokers(strings.Split(brokers, ",")...), kgo.DialTLSConfig(config), kgo.ConsumeTopics(topic), kgo.ConsumeResetOffset(kgo.NewOffset().AtStart()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +67,7 @@ func TestKafkaJournal(t *testing.T) {
 }
 
 func TestKafkaPublishCancellation(t *testing.T) {
-	publisher, err := NewKafkaPublisher([]string{"127.0.0.1:1"}, "cancellation")
+	publisher, err := NewKafkaPublisher([]string{"127.0.0.1:1"}, "cancellation", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +80,7 @@ func TestKafkaPublishCancellation(t *testing.T) {
 }
 
 func TestKafkaPublishDeadline(t *testing.T) {
-	publisher, err := NewKafkaPublisher([]string{"127.0.0.1:1"}, "deadline")
+	publisher, err := NewKafkaPublisher([]string{"127.0.0.1:1"}, "deadline", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

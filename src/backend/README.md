@@ -132,7 +132,7 @@ go test -tags=integration ./modules/profiles/repository -run '^TestPostgres' -co
 теста схема удаляется. Укажите отдельную тестовую базу и запускайте из backend:
 
 ```powershell
-$env:TEST_DATABASE_URL = 'postgres://user:password@localhost:5432/test_db?sslmode=disable'
+$env:TEST_DATABASE_URL = 'postgres://user:password@localhost:5432/test_db?sslmode=verify-full&sslrootcert=C:/certs/ca.crt'
 go test -tags=integration ./internal/app -run '^TestReal' -count=1
 ```
 

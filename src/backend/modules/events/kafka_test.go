@@ -2,6 +2,7 @@ package events
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"testing"
 
@@ -66,4 +67,11 @@ func (unavailableStore) Prepare(context.Context, agentws.Identity, string, strin
 }
 func (*memoryIngest) Prepare(context.Context, agentws.Identity, string, string, []AgentEvent) error {
 	return nil
+}
+
+func TestKafkaPublisherRejectsDisabledTLSVerification(t *testing.T) {
+	if publisher, err := NewKafkaPublisher([]string{"broker.example:9092"}, "telemetry", &tls.Config{InsecureSkipVerify: true}); err == nil {
+		publisher.Close()
+		t.Fatal("Kafka accepted unauthenticated TLS")
+	}
 }

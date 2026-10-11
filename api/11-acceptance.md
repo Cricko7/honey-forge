@@ -25,7 +25,9 @@ Goose при запуске API.
 ```powershell
 $env:TEST_DATABASE_URL = '<test PostgreSQL DSN>'
 $env:TEST_KAFKA_BROKERS = '127.0.0.1:29092'
-$env:TEST_REDIS_URL = 'redis://127.0.0.1:6379/0'
+$env:TEST_KAFKA_CA_FILE = '<CA certificate file>'
+$env:TEST_REDIS_URL = 'rediss://127.0.0.1:6379/0'
+$env:TEST_REDIS_CA_FILE = '<CA certificate file>'
 $env:TEST_REDIS_SERVER_PATH = '<absolute path to redis-server executable>'
 $env:GIN_MODE = 'release'
 go test -tags=integration ./... -count=1

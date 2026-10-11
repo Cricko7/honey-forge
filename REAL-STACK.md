@@ -8,9 +8,9 @@
                              └─ /*                   → SPA (собранный фронт из frontend/)
 ```
 
-> Статус: **проверено end-to-end** (Docker 29.x, образ `golang:1.26-alpine` собрался).
-> Поднимается `up --build`; регистрация → профиль → ловушка → агент → атака → события
-> прошли на реальном бэке.
+> Стек использует TLS для API, локального WSS, PostgreSQL, Kafka и Redis.
+> После изменения TLS-конфигурации полный Docker-сценарий требует повторной
+> проверки на машине с Docker; unit-тесты не заменяют эту приёмку.
 
 SSH high-interaction добавлен отдельно: [запуск, запись сессий и ограничения](api/13-high-interaction.md).
 Его реальный Docker-сценарий проверяется отдельным acceptance-тестом в CI;
@@ -35,10 +35,22 @@ $rng = New-Object System.Security.Cryptography.RNGCryptoServiceProvider
 $b = New-Object byte[] 24; $rng.GetBytes($b)
 ($b | ForEach-Object { $_.ToString('x2') }) -join ''                 # POSTGRES_PASSWORD (hex)
 $k = New-Object byte[] 32; $rng.GetBytes($k); [Convert]::ToBase64String($k)   # CURSOR_KEY (base64)
-.\gen-certs.ps1   # self-signed сертификат в ./certs (openssl из Docker)
+.\gen-certs.ps1   # стабильный CA и отдельные сертификаты сервисов (openssl из Docker)
 ```
 > Сменили пароль после первого запуска? Том Postgres уже инициализирован старым —
 > пересоздать: `docker compose -f docker-compose.real.yml down -v`.
+
+На Linux/macOS генерация запускается через `sh ./gen-certs.sh`.
+Доверяйте `certs/ca.crt`; nginx, API и агенты используют его автоматически.
+Закрытый ключ CA не монтируется в сервисы. Повторный запуск генератора сохраняет
+CA и действующие сертификаты, обновляет истекающие сертификаты. Не удаляйте CA
+при обычном обновлении: его смена требует обновить доверие у агентов.
+
+При переходе с прежнего стека запустите генератор и пересоздайте контейнеры
+через `docker compose -f docker-compose.real.yml up --build -d --force-recreate`.
+Для существующих Swarm-ловушек прежние Redis URL и CA уже сохранены в secrets:
+остановите их и заново разверните с `rediss://` и новым CA. Данные томов сохраняйте;
+`down -v` для перехода на TLS не требуется.
 
 ## 2. Запуск
 ```powershell

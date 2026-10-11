@@ -3,9 +3,11 @@
 package agent
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"github.com/redis/go-redis/v9"
 	"honey-forge/internal/contract"
+	"honey-forge/internal/platform/tlsconfig"
 	"honey-forge/modules/events"
 	"os"
 	"testing"
@@ -19,14 +21,22 @@ func redisTestURL(t *testing.T) string {
 	}
 	return u
 }
-func TestRedisJournalDurabilityIdentityAndLease(t *testing.T) {
-	url := redisTestURL(t)
-	id := string(contract.NewID())
-	j, err := OpenRedisJournal(t.Context(), url, id, 1<<20)
+func redisTestTLS(t *testing.T) *tls.Config {
+	t.Helper()
+	config, err := tlsconfig.Client(os.Getenv("TEST_REDIS_CA_FILE"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if other, err := OpenRedisJournal(t.Context(), url, id, 1<<20); err == nil {
+	return config
+}
+func TestRedisJournalDurabilityIdentityAndLease(t *testing.T) {
+	url := redisTestURL(t)
+	id := string(contract.NewID())
+	j, err := OpenRedisJournal(t.Context(), url, id, 1<<20, redisTestTLS(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if other, err := OpenRedisJournal(t.Context(), url, id, 1<<20, redisTestTLS(t)); err == nil {
 		other.Close()
 		t.Fatal("two journal owners")
 	}
@@ -45,7 +55,7 @@ func TestRedisJournalDurabilityIdentityAndLease(t *testing.T) {
 	if err := j.Close(); err != nil {
 		t.Fatal(err)
 	}
-	j, err = OpenRedisJournal(t.Context(), url, id, 1<<20)
+	j, err = OpenRedisJournal(t.Context(), url, id, 1<<20, redisTestTLS(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,12 +83,12 @@ func TestRedisJournalDurabilityIdentityAndLease(t *testing.T) {
 func TestRedisJournalStopsWritesAfterLeaseLoss(t *testing.T) {
 	url := redisTestURL(t)
 	id := string(contract.NewID())
-	j, err := OpenRedisJournal(t.Context(), url, id, 1<<20)
+	j, err := OpenRedisJournal(t.Context(), url, id, 1<<20, redisTestTLS(t))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer j.Close()
-	opts, err := redis.ParseURL(url)
+	opts, err := redisOptions(url, redisTestTLS(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +111,7 @@ func TestRedisJournalStopsWritesAfterLeaseLoss(t *testing.T) {
 func TestRedisCheckpointRetainsUnacknowledgedAndActiveSessions(t *testing.T) {
 	url := redisTestURL(t)
 	id := string(contract.NewID())
-	j, err := OpenRedisJournal(t.Context(), url, id, 1<<20)
+	j, err := OpenRedisJournal(t.Context(), url, id, 1<<20, redisTestTLS(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +140,7 @@ func TestRedisCheckpointRetainsUnacknowledgedAndActiveSessions(t *testing.T) {
 	if err := j.Close(); err != nil {
 		t.Fatal(err)
 	}
-	j, err = OpenRedisJournal(t.Context(), url, id, 1<<20)
+	j, err = OpenRedisJournal(t.Context(), url, id, 1<<20, redisTestTLS(t))
 	if err != nil {
 		t.Fatal(err)
 	}

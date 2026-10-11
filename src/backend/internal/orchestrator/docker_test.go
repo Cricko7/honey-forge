@@ -2,6 +2,8 @@ package orchestrator
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -72,5 +74,31 @@ func TestDockerDeployUsesOneIsolatedSwarmTaskAndSecret(t *testing.T) {
 		if !strings.Contains(create, want) {
 			t.Fatalf("service create missing %q: %s", want, create)
 		}
+	}
+}
+
+func TestDockerDeployPassesSeparateRedisCAThroughSecret(t *testing.T) {
+	caFile := filepath.Join(t.TempDir(), "redis-ca.crt")
+	if err := os.WriteFile(caFile, []byte("redis-public-ca"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	var secret, service string
+	d := DockerCLI{Network: "decoys", WSURL: "wss://api.example/assets/stream", RedisURL: "rediss://redis:6379/0", TCPImage: "registry/tcp:1", RedisCAFile: caFile,
+		Run: func(_ context.Context, input []byte, args ...string) ([]byte, error) {
+			joined := strings.Join(args, " ")
+			if strings.HasPrefix(joined, "secret create ") && strings.Contains(joined, "-redis-ca") {
+				secret = string(input)
+			}
+			if strings.HasPrefix(joined, "service create ") {
+				service = joined
+			}
+			return nil, nil
+		},
+	}
+	if err := d.Deploy(t.Context(), Target{ID: "11111111-1111-4111-8111-111111111111", Snapshot: profiles.Snapshot{TypeID: "tcp-banner", TypeVersion: 1}}, "private-token", 1, nil); err != nil {
+		t.Fatal(err)
+	}
+	if secret != "redis-public-ca" || !strings.Contains(service, "AGENT_REDIS_CA_FILE=/run/secrets/redis_ca") || !strings.Contains(service, "target=redis_ca,uid=0,gid=0,mode=0400") {
+		t.Fatal("Redis CA was not delivered through an isolated Docker secret")
 	}
 }

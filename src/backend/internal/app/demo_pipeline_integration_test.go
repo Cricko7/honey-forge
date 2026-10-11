@@ -25,6 +25,7 @@ import (
 
 	"honey-forge/internal/agent"
 	"honey-forge/internal/contract"
+	"honey-forge/internal/platform/tlsconfig"
 	"honey-forge/modules/auth"
 	"honey-forge/modules/commands"
 	"honey-forge/modules/events"
@@ -47,7 +48,15 @@ func testDemoRegistrationToTCPStop(t *testing.T, disconnect bool) {
 	if brokers == "" {
 		t.Skip("TEST_KAFKA_BROKERS required")
 	}
-	publisher, err := events.NewKafkaPublisher(strings.Split(brokers, ","), "honey-forge-e2e-"+string(contract.NewID()))
+	kafkaTLS, err := tlsconfig.Client(os.Getenv("TEST_KAFKA_CA_FILE"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	redisTLS, err := tlsconfig.Client(os.Getenv("TEST_REDIS_CA_FILE"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	publisher, err := events.NewKafkaPublisher(strings.Split(brokers, ","), "honey-forge-e2e-"+string(contract.NewID()), kafkaTLS)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,6 +126,7 @@ func testDemoRegistrationToTCPStop(t *testing.T, disconnect bool) {
 			URL: credentials.AgentWSURL, Token: credentials.Token, TrapID: credentials.TrapID,
 			JournalPath: journalPath, Executable: executable,
 			RedisURL: os.Getenv("TEST_REDIS_URL"),
+			RedisTLS: redisTLS,
 			TLS:      server.Client().Transport.(*http.Transport).TLSClientConfig,
 		})
 	}()

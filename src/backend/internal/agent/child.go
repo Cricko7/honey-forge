@@ -13,9 +13,10 @@ import (
 )
 
 type childBootstrap struct {
-	URL      string            `json:"url"`
-	Token    string            `json:"token"`
-	Snapshot profiles.Snapshot `json:"snapshot"`
+	URL         string            `json:"url"`
+	Token       string            `json:"token"`
+	Certificate []byte            `json:"certificate"`
+	Snapshot    profiles.Snapshot `json:"snapshot"`
 }
 
 func readChildBootstrap(reader io.Reader) (childBootstrap, error) {
@@ -25,7 +26,7 @@ func readChildBootstrap(reader io.Reader) (childBootstrap, error) {
 	if err := decoder.Decode(&bootstrap); err != nil {
 		return bootstrap, fmt.Errorf("read trap bootstrap: %w", err)
 	}
-	if bootstrap.URL == "" || bootstrap.Token == "" {
+	if bootstrap.URL == "" || bootstrap.Token == "" || len(bootstrap.Certificate) == 0 {
 		return bootstrap, fmt.Errorf("incomplete trap bootstrap")
 	}
 	return bootstrap, nil
@@ -43,7 +44,7 @@ func RunTrap(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	client, err := DialLocal(ctx, bootstrap.URL, bootstrap.Token)
+	client, err := DialLocal(ctx, bootstrap.URL, bootstrap.Token, bootstrap.Certificate)
 	if err != nil {
 		return err
 	}

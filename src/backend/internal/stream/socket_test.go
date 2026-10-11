@@ -86,3 +86,33 @@ func TestFailedHandshake(t *testing.T) {
 		t.Fatal("unsafe handshake")
 	}
 }
+
+func TestUpgradeRejectsPlaintextEvenWithForwardedHTTPS(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		role       contract.Role
+		capability contract.Capability
+	}{
+		{"agent", contract.Agent, contract.AgentStream},
+		{"dashboard", contract.Admin, contract.FrontendStream},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			router := gin.New()
+			router.Use(contract.Middleware())
+			router.GET("/stream", func(c *gin.Context) {
+				contract.SetPrincipal(c, contract.Principal{Role: tt.role})
+				if socket, err := Upgrade(c, tt.capability); err == nil {
+					socket.Close()
+					t.Error("plaintext connection accepted")
+				}
+			})
+			request := httptest.NewRequest(http.MethodGet, "http://backend.example/stream", nil)
+			request.Header.Set("X-Forwarded-Proto", "https")
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, request)
+			if response.Code != http.StatusForbidden || !strings.Contains(response.Body.String(), "origin_not_allowed") {
+				t.Fatalf("plaintext request was not rejected at TLS boundary: %d %s", response.Code, response.Body.String())
+			}
+		})
+	}
+}

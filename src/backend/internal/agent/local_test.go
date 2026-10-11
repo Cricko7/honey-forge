@@ -27,9 +27,19 @@ func TestLocalWebSocketAuthenticationAndCommit(t *testing.T) {
 		t.Fatal(err)
 	}
 	local.Configure(demoSnapshot())
-	server := httptest.NewServer(local.Handler(t.Context()))
+	config, certificate, err := newLocalTLS()
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewUnstartedServer(local.Handler(t.Context()))
+	server.TLS = config
+	server.StartTLS()
 	defer server.Close()
-	endpoint := "ws" + strings.TrimPrefix(server.URL, "http") + "/trap-stream"
+	endpoint := "wss" + strings.TrimPrefix(server.URL, "https") + "/trap-stream"
+	clientTLS, err := localClientTLS(endpoint, certificate)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, tc := range []struct {
 		name, token, origin string
 		status              int
@@ -40,7 +50,7 @@ func TestLocalWebSocketAuthenticationAndCommit(t *testing.T) {
 			if tc.origin != "" {
 				headers.Set("Origin", tc.origin)
 			}
-			conn, response, err := websocket.DefaultDialer.DialContext(t.Context(), endpoint, headers)
+			conn, response, err := (&websocket.Dialer{TLSClientConfig: clientTLS}).DialContext(t.Context(), endpoint, headers)
 			if conn != nil {
 				conn.Close()
 			}
@@ -52,7 +62,7 @@ func TestLocalWebSocketAuthenticationAndCommit(t *testing.T) {
 			}
 		})
 	}
-	client, err := DialLocal(t.Context(), endpoint, "local-token")
+	client, err := DialLocal(t.Context(), endpoint, "local-token", certificate)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,5 +81,16 @@ func TestLocalWebSocketAuthenticationAndCommit(t *testing.T) {
 	}
 	if len(j.Pending()) != 1 {
 		t.Fatal("invalid event was queued")
+	}
+}
+
+func TestLocalRejectsPlaintextBeforeAuthentication(t *testing.T) {
+	local := &Local{Token: "private"}
+	request := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/trap-stream", nil)
+	request.Header.Set("Authorization", "Bearer private")
+	response := httptest.NewRecorder()
+	local.Handler(t.Context()).ServeHTTP(response, request)
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("plaintext local transport accepted: %d", response.Code)
 	}
 }
