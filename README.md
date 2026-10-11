@@ -21,7 +21,7 @@ sudo nano /etc/hosts
 - Вносим строку в конце файла `hosts` и сохраняем:
 
 ```
-147.45.141.37   https://honey-forge-seg-fault.ru
+147.45.141.37 https://honey-forge-seg-fault.ru
 ```
 
 ### Затем, можем перейти по этой ссылке:
