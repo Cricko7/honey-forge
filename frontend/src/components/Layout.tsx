@@ -69,6 +69,18 @@ export function Layout() {
   if (sessionDestination(session, isLoading, error) === 'guest') return <Navigate to="/login" replace />
   if (error || !session) return <div className="p-8">Не удалось проверить сессию. <button className="btn-primary" onClick={() => refetch()}>Повторить</button></div>
 
+  // Активный раздел для контекстной шапки: самое длинное совпадение пути.
+  const sections = canManage(session)
+    ? [...nav, { to: '/app/organization', end: false, icon: Link2, label: 'Приглашения' }]
+    : nav
+  const active =
+    sections
+      .filter((s) =>
+        s.end ? location.pathname === s.to : location.pathname === s.to || location.pathname.startsWith(s.to + '/'),
+      )
+      .sort((a, b) => b.to.length - a.to.length)[0] ?? nav[0]
+  const ActiveIcon = active.icon
+
   return (
     <div className="flex h-screen overflow-hidden gap-5 p-5 bg-bg-base">
       {/* Боковое меню — отдельная плавающая карточка с отступами со всех сторон */}
@@ -128,18 +140,36 @@ export function Layout() {
       {/* Правая колонка: закреплённый навбар-карточка + прокручиваемый контент-карточка */}
       <div className="flex-1 flex flex-col min-w-0 gap-5">
         {/* Навбар — скруглённый, закреплён на всех разделах, контент уходит под него */}
-        <header className="shrink-0 card h-16 flex items-center justify-between px-6">
-          <div className="flex items-center gap-2 text-sm">
-            <span className="chip bg-ok/10 text-ok">
-              <span className="h-1.5 w-1.5 rounded-full bg-ok" /> System active
-            </span>
-            {USE_MOCK && <span className="chip bg-warn/10 text-warn">demo · mock-данные</span>}
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 text-xs text-muted">
-              <Radio size={14} className="text-brand" />
-              live-поток подключён
+        <header className="shrink-0 card h-16 flex items-center justify-between pl-4 pr-3.5">
+          {/* Левая часть — контекст текущего раздела */}
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-brand/25 to-brand/5 text-brand grid place-items-center shrink-0 ring-1 ring-brand/15 shadow-sm">
+              <ActiveIcon size={18} />
             </div>
+            <div className="leading-tight min-w-0">
+              <div className="text-sm font-semibold text-fg truncate">{active.label}</div>
+              <div className="text-[11px] text-muted truncate">
+                {session.organization.name} · deception platform
+              </div>
+            </div>
+          </div>
+
+          {/* Правая часть — живой статус и управление */}
+          <div className="flex items-center gap-2">
+            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-ok/10 text-ok px-2.5 py-1 text-xs font-medium ring-1 ring-ok/20">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-ok opacity-60 animate-ping" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-ok" />
+              </span>
+              live-поток
+            </span>
+            <span className="sm:hidden inline-flex items-center">
+              <Radio size={15} className="text-ok" />
+            </span>
+            {USE_MOCK && (
+              <span className="chip bg-warn/10 text-warn ring-1 ring-warn/20">demo · mock</span>
+            )}
+            <div className="h-5 w-px bg-line mx-1" />
             <ThemeToggle />
           </div>
         </header>
