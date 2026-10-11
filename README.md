@@ -10,9 +10,25 @@
 Add-Content -Path "$env:windir\System32\drivers\etc\hosts" -Value "147.45.141.37   https://honey-forge-seg-fault.ru"
 ```
 
-#### Затем, переходим по этой ссылке:
+#### Альтернатива на ОС Linux:
+
+- Переходим в конфиг `hosts`:
+
+```
+sudo nano /etc/hosts
+```
+
+- Вносим строку в конце файла `hosts` и сохраняем:
+
+```
+147.45.141.37   https://honey-forge-seg-fault.ru
+```
+
+### Затем, можем перейти по этой ссылке:
+
 [---> КЛИК мышкой <---](https://honey-forge-seg-fault.ru)
 
+> Принимаем все риски при переходе на наш ресурс !!!
 
 ---
 ### Примечание:
