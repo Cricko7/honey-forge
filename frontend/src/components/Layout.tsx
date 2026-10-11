@@ -9,7 +9,6 @@ import {
   Shield,
   Link2,
   LogOut,
-  Radio,
 } from 'lucide-react'
 import { useSession, useLiveStream } from '@/api/hooks'
 import { USE_MOCK, api } from '@/api/client'
@@ -156,16 +155,11 @@ export function Layout() {
 
           {/* Правая часть — живой статус и управление */}
           <div className="flex items-center gap-2">
-            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-ok/10 text-ok px-2.5 py-1 text-xs font-medium ring-1 ring-ok/20">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full rounded-full bg-ok opacity-60 animate-ping" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-ok" />
-              </span>
-              live-поток
+            <span className="hidden sm:inline-flex items-center gap-2 text-xs font-medium text-muted">
+              <span className="h-1.5 w-1.5 rounded-full bg-ok animate-pulseGlow" />
+              Поток активен
             </span>
-            <span className="sm:hidden inline-flex items-center">
-              <Radio size={15} className="text-ok" />
-            </span>
+            <span className="sm:hidden h-1.5 w-1.5 rounded-full bg-ok animate-pulseGlow" />
             {USE_MOCK && (
               <span className="chip bg-warn/10 text-warn ring-1 ring-warn/20">demo · mock</span>
             )}
