@@ -95,11 +95,18 @@ export function useSendCommand() {
 // React Query, чтобы дашборд и конструктор обновлялись в реальном времени.
 export function useLiveStream(onEvent?: (e: EventSummary) => void) {
   const qc = useQueryClient()
+  const { data: session } = useSession()
   useEffect(() => {
+    if (!session) return
     return subscribeStream((n) => {
       applyStreamNotification(qc, n)
       if (n.kind === 'event.created') onEvent?.(n.event)
+    }, {
+      onSynchronize: () => qc.invalidateQueries({
+        predicate: (q) => ['events', 'traps', 'trap', 'commands', 'profiles', 'catalog'].includes(String(q.queryKey[0])),
+      }),
+      onUnauthorized: () => { void qc.invalidateQueries({ queryKey: qk.session }) },
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [qc, session?.user.id, session?.organization.id])
 }

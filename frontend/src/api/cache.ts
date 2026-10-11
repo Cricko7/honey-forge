@@ -1,13 +1,19 @@
 import type { QueryClient } from '@tanstack/react-query'
 import type { EventSummary, Page, SessionView, StreamNotification, Trap } from '../types'
 
+const deletedTraps = new WeakMap<QueryClient, Set<string>>()
+
 export async function replaceSessionCache(qc: QueryClient, session?: SessionView) {
   await qc.cancelQueries()
   qc.clear()
+  deletedTraps.delete(qc)
   qc.setQueryData(['session'], session ?? null)
 }
 
 export function removeDeletedTrap(qc: QueryClient, id: string) {
+  let deleted = deletedTraps.get(qc)
+  if (!deleted) { deleted = new Set(); deletedTraps.set(qc, deleted) }
+  deleted.add(id)
   qc.setQueriesData<Page<Trap>>({ queryKey: ['traps'] }, (old) =>
     old ? { ...old, items: old.items.filter((t) => t.id !== id) } : old,
   )
@@ -26,6 +32,11 @@ export function applyStreamNotification(qc: QueryClient, n: StreamNotification) 
       } : old)
     }
   } else if (n.kind === 'trap.changed') {
+    if (deletedTraps.get(qc)?.has(n.trap.id)) return
+    const detail = qc.getQueryData<Trap>(['trap', n.trap.id])
+    const snapshots = [detail, ...qc.getQueriesData<Page<Trap>>({ queryKey: ['traps'] })
+      .flatMap(([, cached]) => cached?.items.filter((t) => t.id === n.trap.id) ?? [])]
+    if (snapshots.some((t) => t && t.state_version >= n.trap.state_version)) return
     for (const [key] of qc.getQueriesData({ queryKey: ['traps'] })) {
       const filter = key[1] as { connectivity?: string; profile_id?: string } | undefined
       const matches = (!filter?.connectivity || filter.connectivity === n.trap.connectivity)

@@ -13,6 +13,7 @@ import type {
 } from '@/types'
 import { registrationOrganization, type RegistrationMode } from '@/lib/auth'
 import { mockApi } from './mock'
+import { subscribeDashboardStream } from './stream'
 
 // Переключатель источника данных. Пусто → mock-слой (демо хакатона).
 // Для реального backend: VITE_API_BASE=https://api.example.org
@@ -271,31 +272,20 @@ export const api = {
 
 // --- Поток уведомлений дашборда (WSS /api/stream или mock pub/sub) ---------
 
-export function subscribeStream(onNotify: (n: StreamNotification) => void): () => void {
+export function subscribeStream(onNotify: (n: StreamNotification) => void, options?: {
+  onSynchronize?: () => Promise<unknown>
+  onUnauthorized?: () => void
+}): () => void {
   if (USE_MOCK) {
     return mockApi.subscribe(onNotify)
   }
-  // Реальный WSS: dashboard-stream.v1, replay→ready→live.
-  // Субпротокол обязателен — бэкенд отклоняет handshake (400 invalid_ws_protocol)
-  // при отсутствии ровно одного Sec-WebSocket-Protocol: dashboard-stream.v1.
-  const wsBase = API_BASE.replace(/^http/, 'ws')
-  const ws = new WebSocket(`${wsBase}/api/stream`, 'dashboard-stream.v1')
-  ws.onopen = () => {
-    ws.send(JSON.stringify({ message_id: crypto.randomUUID(), type: 'stream.subscribe', payload: { after: null } }))
-  }
-  ws.onmessage = (ev) => {
-    try {
-      const env = JSON.parse(ev.data)
-      const data = env.payload?.data ?? env.payload
-      if (env.type === 'event.created' && data?.event) onNotify({ kind: 'event.created', event: data.event })
-      else if (env.type === 'trap.changed' && data?.trap) onNotify({ kind: 'trap.changed', trap: data.trap })
-      else if (env.type === 'trap.deleted' && data?.trap_id)
-        onNotify({ kind: 'trap.deleted', trap_id: data.trap_id })
-      else if (env.type === 'command.changed' && data?.command)
-        onNotify({ kind: 'command.changed', trap_id: data.trap_id, command: data.command })
-    } catch {
-      /* ignore */
-    }
-  }
-  return () => ws.close()
+  return subscribeDashboardStream(API_BASE, onNotify, {
+    checkSession: api.getSession,
+    synchronize: async () => {
+      const page = await api.listEvents({ limit: 1 })
+      await options?.onSynchronize?.()
+      return page.stream_cursor
+    },
+    onUnauthorized: () => options?.onUnauthorized?.(),
+  })
 }

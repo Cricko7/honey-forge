@@ -36,6 +36,9 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 		return fmt.Errorf("connect backend: %w", err)
 	}
 	defer conn.Close()
+	if conn.Subprotocol() != "resource-stream.v1" {
+		return fmt.Errorf("invalid backend subprotocol")
+	}
 	stop := context.AfterFunc(ctx, func() { conn.Close() })
 	defer stop()
 	conn.SetReadLimit(contract.MaxBodyBytes)
@@ -51,9 +54,12 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 	if err := conn.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
 		return err
 	}
-	_, raw, err := conn.ReadMessage()
+	kind, raw, err := conn.ReadMessage()
 	if err != nil {
 		return err
+	}
+	if kind != websocket.TextMessage {
+		return fmt.Errorf("unsupported backend frame")
 	}
 	welcome, err := contract.DecodeEnvelope(raw)
 	if err != nil {

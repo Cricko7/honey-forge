@@ -5,6 +5,21 @@ import { applyStreamNotification, replaceSessionCache, removeDeletedTrap } from 
 
 const page = (items) => ({ items, next_cursor: null, stream_cursor: 'cursor' })
 
+test('replayed trap snapshots cannot overwrite newer REST state or resurrect deletions', () => {
+  const qc = new QueryClient()
+  const newer = { id: 'a', state_version: 5, connectivity: 'online' }
+  qc.setQueryData(['traps', {}], page([newer]))
+  qc.setQueryData(['trap', 'a'], newer)
+  applyStreamNotification(qc, { kind: 'trap.changed', trap: { ...newer, state_version: 4, connectivity: 'offline' } })
+  assert.deepEqual(qc.getQueryData(['trap', 'a']), newer)
+  assert.deepEqual(qc.getQueryData(['traps', {}]).items, [newer])
+  applyStreamNotification(qc, { kind: 'trap.deleted', trap_id: 'a' })
+  applyStreamNotification(qc, { kind: 'trap.changed', trap: newer })
+  assert.equal(qc.getQueryData(['trap', 'a']), null)
+  assert.deepEqual(qc.getQueryData(['traps', {}]).items, [])
+  qc.clear()
+})
+
 test('account change removes previous organization data and pending requests', async () => {
   const qc = new QueryClient()
   qc.setQueryData(['profiles'], page([{ id: 'private-profile' }]))
