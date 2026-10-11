@@ -7,6 +7,7 @@ import {
   Boxes,
   FileSliders,
   Shield,
+  Link2,
   LogOut,
   Radio,
 } from 'lucide-react'
@@ -83,7 +84,7 @@ export function Layout() {
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-0.5">
-          {[...nav, ...(canManage(session) ? [{ to: '/app/organization', icon: Shield, label: 'Приглашения' }] : [])].map((item) => (
+          {[...nav, ...(canManage(session) ? [{ to: '/app/organization', icon: Link2, label: 'Приглашения' }] : [])].map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
