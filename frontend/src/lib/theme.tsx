@@ -30,6 +30,16 @@ function apply(t: Theme) {
   document.documentElement.setAttribute('data-theme', t)
 }
 
+// Включаем плавный кросс-фейд всех поверхностей только на время переключения,
+// чтобы дашборд менял тему так же мягко, как экран входа (а не «щёлкал»).
+let transitionTimer: ReturnType<typeof setTimeout> | undefined
+function enableThemeTransition() {
+  const el = document.documentElement
+  el.classList.add('theme-transition')
+  clearTimeout(transitionTimer)
+  transitionTimer = setTimeout(() => el.classList.remove('theme-transition'), 420)
+}
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(() => {
     const t = readSaved()
@@ -42,6 +52,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [theme])
 
   const setTheme = (t: Theme) => {
+    enableThemeTransition()
     apply(t)
     setThemeState(t)
   }

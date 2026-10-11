@@ -56,10 +56,29 @@ export default {
           from: { opacity: '0', transform: 'translateY(8px)' },
           to: { opacity: '1', transform: 'translateY(0)' },
         },
+        fadeIn: {
+          from: { opacity: '0' },
+          to: { opacity: '1' },
+        },
+        fadeInUp: {
+          from: { opacity: '0', transform: 'translateY(10px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
+        },
+        scaleIn: {
+          from: { opacity: '0', transform: 'scale(0.96)' },
+          to: { opacity: '1', transform: 'scale(1)' },
+        },
+        shimmer: {
+          '100%': { transform: 'translateX(100%)' },
+        },
       },
       animation: {
         pulseGlow: 'pulseGlow 2s ease-in-out infinite',
         slideIn: 'slideIn 0.25s ease-out',
+        fadeIn: 'fadeIn 0.3s ease-out both',
+        fadeInUp: 'fadeInUp 0.45s cubic-bezier(0.22,1,0.36,1) both',
+        scaleIn: 'scaleIn 0.3s cubic-bezier(0.22,1,0.36,1) both',
+        shimmer: 'shimmer 1.6s infinite',
       },
     },
   },

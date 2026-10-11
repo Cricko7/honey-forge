@@ -77,6 +77,30 @@
     background: rgb(var(--line));
     border-radius: 999px;
   }
+
+  /* Плавная смена темы по всему приложению: класс .theme-transition
+     вешается на <html> только на время переключения (~400мс), поэтому
+     в остальное время hover/интеракции остаются мгновенными и отзывчивыми. */
+  html.theme-transition,
+  html.theme-transition *,
+  html.theme-transition *::before,
+  html.theme-transition *::after {
+    transition: background-color 0.35s ease, border-color 0.35s ease, color 0.35s ease,
+      fill 0.35s ease, stroke 0.35s ease, box-shadow 0.35s ease !important;
+    transition-delay: 0s !important;
+  }
+
+  /* Уважение к системной настройке «уменьшить движение». */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
 @layer components {
@@ -88,8 +112,12 @@
   .card {
     @apply glass rounded-2xl shadow-glass;
   }
+  /* Интерактивная карточка: мягкий подъём и усиление тени при наведении. */
+  .card-hover {
+    @apply transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_1px_2px_rgba(60,50,30,0.05),0_24px_52px_-16px_rgba(60,50,30,0.22)] hover:border-brand/30;
+  }
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-[background-color,color,box-shadow,transform] duration-150 ease-out active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100;
   }
   .btn-primary {
     @apply btn bg-brand hover:bg-brand-deep text-white shadow-sm;
@@ -101,7 +129,7 @@
     @apply btn bg-danger/90 hover:bg-danger text-white;
   }
   .input {
-    @apply w-full rounded-lg bg-bg-elevated border border-line px-3 py-2 text-sm text-fg placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand/40;
+    @apply w-full rounded-lg bg-bg-elevated border border-line px-3 py-2 text-sm text-fg placeholder:text-muted transition-[border-color,box-shadow] duration-150 focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand/50;
   }
   .label {
     @apply block text-xs font-medium text-muted mb-1.5;

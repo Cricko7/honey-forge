@@ -1,4 +1,4 @@
-import { NavLink, Outlet, Navigate, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
   Network,
@@ -35,6 +35,7 @@ export function Layout() {
   const [loggingOut, setLoggingOut] = useState(false)
   const { data: session, isLoading, error, refetch } = useSession()
   const navigate = useNavigate()
+  const location = useLocation()
   // Глобальная подписка на live-стрим: держит кэш свежим на всех экранах.
   useLiveStream()
 
@@ -143,7 +144,9 @@ export function Layout() {
         </header>
 
         <main className="flex-1 overflow-auto card">
-          <Outlet />
+          <div key={location.pathname} className="h-full animate-fadeInUp">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>
