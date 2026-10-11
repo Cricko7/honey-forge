@@ -17,12 +17,13 @@ import (
 // Process uses this executable's private child mode. Configuration and the
 // short-lived loopback credential never appear in command-line arguments.
 type Process struct {
-	Executable string
-	URL        string
-	Local      *Local
-	cmd        *exec.Cmd
-	stdin      io.WriteCloser
-	done       chan error
+	Executable  string
+	URL         string
+	Certificate []byte
+	Local       *Local
+	cmd         *exec.Cmd
+	stdin       io.WriteCloser
+	done        chan error
 }
 
 func (p *Process) Start(ctx context.Context, snapshot profiles.Snapshot) error {
@@ -30,7 +31,7 @@ func (p *Process) Start(ctx context.Context, snapshot profiles.Snapshot) error {
 		return fmt.Errorf("trap process is already running")
 	}
 	p.Local.Configure(snapshot)
-	raw, err := json.Marshal(childBootstrap{URL: p.URL, Token: p.Local.Token, Snapshot: snapshot})
+	raw, err := json.Marshal(childBootstrap{URL: p.URL, Token: p.Local.Token, Certificate: p.Certificate, Snapshot: snapshot})
 	if err != nil {
 		return fmt.Errorf("encode child configuration: %w", err)
 	}

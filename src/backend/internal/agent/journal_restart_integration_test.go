@@ -4,13 +4,16 @@ package agent
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"github.com/redis/go-redis/v9"
 	"honey-forge/internal/contract"
 	"honey-forge/modules/events"
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
@@ -29,14 +32,33 @@ func TestRedisServerCrashRestoresDurableEventsAndResults(t *testing.T) {
 	probe.Close()
 	address := "127.0.0.1:" + strconv.Itoa(port)
 	directory := t.TempDir()
+	serverTLS, certificate, err := newLocalTLS()
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, err := x509.MarshalPKCS8PrivateKey(serverTLS.Certificates[0].PrivateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	certFile, keyFile := filepath.Join(directory, "redis.crt"), filepath.Join(directory, "redis.key")
+	if err := os.WriteFile(certFile, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certificate}), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(keyFile, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: key}), 0600); err != nil {
+		t.Fatal(err)
+	}
+	clientTLS, err := localClientTLS("wss://"+address+"/trap-stream", certificate)
+	if err != nil {
+		t.Fatal(err)
+	}
 	var process *exec.Cmd
 	start := func() {
-		process = exec.Command(executable, "--bind", "127.0.0.1", "--port", strconv.Itoa(port), "--dir", directory, "--appendonly", "yes", "--appendfsync", "always", "--maxmemory-policy", "noeviction")
+		process = exec.Command(executable, "--bind", "127.0.0.1", "--port", "0", "--tls-port", strconv.Itoa(port), "--tls-cert-file", certFile, "--tls-key-file", keyFile, "--tls-ca-cert-file", certFile, "--tls-auth-clients", "no", "--dir", directory, "--appendonly", "yes", "--appendfsync", "always", "--maxmemory-policy", "noeviction")
 		hideWindow(process)
 		if err := process.Start(); err != nil {
 			t.Fatal(err)
 		}
-		client := redis.NewClient(&redis.Options{Addr: address})
+		client := redis.NewClient(&redis.Options{Addr: address, TLSConfig: clientTLS})
 		defer client.Close()
 		deadline := time.Now().Add(5 * time.Second)
 		for time.Now().Before(deadline) {
@@ -56,9 +78,9 @@ func TestRedisServerCrashRestoresDurableEventsAndResults(t *testing.T) {
 	}
 	defer stop()
 	start()
-	url := "redis://" + address + "/0"
+	url := "rediss://" + address + "/0"
 	id := string(contract.NewID())
-	j, err := OpenRedisJournal(t.Context(), url, id, 1<<20)
+	j, err := OpenRedisJournal(t.Context(), url, id, 1<<20, clientTLS)
 	if err != nil {
 		t.Fatal(err)
 	}

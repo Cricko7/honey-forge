@@ -65,15 +65,21 @@ func (d DockerCLI) Deploy(ctx context.Context, target Target, token string, gene
 		"--env", "AGENT_TOKEN_FILE=/run/secrets/agent_token",
 		"--env", "AGENT_REDIS_URL_FILE=/run/secrets/redis_url",
 		"--env", "AGENT_WS_URL=" + d.WSURL}
-	if d.CAFile != "" {
-		ca, err := os.ReadFile(d.CAFile)
+	for _, trust := range []struct{ file, suffix, target, variable string }{
+		{d.CAFile, "-ca", "agent_ca", "AGENT_CA_FILE"},
+		{d.RedisCAFile, "-redis-ca", "redis_ca", "AGENT_REDIS_CA_FILE"},
+	} {
+		if trust.file == "" {
+			continue
+		}
+		ca, err := os.ReadFile(trust.file)
 		if err != nil {
 			return fmt.Errorf("read agent CA: %w", err)
 		}
-		if err := d.createSecret(ctx, target.ID, base+"-ca", ca); err != nil {
+		if err := d.createSecret(ctx, target.ID, base+trust.suffix, ca); err != nil {
 			return err
 		}
-		args = append(args, "--secret", "source="+base+"-ca,target=agent_ca,uid=0,gid=0,mode=0400", "--env", "AGENT_CA_FILE=/run/secrets/agent_ca")
+		args = append(args, "--secret", "source="+base+trust.suffix+",target="+trust.target+",uid=0,gid=0,mode=0400", "--env", trust.variable+"=/run/secrets/"+trust.target)
 	}
 	for _, port := range ports {
 		if port < 1 || port > 65535 {

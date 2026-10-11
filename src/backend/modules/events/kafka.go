@@ -3,6 +3,7 @@ package events
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 
 	"honey-forge/internal/contract"
+	"honey-forge/internal/platform/tlsconfig"
 	"honey-forge/modules/agentws"
 	"honey-forge/modules/catalog"
 )
@@ -57,7 +59,7 @@ type KafkaPublisher struct {
 	topic  string
 }
 
-func NewKafkaPublisher(brokers []string, topic string) (*KafkaPublisher, error) {
+func NewKafkaPublisher(brokers []string, topic string, config *tls.Config) (*KafkaPublisher, error) {
 	if len(brokers) == 0 || topic == "" {
 		return nil, fmt.Errorf("Kafka brokers and topic are required")
 	}
@@ -66,7 +68,11 @@ func NewKafkaPublisher(brokers []string, topic string) (*KafkaPublisher, error) 
 			return nil, fmt.Errorf("Kafka broker must not be empty")
 		}
 	}
-	client, err := kgo.NewClient(kgo.SeedBrokers(brokers...), kgo.AllowAutoTopicCreation(), kgo.RequiredAcks(kgo.AllISRAcks()), kgo.RecordDeliveryTimeout(8*time.Second), kgo.ProducerBatchMaxBytes(512<<10))
+	secure, err := tlsconfig.Secure(config)
+	if err != nil {
+		return nil, fmt.Errorf("configure Kafka TLS: %w", err)
+	}
+	client, err := kgo.NewClient(kgo.SeedBrokers(brokers...), kgo.DialTLSConfig(secure), kgo.AllowAutoTopicCreation(), kgo.RequiredAcks(kgo.AllISRAcks()), kgo.RecordDeliveryTimeout(8*time.Second), kgo.ProducerBatchMaxBytes(512<<10))
 	if err != nil {
 		return nil, fmt.Errorf("configure Kafka: %w", err)
 	}

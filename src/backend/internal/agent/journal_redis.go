@@ -2,11 +2,13 @@ package agent
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/redis/go-redis/v9"
 	"honey-forge/internal/contract"
+	"honey-forge/internal/platform/tlsconfig"
 	"honey-forge/modules/commands"
 	"strings"
 	"time"
@@ -22,14 +24,31 @@ type redisJournal struct {
 
 const redisLeaseMilliseconds = 15000
 
-func OpenRedisJournal(ctx context.Context, address, identity string, capacity int64) (*Journal, error) {
+func redisOptions(address string, config *tls.Config) (*redis.Options, error) {
+	opts, err := redis.ParseURL(address)
+	if err != nil || opts.TLSConfig == nil {
+		return nil, fmt.Errorf("AGENT_REDIS_URL must use rediss:// with certificate verification")
+	}
+	if opts.TLSConfig.InsecureSkipVerify {
+		return nil, fmt.Errorf("Redis TLS certificate verification cannot be disabled")
+	}
+	secure, err := tlsconfig.Secure(config)
+	if err != nil {
+		return nil, fmt.Errorf("configure Redis TLS: %w", err)
+	}
+	secure.ServerName = opts.TLSConfig.ServerName
+	opts.TLSConfig = secure
+	return opts, nil
+}
+
+func OpenRedisJournal(ctx context.Context, address, identity string, capacity int64, config *tls.Config) (*Journal, error) {
 	if !contract.ValidID(identity) || capacity < 32*1024 {
 		return nil, fmt.Errorf("Redis journal identity and capacity are required")
 	}
 	identity = strings.ToLower(identity)
-	opts, err := redis.ParseURL(address)
+	opts, err := redisOptions(address, config)
 	if err != nil {
-		return nil, fmt.Errorf("invalid AGENT_REDIS_URL")
+		return nil, err
 	}
 	opts.Protocol = 2
 	opts.MaxRetries = -1

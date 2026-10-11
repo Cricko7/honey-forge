@@ -65,7 +65,11 @@ func TestFlushIntervalFollowsAppliedConfiguration(t *testing.T) {
 }
 
 func TestChildBootstrapUsesPipe(t *testing.T) {
-	want := childBootstrap{URL: "ws://127.0.0.1:1234/trap-stream", Token: "private", Snapshot: demoSnapshot()}
+	_, certificate, err := newLocalTLS()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := childBootstrap{URL: "wss://127.0.0.1:1234/trap-stream", Token: "private", Certificate: certificate, Snapshot: demoSnapshot()}
 	raw, err := json.Marshal(want)
 	if err != nil {
 		t.Fatal(err)
@@ -74,7 +78,7 @@ func TestChildBootstrapUsesPipe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.URL != want.URL || got.Token != want.Token || got.Snapshot.ProfileRevision != want.Snapshot.ProfileRevision {
+	if got.URL != want.URL || got.Token != want.Token || !bytes.Equal(got.Certificate, want.Certificate) || got.Snapshot.ProfileRevision != want.Snapshot.ProfileRevision {
 		t.Fatalf("bootstrap mismatch: %+v", got)
 	}
 }

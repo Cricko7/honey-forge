@@ -10,9 +10,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-
 	"honey-forge/internal/orchestrator"
+	"honey-forge/internal/postgres"
 )
 
 func main() {
@@ -29,7 +28,7 @@ func run() error {
 	redisURL := os.Getenv("AGENT_REDIS_URL")
 	docker := orchestrator.DockerCLI{
 		Network: os.Getenv("DECOY_NETWORK"), WSURL: wsURL, RedisURL: redisURL,
-		CAFile: os.Getenv("AGENT_CA_FILE"), TCPImage: os.Getenv("DECOY_TCP_IMAGE"), RedisImage: os.Getenv("DECOY_REDIS_IMAGE"),
+		CAFile: os.Getenv("AGENT_CA_FILE"), RedisCAFile: os.Getenv("AGENT_REDIS_CA_FILE"), TCPImage: os.Getenv("DECOY_TCP_IMAGE"), RedisImage: os.Getenv("DECOY_REDIS_IMAGE"),
 		HoneytokenImage: os.Getenv("DECOY_HONEYTOKEN_IMAGE"),
 		SSHImage:        os.Getenv("DECOY_SSH_IMAGE"), SandboxImage: os.Getenv("SSH_SANDBOX_IMAGE"),
 	}
@@ -41,12 +40,12 @@ func run() error {
 		return fmt.Errorf("AGENT_WS_URL must be wss://host/assets/stream")
 	}
 	buffer, err := url.Parse(redisURL)
-	if err != nil || (buffer.Scheme != "redis" && buffer.Scheme != "rediss") || buffer.Host == "" {
-		return fmt.Errorf("AGENT_REDIS_URL must be a redis:// or rediss:// URL")
+	if err != nil || buffer.Scheme != "rediss" || buffer.Host == "" {
+		return fmt.Errorf("AGENT_REDIS_URL must be a rediss:// URL")
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	pool, err := pgxpool.New(ctx, databaseURL)
+	pool, err := postgres.Open(ctx, databaseURL)
 	if err != nil {
 		return fmt.Errorf("open orchestration database: %w", err)
 	}

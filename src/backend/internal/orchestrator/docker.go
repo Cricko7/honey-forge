@@ -19,6 +19,7 @@ type DockerCLI struct {
 	WSURL           string
 	RedisURL        string
 	CAFile          string
+	RedisCAFile     string
 	TCPImage        string
 	RedisImage      string
 	HoneytokenImage string
