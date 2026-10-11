@@ -9,10 +9,9 @@ import (
 	"honey-forge/modules/commands"
 )
 
-// ExpireAllDue keeps offline queues within their 24-hour lifetime even when
-// neither an operator nor an agent makes another request.
+// ExpireAllDue also releases old queues for agents that have never connected.
 func (r *Repository) ExpireAllDue(ctx context.Context, now time.Time) error {
-	rows, err := r.pool.Query(ctx, `SELECT organization_id::text,trap_id::text FROM commands WHERE status IN ('queued','running') AND expires_at<=$1`, now)
+	rows, err := r.pool.Query(ctx, `SELECT c.organization_id::text,c.trap_id::text FROM commands c JOIN traps t ON t.id=c.trap_id AND t.organization_id=c.organization_id WHERE c.status IN ('queued','running') AND (c.expires_at<=$1 OR (c.status='queued' AND c.created_at<=$2 AND t.connectivity='offline' AND t.last_seen_at IS NULL))`, now, now.Add(-initialAgentWait))
 	if err != nil {
 		return fmt.Errorf("find due commands: %w", err)
 	}

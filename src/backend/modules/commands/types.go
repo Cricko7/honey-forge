@@ -54,6 +54,8 @@ type Trap struct {
 	TypeVersion            int32
 	AppliedProfileRevision *int32
 	ActiveCommandID        *string
+	Connectivity           string
+	LastSeenAt             *time.Time
 }
 
 type Prepared struct {

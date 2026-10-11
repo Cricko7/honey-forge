@@ -55,7 +55,8 @@ func (r *Repository) ExpireDue(ctx context.Context, org, trapID string, now time
 			return fmt.Errorf("read active command: %w", err)
 		}
 
-		if now.Before(command.ExpiresAt) {
+		code := expiryReason(command, trap, now)
+		if code == "" {
 			if err := tx.Commit(ctx); err != nil {
 				return fmt.Errorf("commit command expiry check: %w", err)
 			}
@@ -67,7 +68,12 @@ func (r *Repository) ExpireDue(ctx context.Context, org, trapID string, now time
 			return fmt.Errorf("trap references terminal command")
 		}
 
-		failure, err := json.Marshal(commands.RuntimeError{Code: "command_expired", Message: "Command has expired"})
+		message := "Command has expired"
+		if code == "agent_not_connected" {
+			message = "Agent did not connect within five minutes; command was not executed"
+		}
+
+		failure, err := json.Marshal(commands.RuntimeError{Code: code, Message: message})
 		if err != nil {
 			return fmt.Errorf("encode expiry error: %w", err)
 		}
@@ -102,6 +108,20 @@ func (r *Repository) ExpireDue(ctx context.Context, org, trapID string, now time
 	}
 
 	return nil
+}
+
+const initialAgentWait = 5 * time.Minute
+
+func expiryReason(command commands.Command, trap commands.Trap, now time.Time) string {
+	if !now.Before(command.ExpiresAt) {
+		return "command_expired"
+	}
+
+	if command.Status == commands.Queued && trap.Connectivity == "offline" && trap.LastSeenAt == nil && !now.Before(command.CreatedAt.Add(initialAgentWait)) {
+		return "agent_not_connected"
+	}
+
+	return ""
 }
 
 func appendChange(ctx context.Context, tx pgx.Tx, org, kind, resourceID string, metadata json.RawMessage) error {

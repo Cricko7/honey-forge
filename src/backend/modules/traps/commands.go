@@ -25,7 +25,7 @@ func (r *Repository) Lock(ctx context.Context, tx pgx.Tx, org, id string) (comma
 	if errors.As(err, &api) && api.Code == "resource_not_found" {
 		return commands.Trap{}, commands.ErrNotFound
 	}
-	return commands.Trap{ID: current.ID, OrganizationID: current.OrganizationID, ProfileID: current.ProfileID, TypeID: current.TypeID, TypeVersion: current.TypeVersion, AppliedProfileRevision: current.AppliedProfileRevision, ActiveCommandID: current.ActiveCommandID}, err
+	return commands.Trap{ID: current.ID, OrganizationID: current.OrganizationID, ProfileID: current.ProfileID, TypeID: current.TypeID, TypeVersion: current.TypeVersion, AppliedProfileRevision: current.AppliedProfileRevision, ActiveCommandID: current.ActiveCommandID, Connectivity: current.Connectivity, LastSeenAt: current.LastSeenAt}, err
 }
 func (r *Repository) Activate(ctx context.Context, tx pgx.Tx, trap commands.Trap, command commands.Command) (int64, error) {
 	current, err := lockRecord(ctx, tx, trap.OrganizationID, trap.ID)

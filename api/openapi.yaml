@@ -2267,7 +2267,7 @@ paths:
       - sessionCookie: []
     post:
       operationId: createTrapCommand
-      description: Queues a command for up to 24 hours. Exactly one queued or running command per trap. Repeating request_id with the same content returns the initial queued command even after execution; read GET for current status. Changed content returns idempotency_conflict.
+      description: Queues a command for up to 24 hours. A queued command expires after five minutes with error code agent_not_connected when its offline agent has never connected; this also releases pre-existing queued commands after an upgrade. Previously connected agents and running commands retain the normal deadline. Exactly one queued or running command per trap. Repeating request_id with the same content returns the initial queued command even after execution; read GET for current status. Changed content returns idempotency_conflict.
       parameters:
       - $ref: "#/components/parameters/TrapID"
       - $ref: "#/components/parameters/Origin"
