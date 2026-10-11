@@ -38,7 +38,7 @@ function StatCard({
       <Icon
         size={52}
         strokeWidth={1.5}
-        className="pointer-events-none absolute bottom-3 right-3 text-brand/20"
+        className="pointer-events-none absolute bottom-3 right-3 text-brand/30"
       />
       <div className="relative">
         <div className="text-xs text-muted mb-2">{label}</div>
