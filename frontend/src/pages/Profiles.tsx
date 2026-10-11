@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { FileSliders, Lock, Plus } from 'lucide-react'
+import { Lock, Plus } from 'lucide-react'
 import { Card, SectionTitle, LevelBadge, Spinner, EmptyState } from '@/components/ui'
 import { Modal } from '@/components/Modal'
 import { useProfiles, useCatalog, useCreateProfile, useCanManage } from '@/api/hooks'
@@ -50,14 +50,9 @@ export function ProfilesPage() {
   return (
     <div className="p-6 space-y-5">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-brand/15 grid place-items-center">
-            <FileSliders size={18} className="text-brand" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold">Профили</h1>
-            <p className="text-sm text-muted">Конфигурации ловушек по выбранному типу каталога</p>
-          </div>
+        <div>
+          <h1 className="text-xl font-semibold">Профили</h1>
+          <p className="text-sm text-muted">Конфигурации ловушек по выбранному типу каталога</p>
         </div>
         {canManage && <button className="btn-primary" onClick={() => setOpen(true)}>
           <Plus size={16} /> Новый профиль

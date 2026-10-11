@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { ScrollText } from 'lucide-react'
 import { Card, EventTypeBadge, Spinner, EmptyState } from '@/components/ui'
 import { EventDetailModal } from '@/components/EventDetailModal'
 import { useEvents } from '@/api/hooks'
@@ -12,16 +11,11 @@ export function EventsPage() {
 
   return (
     <div className="p-6 space-y-5">
-      <div className="flex items-center gap-3">
-        <div className="h-10 w-10 rounded-xl bg-brand/15 grid place-items-center">
-          <ScrollText size={18} className="text-brand-soft" />
-        </div>
-        <div>
-          <h1 className="text-xl font-semibold">События</h1>
-          <p className="text-sm text-muted">
-            Журнал активности атакующих · перехваченные подключения, креды и команды
-          </p>
-        </div>
+      <div>
+        <h1 className="text-xl font-semibold">События</h1>
+        <p className="text-sm text-muted">
+          Журнал активности атакующих · перехваченные подключения, креды и команды
+        </p>
       </div>
 
       <Card className="!p-0 overflow-hidden">

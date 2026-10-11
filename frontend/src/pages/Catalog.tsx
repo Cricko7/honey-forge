@@ -1,4 +1,4 @@
-import { Boxes, Zap, Terminal } from 'lucide-react'
+import { Zap, Terminal } from 'lucide-react'
 import { Card, LevelBadge, Spinner } from '@/components/ui'
 import { useCatalog } from '@/api/hooks'
 
@@ -8,16 +8,11 @@ export function CatalogPage() {
 
   return (
     <div className="p-6 space-y-5">
-      <div className="flex items-center gap-3">
-        <div className="h-10 w-10 rounded-xl bg-brand/15 grid place-items-center">
-          <Boxes size={18} className="text-brand-soft" />
-        </div>
-        <div>
-          <h1 className="text-xl font-semibold">Каталог типов ловушек</h1>
-          <p className="text-sm text-muted">
-            Immutable-типы с версиями · описывают конфиг, события и действия
-          </p>
-        </div>
+      <div>
+        <h1 className="text-xl font-semibold">Каталог типов ловушек</h1>
+        <p className="text-sm text-muted">
+          Immutable-типы с версиями · описывают конфиг, события и действия
+        </p>
       </div>
 
       {isLoading ? (
