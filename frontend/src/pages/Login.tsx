@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Shield, ArrowRight } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import { api, USE_MOCK } from '@/api/client'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { Logo } from '@/components/Logo'
 import { useQueryClient } from '@tanstack/react-query'
 import { replaceSessionCache } from '@/api/cache'
 
@@ -37,9 +38,7 @@ export function LoginPage() {
       {/* Левая панель — бренд */}
       <div className="hidden lg:flex flex-col justify-between p-12 bg-grid-fade relative overflow-hidden">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-2xl bg-brand/20 grid place-items-center shadow-glow">
-            <Shield className="text-brand-soft" />
-          </div>
+          <Logo size={42} />
           <span className="text-xl font-semibold">HoneyForge</span>
         </div>
         <div className="max-w-md">

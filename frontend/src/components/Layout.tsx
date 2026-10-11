@@ -6,7 +6,6 @@ import {
   ScrollText,
   Boxes,
   FileSliders,
-  Shield,
   Link2,
   LogOut,
 } from 'lucide-react'
@@ -14,6 +13,7 @@ import { useSession, useLiveStream } from '@/api/hooks'
 import { USE_MOCK, api } from '@/api/client'
 import { cn } from '@/lib/utils'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { Logo } from '@/components/Logo'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { replaceSessionCache } from '@/api/cache'
@@ -85,9 +85,7 @@ export function Layout() {
       {/* Боковое меню — отдельная плавающая карточка с отступами со всех сторон */}
       <aside className="w-60 shrink-0 card flex flex-col overflow-hidden">
         <div className="px-5 h-16 flex items-center gap-2.5">
-          <div className="h-8 w-8 rounded-lg bg-brand/10 grid place-items-center">
-            <Shield size={18} className="text-brand" />
-          </div>
+          <Logo size={30} className="shrink-0" />
           <div className="leading-tight">
             <div className="font-semibold text-fg">HoneyForge</div>
             <div className="text-[10px] text-muted tracking-wide">deception platform</div>
