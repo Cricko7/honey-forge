@@ -133,21 +133,21 @@ on-failure`, изоляция дочернего процесса, конфиг 
    НЕ трогались — это часть OpenAPI-контракта между агентом и бэком; переименование
    сломало бы совместимость. Атакующему в payload они не видны.
 
-## Влияние на тесты (требуют обновления перед `go test` / CI)
+## Тесты — ОБНОВЛЕНЫ ✅
 
-Переименование — строковое, сборку (`go build ./...`) НЕ ломает, но ломает `go test`
-в файлах, которые ссылались на старые имена. Классификация:
+Переименование строковое: `go build ./...` не ломает, но тесты со старыми именами
+ломали бы `go test`. Все затронутые тесты приведены к новым именам и проверены в Docker
+(`go build` + `go vet ./...` + `go vet -tags=integration ./...` = зелёно).
 
-**Обновить под новые имена (agent/orchestrator-side):**
-- `cmd/agent/main_test.go`, `internal/agent/run_test.go` → `NM_*`
-- `internal/orchestrator/docker_test.go`, `sandbox_cleanup_test.go`, `ssh_test.go` → лейблы `com.nodemetrics.*`, `node-metrics-…`, префикс `nm-`
-- `internal/decoys/sshtrap/docker_test.go`, `docker_integration_test.go` → `node-metrics-session-…`, `NM_SANDBOX_IMAGE`
+**Обновлены под новые имена (agent/orchestrator-side):**
+- `cmd/agent/main_test.go`, `internal/agent/{run,stdio,process_docker,process_docker_integration}_test.go` → `NM_*`
+- `internal/orchestrator/{docker,docker_states,sandbox_cleanup,ssh,honeytokens}_test.go` → лейблы `com.nodemetrics.*`, `node-metrics-…`, префикс `nm-`
+- `internal/decoys/sshtrap/{docker,docker_integration}_test.go` → `node-metrics-session-…`, `NM_SANDBOX_IMAGE`
 
-**НЕ трогать (management-plane, `AGENT_WS_URL`/`AGENT_REDIS_URL` на стороне API/оркестратора
-оставлены как есть):**
+**Намеренно НЕ тронуты (management-plane — не видны атакующему):**
 - `internal/app/endpoint_deployment_test.go`, `endpoint_proxy_integration_test.go`
-- `internal/platform/tlsconfig/deployment_test.go` — проверить: сканирует env деплоя на
-  `AGENT_REDIS_URL`; после смены ключа на ловушке проверку надо навести на `NM_STORE_URL`.
+- `internal/platform/tlsconfig/deployment_test.go` — проверяет `AGENT_REDIS_URL` у сервиса
+  `api` (inline rediss://); агент всегда использовал `*_FILE`, менять нечего, проверка валидна.
 
 ## Замечание про management-plane
 Env оркестратора/API (`cmd/orchestrator/main.go`, `cmd/api/main.go`, `internal/app/endpoint.go`)
