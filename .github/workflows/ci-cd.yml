@@ -1,4 +1,4 @@
-name: CI
+name: CI and Docker deployment
 
 on:
   push:
@@ -6,115 +6,80 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:17
         env:
           POSTGRES_PASSWORD: test
           POSTGRES_DB: honey_forge_test
-        ports:
-          - 5432:5432
+        ports: [5432:5432]
         options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
+          --health-cmd "pg_isready -U postgres -d honey_forge_test"
+          --health-interval 5s --health-timeout 3s --health-retries 20
       kafka:
         image: apache/kafka:4.1.2
-        ports:
-          - 29092:29092
+        ports: [29092:29092]
         env:
           KAFKA_NODE_ID: 1
           KAFKA_PROCESS_ROLES: broker,controller
-          KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093
+          KAFKA_LISTENERS: PLAINTEXT://:29092,CONTROLLER://:9093
           KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://127.0.0.1:29092
           KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
           KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
           KAFKA_CONTROLLER_QUORUM_VOTERS: 1@127.0.0.1:9093
           KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+          CLUSTER_ID: 4L6g3nShT-eMCtK--X86sw
           KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
           KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
           KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
           KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
           KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
         options: >-
-          --health-cmd "nc -z localhost 29092"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
-
+          --health-cmd "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:29092"
+          --health-interval 10s --health-timeout 5s --health-retries 15
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
-          go-version: '1.26.1'
-          cache-dependency-path: |
-            src/backend/go.sum
-            src/redis-trap/go.sum
-
-      - name: Verify and build all modules
+          go-version-file: src/backend/go.mod
+          cache-dependency-path: src/backend/go.sum
+      - name: Backend format, vet and build
+        working-directory: src/backend
         run: |
-          for module in src/backend src/redis-trap; do
-            if [ ! -d "$module" ]; then
-              echo "::warning::Directory $module not found, skipping"
-              continue
-            fi
-            echo "::group::Processing $module"
-            (cd "$module" && go mod download && go vet ./... && go build ./...)
-            echo "::endgroup::"
-          done
-
-      - name: Unit tests
-        run: |
-          for module in src/backend src/redis-trap; do
-            if [ ! -d "$module" ]; then
-              echo "::warning::Directory $module not found, skipping"
-              continue
-            fi
-            echo "::group::Unit tests $module"
-            (cd "$module" && go test ./... -count=1)
-            echo "::endgroup::"
-          done
-
-      - name: Integration tests
+          test -z "$(gofmt -l .)"
+          go mod download
+          go vet ./...
+          go build ./...
+      - name: Backend unit tests
+        working-directory: src/backend
+        run: go test -race ./... -count=1
+      - name: PostgreSQL and Kafka integration tests
+        working-directory: src/backend
         env:
           TEST_DATABASE_URL: postgres://postgres:test@127.0.0.1:5432/honey_forge_test?sslmode=disable
           TEST_KAFKA_BROKERS: 127.0.0.1:29092
-        run: |
-          for module in src/backend src/redis-trap; do
-            if [ ! -d "$module" ]; then
-              echo "::warning::Directory $module not found, skipping"
-              continue
-            fi
-            echo "::group::Integration tests $module"
-            (cd "$module" && go test -race -tags=integration ./... -count=1)
-            echo "::endgroup::"
-          done
-
-      - name: SSH sandbox acceptance
+        run: go test -race -tags=integration ./... -count=1
+      - name: Optional SSH sandbox acceptance
+        if: vars.ENABLE_SSH_ACCEPTANCE == 'true'
         env:
-          TEST_SSH_DOCKER: '1'
+          TEST_SSH_DOCKER: "1"
           SSH_SANDBOX_IMAGE: honeyforge/ssh-sandbox:test
         run: |
           docker build -f deploy/decoys/Dockerfile.sandbox -t "$SSH_SANDBOX_IMAGE" .
           cd src/backend
           go test -race -tags=integration ./internal/decoys/sshtrap -run TestDockerRealLinuxShellSFTPAndIsolation -count=1 -timeout=120s
-
-      - name: Setup Node.js for frontend checks
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm'
+          node-version: "22"
+          cache: npm
           cache-dependency-path: frontend/package-lock.json
-
       - name: Frontend tests and build
         working-directory: frontend
         run: |
@@ -126,171 +91,221 @@ jobs:
     needs: build-and-test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     concurrency:
       group: deploy-production
       cancel-in-progress: false
-
+    env:
+      PUBLIC_ORIGIN: ${{ vars.API_BASE_URL || 'https://honey-forge-seg-fault.ru' }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      # ---------- Backend ----------
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.26.1'
-          cache-dependency-path: src/backend/go.sum
-
-      - name: Build Linux amd64 binary
-        working-directory: src/backend
+      - uses: actions/checkout@v4
+      - name: Validate deployment settings
         env:
-          CGO_ENABLED: "0"
-          GOOS: linux
-          GOARCH: amd64
-        run: go build -trimpath -ldflags="-s -w" -buildvcs=false -o honey-forge-api ./cmd/api
-
-      # ---------- Frontend ----------
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_FINGERPRINT: ${{ secrets.SSH_FINGERPRINT }}
+        run: |
+          for key in SSH_HOST SSH_USER SSH_PRIVATE_KEY SSH_FINGERPRINT; do
+            test -n "${!key}" || { echo "::error::Missing $key"; exit 1; }
+          done
+          [[ "$PUBLIC_ORIGIN" =~ ^https://[a-zA-Z0-9.-]+(:[0-9]+)?$ ]] || {
+            echo '::error::API_BASE_URL must be an HTTPS origin without a path'
+            exit 1
+          }
+      - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm'
+          node-version: "22"
+          cache: npm
           cache-dependency-path: frontend/package-lock.json
-
-      - name: Build frontend
+      - name: Build frontend with real API
         working-directory: frontend
         env:
-          # ВАЖНО: непустое значение выключает mock-режим (USE_MOCK = API_BASE === '')
-          # и включает реальный API на том же origin.
-          VITE_API_BASE: "https://honey-forge-seg-fault.ru"
+          VITE_API_BASE: ${{ env.PUBLIC_ORIGIN }}
         run: |
           npm ci
-          echo "VITE_API_BASE=https://honey-forge-seg-fault.ru" > .env.production
           npm run build
-          echo "=== dist/ ==="
-          ls -la dist/
-          echo "=== dist/assets/ ==="
-          ls -la dist/assets/ | head -10
-          echo "=== VITE_API_BASE in bundle ==="
-          grep -o "honey-forge-seg-fault\.ru" dist/assets/*.js | head -3 || true
-
-      # ---------- Upload ----------
-
-      - name: Upload backend, frontend, migrations and configs
+      - name: Build and package versioned Docker images
+        env:
+          ENABLE_SSH: ${{ vars.ENABLE_SSH_ACCEPTANCE }}
+        run: |
+          tag="$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          mkdir -p release
+          images=("honeyforge/api:$tag" "honeyforge/orchestrator:$tag")
+          docker build -f Dockerfile.api -t "${images[0]}" .
+          docker build -f deploy/decoys/Dockerfile.orchestrator -t "${images[1]}" .
+          printf 'API_IMAGE=%s\nORCHESTRATOR_IMAGE=%s\n' "${images[0]}" "${images[1]}" > release/release.env
+          for entry in 'tcp:tcp-decoy:DECOY_TCP_IMAGE' 'redis:redis-decoy:DECOY_REDIS_IMAGE' 'honeytokens:honeytoken-decoy:DECOY_HONEYTOKEN_IMAGE'; do
+            IFS=: read -r target image key <<< "$entry"
+            docker build -f deploy/decoys/Dockerfile --target "$target" -t "honeyforge/$image:$tag" .
+            images+=("honeyforge/$image:$tag")
+            printf '%s=%s\n' "$key" "honeyforge/$image:$tag" >> release/release.env
+          done
+          if [ "$ENABLE_SSH" = true ]; then
+            docker build -f deploy/decoys/Dockerfile --target ssh -t "honeyforge/ssh-decoy:$tag" .
+            docker build -f deploy/decoys/Dockerfile.sandbox -t "honeyforge/ssh-sandbox:$tag" .
+            images+=("honeyforge/ssh-decoy:$tag" "honeyforge/ssh-sandbox:$tag")
+            printf 'DECOY_SSH_IMAGE=honeyforge/ssh-decoy:%s\nSSH_SANDBOX_IMAGE=honeyforge/ssh-sandbox:%s\n' "$tag" "$tag" >> release/release.env
+          fi
+          docker save "${images[@]}" | gzip > release/images.tar.gz
+          cp -R frontend/dist release/frontend
+      - name: Upload release
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          fingerprint: ${{ secrets.SSH_FINGERPRINT }}
           port: ${{ vars.SSH_PORT || 22 }}
-          source: "src/backend/honey-forge-api,migrations/,deploy/,frontend/dist/"
-          target: "/opt/honeyforge/incoming/${{ github.run_id }}-${{ github.run_attempt }}/"
-          strip_components: 0
-          overwrite: true
-
-      # ---------- Install and restart ----------
-
-      - name: Install and restart
+          source: release/
+          strip_components: 1
+          target: /opt/honeyforge/incoming/${{ github.run_id }}-${{ github.run_attempt }}/
+          timeout: 60s
+          command_timeout: 20m
+      - name: Install Docker release and retire systemd API
         uses: appleboy/ssh-action@v1
+        env:
+          RELEASE_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+          EXPECTED_ORIGIN: ${{ env.PUBLIC_ORIGIN }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          fingerprint: ${{ secrets.SSH_FINGERPRINT }}
           port: ${{ vars.SSH_PORT || 22 }}
+          envs: RELEASE_ID,EXPECTED_ORIGIN
+          command_timeout: 20m
           script: |
-            set -e
-
-            INCOMING="/opt/honeyforge/incoming/${{ github.run_id }}-${{ github.run_attempt }}"
-
-            # --- Очистка старых incoming (оставить 5 последних) ---
-            ls -dt /opt/honeyforge/incoming/*/ 2>/dev/null | tail -n +6 | xargs -r rm -rf
-
-            # --- Backend ---
-
-            cp /opt/honeyforge/src/backend/honey-forge-api \
-               /opt/honeyforge/src/backend/honey-forge-api.prev 2>/dev/null || true
-
-            mkdir -p /opt/honeyforge/migrations
-            cp -r "$INCOMING/migrations/." /opt/honeyforge/migrations/
-
-            install -m 0755 "$INCOMING/src/backend/honey-forge-api" \
-              /opt/honeyforge/src/backend/honey-forge-api.new
-            mv /opt/honeyforge/src/backend/honey-forge-api.new \
-               /opt/honeyforge/src/backend/honey-forge-api
-
-            # --- Frontend ---
-
-            if [ -d /var/www/honeyforge-frontend ]; then
-              rm -rf /var/www/honeyforge-frontend/*
-              cp -r "$INCOMING/frontend/dist/." /var/www/honeyforge-frontend/
-              chmod -R 755 /var/www/honeyforge-frontend
-              echo "Frontend updated: $(ls /var/www/honeyforge-frontend/ | head -3)"
-            else
-              echo "::error::/var/www/honeyforge-frontend does not exist"
-              exit 1
+            set -eu
+            ROOT=/opt/honeyforge
+            INCOMING="$ROOT/incoming/$RELEASE_ID"
+            MANIFEST="$ROOT/compose.production.yml"
+            CONFIG=/etc/honey-forge/production.env
+            FRONT=/var/www/honeyforge-frontend
+            test -f "$MANIFEST"
+            test -f "$CONFIG"
+            if grep -q 'REPLACE_WITH_' "$CONFIG"; then echo 'Configure production.env first'; exit 1; fi
+            test -f "$INCOMING/release.env"
+            test -f "$INCOMING/images.tar.gz"
+            test -f "$INCOMING/frontend/index.html"
+            test -L "$FRONT" || { echo 'Prepare the frontend symlink before first deployment'; exit 1; }
+            test -r /etc/honey-forge/certs/backend-ca.crt
+            test -r /etc/honey-forge/certs/backend.crt
+            test -r /etc/honey-forge/certs/backend.key
+            test -r /etc/honey-forge/certs/public-ca.crt
+            openssl verify -CAfile /etc/honey-forge/certs/backend-ca.crt -verify_hostname api /etc/honey-forge/certs/backend.crt
+            openssl verify -CAfile /etc/honey-forge/certs/backend-ca.crt -verify_hostname localhost /etc/honey-forge/certs/backend.crt
+            docker info >/dev/null
+            docker compose version
+            compose() {
+              docker compose --project-name honeyforge --env-file "$CONFIG" --env-file "$1" -f "$MANIFEST" "${@:2}"
+            }
+            test -n "${BASH_VERSION:-}" || { echo 'SSH login shell must be bash'; exit 1; }
+            compose "$INCOMING/release.env" config --quiet
+            grep -Fx "PUBLIC_ORIGIN=$EXPECTED_ORIGIN" "$CONFIG" >/dev/null || {
+              echo 'PUBLIC_ORIGIN on the server must match API_BASE_URL'; exit 1;
+            }
+            for key in POSTGRES_VOLUME KAFKA_VOLUME REDIS_VOLUME; do
+              volume=$(sed -n "s/^$key=//p" "$CONFIG")
+              case "$volume" in ''|*[!a-zA-Z0-9_.-]*) echo "Invalid $key"; exit 1;; esac
+              docker volume inspect "$volume" >/dev/null
+              for container in $(docker ps --filter "volume=$volume" --format '{{.ID}}'); do
+                project=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$container")
+                test "$project" = honeyforge || {
+                  echo "Volume $volume is used by another deployment; prepare the data cutover first"; exit 1;
+                }
+              done
+            done
+            if [ "$(docker info --format '{{.Swarm.LocalNodeState}}')" = active ]; then
+              test "$(docker node ls --format '{{.ID}}' | wc -l)" -eq 1 || {
+                echo 'This workflow supports one Swarm node. Multiple nodes require a registry.'; exit 1;
+              }
             fi
-
-            # --- Restart API ---
-
-            sudo systemctl restart honeyforge
-
-            for i in $(seq 1 15); do
-              if curl --fail --silent \
-                  --cacert /etc/nginx/certs/backend-ca.crt \
-                  --resolve localhost:8443:127.0.0.1 \
-                  https://localhost:8443/healthz | grep -q '"status":"ok"'; then
-                echo "API is healthy"
-                exit 0
+            gzip -dc "$INCOMING/images.tar.gz" | docker load
+            PREVIOUS_ENV=''
+            if [ -f "$ROOT/current/release.env" ]; then PREVIOUS_ENV=$(readlink -f "$ROOT/current/release.env"); fi
+            PREVIOUS_FRONT=$(readlink -f "$FRONT")
+            OLD_SYSTEMD=0
+            if sudo -n systemctl is-active --quiet honeyforge; then OLD_SYSTEMD=1; fi
+            rollback() {
+              trap - EXIT
+              echo 'Deployment failed; attempting application rollback (database migrations are not reverted)'
+              compose "$INCOMING/release.env" logs --tail=100 api orchestrator || true
+              if [ -n "$PREVIOUS_ENV" ]; then
+                compose "$PREVIOUS_ENV" up -d --no-build --pull never api orchestrator || true
+              elif [ "$OLD_SYSTEMD" -eq 1 ]; then
+                compose "$INCOMING/release.env" stop api orchestrator || true
+                sudo -n systemctl start honeyforge || true
+              fi
+              ln -s "$PREVIOUS_FRONT" "$FRONT.rollback"
+              mv -Tf "$FRONT.rollback" "$FRONT"
+              exit 1
+            }
+            trap rollback EXIT
+            compose "$INCOMING/release.env" up -d --wait --wait-timeout 180 postgres kafka redis
+            if [ "$OLD_SYSTEMD" -eq 1 ]; then sudo -n systemctl stop honeyforge; fi
+            compose "$INCOMING/release.env" up -d --no-build --pull never api
+            healthy=0
+            for i in $(seq 1 60); do
+              if curl --fail --silent --max-time 5 --cacert /etc/honey-forge/certs/backend-ca.crt https://localhost:8443/healthz | grep -q '"status":"ok"'; then
+                healthy=1; break
               fi
               sleep 2
             done
-
-            echo "API failed to become healthy — откат backend"
-            cp /opt/honeyforge/src/backend/honey-forge-api.prev \
-               /opt/honeyforge/src/backend/honey-forge-api 2>/dev/null || true
-            sudo systemctl restart honeyforge
-            sudo journalctl -u honeyforge -n 100 --no-pager
-            exit 1
-
-      # ---------- Smoke tests ----------
-
-      - name: External smoke test
+            test "$healthy" -eq 1
+            compose "$INCOMING/release.env" up -d --no-build --pull never orchestrator
+            ready=0
+            for i in $(seq 1 60); do
+              api_id=$(compose "$INCOMING/release.env" ps -q api)
+              redis_id=$(compose "$INCOMING/release.env" ps -q redis)
+              if [ -n "$api_id" ] && [ -n "$redis_id" ] && \
+                 [ "$(docker inspect --format '{{if index .NetworkSettings.Networks "hf-decoys"}}ready{{end}}' "$api_id")" = ready ] && \
+                 [ "$(docker inspect --format '{{if index .NetworkSettings.Networks "hf-decoys"}}ready{{end}}' "$redis_id")" = ready ]; then
+                ready=1; break
+              fi
+              sleep 2
+            done
+            test "$ready" -eq 1
+            . "$INCOMING/release.env"
+            for service in $(docker service ls --filter label=honeyforge.trap --format '{{.ID}}'); do
+              old_image=$(docker service inspect --format '{{.Spec.TaskTemplate.ContainerSpec.Image}}' "$service")
+              case "$old_image" in
+                honeyforge/tcp-decoy:*) image="$DECOY_TCP_IMAGE";;
+                honeyforge/redis-decoy:*) image="$DECOY_REDIS_IMAGE";;
+                honeyforge/honeytoken-decoy:*) image="$DECOY_HONEYTOKEN_IMAGE";;
+                *) echo "Unchanged service $service: $old_image"; continue;;
+              esac
+              docker service update --detach=false --no-resolve-image --image "$image" --update-order stop-first --update-parallelism 1 --update-failure-action rollback "$service"
+              state=$(docker service inspect --format '{{if .UpdateStatus}}{{.UpdateStatus.State}}{{end}}' "$service")
+              test "$state" = completed
+            done
+            chmod a+rx "$ROOT" "$ROOT/incoming" "$INCOMING"
+            chmod -R a+rX "$INCOMING/frontend"
+            ln -s "$INCOMING/frontend" "$FRONT.next"
+            mv -Tf "$FRONT.next" "$FRONT"
+            sudo -n nginx -t
+            sudo -n systemctl reload nginx
+            code=$(curl --silent --show-error --max-time 10 --cacert /etc/honey-forge/certs/public-ca.crt --output /dev/null --write-out '%{http_code}' "$EXPECTED_ORIGIN/api/session")
+            test "$code" = 401
+            ln -s "$INCOMING" "$ROOT/current.next"
+            mv -Tf "$ROOT/current.next" "$ROOT/current"
+            if [ "$OLD_SYSTEMD" -eq 1 ]; then sudo -n systemctl disable honeyforge; fi
+            trap - EXIT
+            echo 'Docker API, orchestrator, TCP/Redis agents and frontend updated'
+      - name: External API, WSS and frontend smoke tests
         env:
-          API_DOMAIN: "honey-forge-seg-fault.ru"
-          API_IP: ${{ secrets.SSH_HOST }}
+          PUBLIC_CA_PEM: ${{ secrets.PUBLIC_CA_PEM }}
         run: |
-          set -e
-
-          check_api() {
-            local path="$1" expected="$2"
-            local code
-            code=$(curl -k -s -o /dev/null -w "%{http_code}" \
-              --resolve "$API_DOMAIN:443:$API_IP" \
-              "https://$API_DOMAIN$path")
-            echo "API $path → $code"
-            [ "$code" = "$expected" ] || (echo "expected $expected, got $code"; exit 1)
-          }
-
-          check_front() {
-            local code
-            code=$(curl -k -s -o /dev/null -w "%{http_code}" \
-              --resolve "$API_DOMAIN:443:$API_IP" \
-              "https://$API_DOMAIN/")
-            echo "Frontend / → $code"
-            [ "$code" = "200" ] || (echo "expected 200, got $code"; exit 1)
-
-            local body
-            body=$(curl -k -s \
-              --resolve "$API_DOMAIN:443:$API_IP" \
-              "https://$API_DOMAIN/")
-            echo "$body" | grep -q "<div id=\"root\">" \
-              || (echo "index.html does not contain SPA root div"; exit 1)
-          }
-
-          check_api /api/session 401
-          check_api /assets/stream 401
-          check_front
-
-          echo "Smoke test passed"
+          tls=()
+          if [ -n "$PUBLIC_CA_PEM" ]; then
+            printf '%s\n' "$PUBLIC_CA_PEM" > "$RUNNER_TEMP/public-ca.crt"
+            tls=(--cacert "$RUNNER_TEMP/public-ca.crt")
+          fi
+          for entry in '/api/session:401' '/assets/stream:401' '/api/stream:401' '/:200' '/app/profiles:200'; do
+            path="${entry%:*}"
+            expected="${entry##*:}"
+            code=$(curl "${tls[@]}" --silent --show-error --max-time 20 --retry 3 --output /dev/null --write-out '%{http_code}' "$PUBLIC_ORIGIN$path")
+            echo "$path: $code"
+            test "$code" = "$expected"
+          done
+          curl "${tls[@]}" --fail --silent --show-error --max-time 20 "$PUBLIC_ORIGIN/" | grep -q '<div id="root">'
