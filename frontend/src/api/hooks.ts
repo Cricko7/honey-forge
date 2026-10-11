@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import type { CommandAction, EventSummary } from '@/types'
 import { api, subscribeStream } from './client'
+import { canManage } from '@/lib/auth'
 import { applyStreamNotification, removeDeletedTrap } from './cache'
 
 export const qk = {
@@ -16,6 +17,7 @@ export const qk = {
 }
 
 export const useSession = () => useQuery({ queryKey: qk.session, queryFn: api.getSession })
+export const useCanManage = () => canManage(useSession().data)
 export const useCatalog = () => useQuery({ queryKey: qk.catalog, queryFn: api.listCatalog })
 export const useProfiles = () => useQuery({ queryKey: qk.profiles, queryFn: api.listProfiles })
 

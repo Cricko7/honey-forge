@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { FileSliders, Lock, Plus } from 'lucide-react'
 import { Card, SectionTitle, LevelBadge, Spinner, EmptyState } from '@/components/ui'
 import { Modal } from '@/components/Modal'
-import { useProfiles, useCatalog, useCreateProfile } from '@/api/hooks'
+import { useProfiles, useCatalog, useCreateProfile, useCanManage } from '@/api/hooks'
 import { ApiError } from '@/api/client'
 import type { CatalogEntry } from '@/types'
 import { parseProfileConfig } from '@/lib/profile-config'
@@ -42,6 +42,7 @@ function configTemplate(typeId: string): Record<string, unknown> {
 }
 
 export function ProfilesPage() {
+  const canManage = useCanManage()
   const { data, isLoading } = useProfiles()
   const [open, setOpen] = useState(false)
   const profiles = data?.items ?? []
@@ -58,9 +59,9 @@ export function ProfilesPage() {
             <p className="text-sm text-muted">Конфигурации ловушек по выбранному типу каталога</p>
           </div>
         </div>
-        <button className="btn-primary" onClick={() => setOpen(true)}>
+        {canManage && <button className="btn-primary" onClick={() => setOpen(true)}>
           <Plus size={16} /> Новый профиль
-        </button>
+        </button>}
       </div>
 
       {isLoading ? (
@@ -92,7 +93,7 @@ export function ProfilesPage() {
         </div>
       )}
 
-      <CreateProfileModal open={open} onClose={() => setOpen(false)} />
+      <CreateProfileModal open={canManage && open} onClose={() => setOpen(false)} />
     </div>
   )
 }

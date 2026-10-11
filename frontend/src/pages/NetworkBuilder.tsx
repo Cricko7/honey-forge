@@ -17,7 +17,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 import { Plus, Bug, Database, Server, Zap, KeyRound, TerminalSquare } from 'lucide-react'
 import { TrapNode, type TrapNodeData } from './network/TrapNode'
-import { useTraps, useCatalog, useCreateProfile, useCreateTrap, useLiveStream } from '@/api/hooks'
+import { useCanManage, useTraps, useCatalog, useCreateProfile, useCreateTrap, useLiveStream } from '@/api/hooks'
 import { Modal } from '@/components/Modal'
 import { LevelBadge } from '@/components/ui'
 import { ApiError } from '@/api/client'
@@ -80,6 +80,7 @@ function loadLayout(): Record<string, { x: number; y: number }> {
 }
 
 export function NetworkBuilderPage() {
+  const canManage = useCanManage()
   const navigate = useNavigate()
   const c = useThemeColors()
   const { data: trapsPage } = useTraps()
@@ -126,7 +127,7 @@ export function NetworkBuilderPage() {
         runtime: 'running',
         kind: 'gateway',
       },
-      draggable: true,
+      draggable: canManage,
     }
 
     const trapNodes: Node<TrapNodeData>[] = traps.map((t, i) => ({
@@ -164,7 +165,7 @@ export function NetworkBuilderPage() {
       return [...autoEdges, ...userEdges]
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [traps, attackPulse, c])
+  }, [traps, attackPulse, c, canManage])
 
   const onConnect = useCallback(
     (c: Connection) => setEdges((eds) => addEdge({ ...c, markerEnd: { type: MarkerType.ArrowClosed } }, eds)),
@@ -192,7 +193,7 @@ export function NetworkBuilderPage() {
         <div>
           <h1 className="text-xl font-semibold">Конструктор сети</h1>
           <p className="text-sm text-muted">
-            Карта ловушек организации · перетаскивайте узлы, стройте связи, кликните для деталей
+            {canManage ? 'Карта ловушек организации · перетаскивайте узлы, стройте связи, кликните для деталей' : 'Карта ловушек организации · только просмотр, кликните для деталей'}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -201,9 +202,9 @@ export function NetworkBuilderPage() {
               <Zap size={12} /> {attackCount} под атакой
             </span>
           )}
-          <button className="btn-primary" onClick={() => setAddOpen(true)}>
+          {canManage && <button className="btn-primary" onClick={() => setAddOpen(true)}>
             <Plus size={16} /> Добавить ловушку
-          </button>
+          </button>}
         </div>
       </div>
 
@@ -212,17 +213,21 @@ export function NetworkBuilderPage() {
           nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
+          onEdgesChange={canManage ? onEdgesChange : undefined}
+          onConnect={canManage ? onConnect : undefined}
+          nodesDraggable={canManage}
+          nodesConnectable={canManage}
+          edgesFocusable={canManage}
+          deleteKeyCode={canManage ? ['Backspace', 'Delete'] : null}
           onNodeClick={onNodeClick}
-          onNodeDragStop={() => saveLayout()}
+          onNodeDragStop={canManage ? () => saveLayout() : undefined}
           nodeTypes={nodeTypes}
           fitView
           proOptions={{ hideAttribution: true }}
           defaultEdgeOptions={{ style: { stroke: c.line } }}
         >
           <Background variant={BackgroundVariant.Dots} gap={22} size={1} color={c.line} />
-          <Controls className="!bg-bg-panel !border-line !rounded-xl [&_button]:!bg-bg-elevated [&_button]:!border-line [&_button]:!text-fg [&_button]:!fill-current" />
+          <Controls showInteractive={canManage} className="!bg-bg-panel !border-line !rounded-xl [&_button]:!bg-bg-elevated [&_button]:!border-line [&_button]:!text-fg [&_button]:!fill-current" />
           <MiniMap
             className="!bg-bg-panel !border !border-line !rounded-xl"
             maskColor={c.mask}
@@ -246,7 +251,7 @@ export function NetworkBuilderPage() {
       </div>
 
       <AddTrapModal
-        open={addOpen}
+        open={canManage && addOpen}
         onClose={() => setAddOpen(false)}
         catalog={catalog}
         creating={createProfile.isPending || createTrap.isPending}

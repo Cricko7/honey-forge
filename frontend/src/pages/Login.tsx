@@ -98,9 +98,9 @@ export function LoginPage() {
           </button>
 
           <p className="text-sm text-muted mt-4 text-center">
-            Нет организации?{' '}
+            Нет аккаунта?{' '}
             <Link to="/register" className="text-brand hover:underline">
-              Создать
+              Зарегистрироваться
             </Link>
           </p>
 

@@ -11,6 +11,7 @@ import type {
   StreamNotification,
   Trap,
 } from '@/types'
+import { registrationOrganization, type RegistrationMode } from '@/lib/auth'
 import { mockApi } from './mock'
 
 // Переключатель источника данных. Пусто → mock-слой (демо хакатона).
@@ -22,6 +23,7 @@ export const USE_MOCK = API_BASE === ''
 const delay = (ms = 220) => new Promise((r) => setTimeout(r, ms))
 
 let csrfToken = ''
+let mockSignedOut = false
 
 async function real<T>(path: string, init?: RequestInit): Promise<T> {
   const headers: Record<string, string> = {
@@ -60,6 +62,7 @@ export const api = {
   async getSession(): Promise<SessionView> {
     if (USE_MOCK) {
       await delay()
+      if (mockSignedOut) throw new ApiError(401, 'unauthenticated', 'Войдите в демо')
       const s = mockApi.getSession()
       csrfToken = s.csrf_token
       return s
@@ -74,6 +77,7 @@ export const api = {
       await delay(400)
       void email
       void password
+      mockSignedOut = false
       const s = mockApi.getSession()
       csrfToken = s.csrf_token
       return s
@@ -88,10 +92,12 @@ export const api = {
 
   // Регистрация первого админа + организации (mode:create) — настоящий вход
   // на свежем бэке. Атомарно создаёт org + admin + сессию, возвращает SessionView.
-  async register(email: string, password: string, organizationName: string): Promise<SessionView> {
+  async register(email: string, password: string, organizationName: string, mode: RegistrationMode = 'create'): Promise<SessionView> {
     if (USE_MOCK) {
+      if (mode === 'join') throw new ApiError(503, 'demo_unavailable', 'Регистрация по коду доступна с подключённым сервером')
       await delay(400)
       void organizationName
+      mockSignedOut = false
       const s = mockApi.getSession()
       s.user.email = email
       csrfToken = s.csrf_token
@@ -102,16 +108,29 @@ export const api = {
       body: JSON.stringify({
         email,
         password,
-        organization: { mode: 'create', name: organizationName },
+        organization: registrationOrganization(mode, organizationName),
       }),
     })
     csrfToken = s.csrf_token
     return s
   },
 
+  async getJoinCode(): Promise<{ code: string; revision: number; rotated_at: string }> {
+    if (USE_MOCK) throw new ApiError(503, 'demo_unavailable', 'Коды приглашения доступны с подключённым сервером')
+    return real('/api/organization/join-code')
+  },
+
+  async rotateJoinCode(expectedRevision: number): Promise<{ code: string; revision: number; rotated_at: string }> {
+    if (USE_MOCK) throw new ApiError(503, 'demo_unavailable', 'Коды приглашения доступны с подключённым сервером')
+    return real('/api/organization/join-code/rotations', {
+      method: 'POST', body: JSON.stringify({ expected_revision: expectedRevision }),
+    })
+  },
+
   async logout(): Promise<void> {
-    if (USE_MOCK) return
-    await real<void>('/api/session', { method: 'DELETE' })
+    if (USE_MOCK) mockSignedOut = true
+    else await real<void>('/api/session', { method: 'DELETE' })
+    csrfToken = ''
   },
 
   // Создание профиля под выбранный тип каталога. config — валидный JSON под

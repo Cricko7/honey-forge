@@ -21,6 +21,7 @@ import {
   EmptyState,
 } from '@/components/ui'
 import {
+  useCanManage,
   useTrap,
   useCommands,
   useEvents,
@@ -33,6 +34,7 @@ import { formatDateTime, timeAgo } from '@/lib/utils'
 import { commandControls } from '@/lib/command-controls'
 
 export function TrapDetailPage() {
+  const canManage = useCanManage()
   const navigate = useNavigate()
   const { id = '' } = useParams()
   const { data: trap, isLoading } = useTrap(id)
@@ -79,7 +81,7 @@ export function TrapDetailPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        {canManage && <div className="flex items-center gap-2">
           <button
             className="btn-ghost"
             disabled={busy}
@@ -122,7 +124,7 @@ export function TrapDetailPage() {
           >
             <Trash2 size={15} />
           </button>
-        </div>
+        </div>}
       </div>
 
       {deleteTrap.error && (

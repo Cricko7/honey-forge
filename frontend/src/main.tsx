@@ -1,8 +1,10 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { RouterProvider, createBrowserRouter, Navigate } from 'react-router-dom'
+import { RouterProvider, createBrowserRouter } from 'react-router-dom'
 import './index.css'
+import { SessionEntry } from '@/components/SessionEntry'
+import { OrganizationPage } from '@/pages/Organization'
 import { ThemeProvider } from '@/lib/theme'
 import { Layout } from '@/components/Layout'
 import { LoginPage } from '@/pages/Login'
@@ -22,9 +24,9 @@ const queryClient = new QueryClient({
 })
 
 const router = createBrowserRouter([
-  { path: '/', element: <Navigate to="/login" replace /> },
-  { path: '/login', element: <LoginPage /> },
-  { path: '/register', element: <RegisterPage /> },
+  { path: '/', element: <SessionEntry /> },
+  { path: '/login', element: <SessionEntry><LoginPage /></SessionEntry> },
+  { path: '/register', element: <SessionEntry><RegisterPage /></SessionEntry> },
   {
     path: '/app',
     element: <Layout />,
@@ -35,6 +37,7 @@ const router = createBrowserRouter([
       { path: 'traps/:id', element: <TrapDetailPage /> },
       { path: 'events', element: <EventsPage /> },
       { path: 'profiles', element: <ProfilesPage /> },
+      { path: 'organization', element: <OrganizationPage /> },
       { path: 'catalog', element: <CatalogPage /> },
     ],
   },

@@ -17,6 +17,7 @@ import { ThemeToggle } from '@/components/ThemeToggle'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { replaceSessionCache } from '@/api/cache'
+import { canManage, sessionDestination } from '@/lib/auth'
 import { ApiError } from '@/api/client'
 
 const nav = [
@@ -32,7 +33,7 @@ export function Layout() {
   const qc = useQueryClient()
   const [logoutError, setLogoutError] = useState('')
   const [loggingOut, setLoggingOut] = useState(false)
-  const { data: session, isLoading, isError } = useSession()
+  const { data: session, isLoading, error, refetch } = useSession()
   const navigate = useNavigate()
   // Глобальная подписка на live-стрим: держит кэш свежим на всех экранах.
   useLiveStream()
@@ -63,7 +64,8 @@ export function Layout() {
       </div>
     )
   }
-  if (isError || !session) return <Navigate to="/login" replace />
+  if (sessionDestination(session, isLoading, error) === 'guest') return <Navigate to="/login" replace />
+  if (error || !session) return <div className="p-8">Не удалось проверить сессию. <button className="btn-primary" onClick={() => refetch()}>Повторить</button></div>
 
   return (
     <div className="flex h-screen overflow-hidden gap-5 p-5 bg-bg-base">
@@ -80,7 +82,7 @@ export function Layout() {
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-0.5">
-          {nav.map((item) => (
+          {[...nav, ...(canManage(session) ? [{ to: '/app/organization', icon: Shield, label: 'Приглашения' }] : [])].map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -109,7 +111,7 @@ export function Layout() {
               <div className="min-w-0 leading-tight">
                 <div className="text-sm text-fg truncate">{session?.user.email ?? '—'}</div>
                 <div className="text-xs text-muted truncate">
-                  {session?.organization.name} · {session?.user.role}
+                  {session?.organization.name} · {canManage(session) ? 'Администратор' : 'Пользователь · только чтение'}
                 </div>
               </div>
             </div>
