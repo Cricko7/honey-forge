@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"honey-forge/internal/contract"
+	"honey-forge/internal/platform/traffic"
 	"honey-forge/modules/events"
 	"honey-forge/modules/profiles"
 )
@@ -37,7 +38,7 @@ func Start(ctx context.Context, snapshot profiles.Snapshot, host string, sink Si
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	service := config.Services[0]
-	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", net.JoinHostPort(host, strconv.Itoa(service.Port)))
+	listener, err := traffic.Listen(ctx, "tcp", net.JoinHostPort(host, strconv.Itoa(service.Port)))
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("bind Redis service: %w", err)

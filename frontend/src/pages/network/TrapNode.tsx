@@ -20,11 +20,11 @@ const typeIcon: Record<string, typeof Bug> = {
   'redis-emulator': Database,
 }
 
-function TrapNodeInner({ data, selected }: NodeProps<TrapNodeData>) {
+function TrapNodeInner({ data, selected, isConnectable }: NodeProps<TrapNodeData>) {
   if (data.kind === 'gateway') {
     return (
       <div className="relative">
-        <Handle type="source" position={Position.Bottom} className="!bg-brand !w-2 !h-2" />
+        <Handle type="source" position={Position.Bottom} isConnectable={false} className="!bg-brand !w-2 !h-2" />
         <div className="flex flex-col items-center gap-1 px-5 py-3 rounded-2xl bg-bg-elevated border border-brand/40 shadow-glow">
           <Globe size={22} className="text-brand-soft" />
           <span className="text-xs font-semibold text-fg">{data.label}</span>
@@ -46,7 +46,8 @@ function TrapNodeInner({ data, selected }: NodeProps<TrapNodeData>) {
 
   return (
     <div className="relative">
-      <Handle type="target" position={Position.Top} className="!bg-line !w-2 !h-2" />
+      <Handle type="target" position={Position.Top} isConnectable={isConnectable} title="Получать копию трафика" className="!bg-brand !w-3 !h-3 !z-10" />
+      <Handle type="source" position={Position.Right} isConnectable={isConnectable} title="Передавать копию трафика" className="!bg-brand !w-3 !h-3 !z-10" />
       <div
         className={cn(
           'w-48 rounded-2xl border bg-bg-panel/95 backdrop-blur-xl transition-all',

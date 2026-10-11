@@ -10,6 +10,7 @@ import type {
   SessionView,
   StreamNotification,
   Trap,
+  TrapLink,
 } from '@/types'
 import { registrationOrganization, type RegistrationMode } from '@/lib/auth'
 import { mockApi } from './mock'
@@ -60,6 +61,24 @@ export class ApiError extends Error {
 }
 
 export const api = {
+  async listTrapLinks(): Promise<{ items: TrapLink[] }> {
+    if (USE_MOCK) { await delay(); return mockApi.listTrapLinks() }
+    return real('/api/trap-links')
+  },
+  async createTrapLink(link: TrapLink): Promise<TrapLink> {
+    if (USE_MOCK) {
+      await delay()
+      if (link.source_id === link.target_id) throw new ApiError(422, 'validation_failed', 'Нельзя связать ловушку с собой')
+      if (!mockApi.getTrap(link.source_id) || !mockApi.getTrap(link.target_id)) throw new ApiError(404, 'resource_not_found', 'Ловушка удалена')
+      if (mockApi.listTrapLinks().items.some((l) => l.source_id === link.source_id && l.target_id === link.target_id)) throw new ApiError(409, 'trap_link_exists', 'Связь уже существует')
+      return mockApi.createTrapLink(link)
+    }
+    return real('/api/trap-links', { method: 'POST', body: JSON.stringify(link) })
+  },
+  async deleteTrapLink(link: TrapLink): Promise<void> {
+    if (USE_MOCK) { await delay(); mockApi.deleteTrapLink(link); return }
+    await real(`/api/trap-links/${link.source_id}/${link.target_id}`, { method: 'DELETE' })
+  },
   async getSession(): Promise<SessionView> {
     if (USE_MOCK) {
       await delay()

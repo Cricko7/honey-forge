@@ -13,6 +13,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"honey-forge/internal/contract"
+	"honey-forge/internal/platform/traffic"
 	"honey-forge/modules/events"
 )
 
@@ -67,6 +68,26 @@ func TestLocalWebSocketAuthenticationAndCommit(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer client.Close()
+	frame := traffic.Frame{ConnectionID: string(contract.NewID()), Sequence: 1, Kind: "data", RemoteAddress: "127.0.0.1:1234", LocalAddress: "127.0.0.1:2222", Data: []byte{0, 255, 1}}
+	for n, kind := range []string{"open", "data", "close"} {
+		copy := frame
+		copy.Sequence, copy.Kind = int64(n+1), kind
+		if kind != "data" {
+			copy.Data = nil
+		}
+		client.Mirror(copy)
+		select {
+		case got := <-local.Traffic:
+			if string(got.Data) != string(copy.Data) || got.ConnectionID != copy.ConnectionID || got.Kind != kind {
+				t.Fatal("wire copy changed")
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatal("missing local traffic copy", kind)
+		}
+	}
+	if len(j.Pending()) != 0 {
+		t.Fatal("raw traffic entered telemetry")
+	}
 	e := events.AgentEvent{EventID: string(contract.NewID()), EventType: "tcp.connection_opened", TypeID: "tcp-banner", TypeVersion: 1, ProfileRevision: 1, OccurredAt: time.Now().UTC().Format(time.RFC3339Nano), SessionID: string(contract.NewID()), SessionSequence: 1, Source: events.Source{IP: "127.0.0.1", Port: 12345}, Destination: events.Destination{Protocol: "tcp", Port: 2222}, Data: json.RawMessage(`{"listener_name":"demo"}`)}
 	if err := client.Emit(t.Context(), e); err != nil {
 		t.Fatal(err)

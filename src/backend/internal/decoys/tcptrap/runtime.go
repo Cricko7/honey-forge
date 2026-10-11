@@ -13,6 +13,7 @@ import (
 
 	"honey-forge/internal/contract"
 	"honey-forge/internal/decoys/camouflage"
+	"honey-forge/internal/platform/traffic"
 	"honey-forge/modules/events"
 	"honey-forge/modules/profiles"
 )
@@ -41,7 +42,7 @@ func Start(ctx context.Context, snapshot profiles.Snapshot, host string, sink Si
 	ctx, cancel := context.WithCancel(ctx)
 	r := &Runtime{cancel: cancel, connections: map[net.Conn]bool{}, done: make(chan struct{})}
 	for _, l := range config.Listeners {
-		listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", net.JoinHostPort(host, fmtPort(l.Port)))
+		listener, err := traffic.Listen(ctx, "tcp", net.JoinHostPort(host, fmtPort(l.Port)))
 		if err != nil {
 			cancel()
 			for _, bound := range r.listeners {

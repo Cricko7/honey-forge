@@ -17,10 +17,13 @@ import (
 
 	"honey-forge/internal/contract"
 	"honey-forge/internal/platform/tlsconfig"
+	"honey-forge/internal/platform/traffic"
 	"honey-forge/modules/agentws"
 )
 
 type Options struct {
+	// TrafficInbox receives passive copies without invoking the trap protocol.
+	TrafficInbox   *traffic.Inbox
 	URL            string
 	Token          string
 	TrapID         string

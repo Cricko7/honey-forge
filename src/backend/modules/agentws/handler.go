@@ -16,15 +16,17 @@ import (
 
 	"honey-forge/internal/contract"
 	"honey-forge/internal/platform/tlsconfig"
+	"honey-forge/internal/platform/traffic"
 	"honey-forge/internal/stream"
 	"honey-forge/modules/commands"
 )
 
 type Handler struct {
-	ClientCAFile string
-	gateway      Gateway
-	commands     CommandService
-	registry     sessionRegistry
+	TrafficTargets func(context.Context, string, string) ([]string, error)
+	ClientCAFile   string
+	gateway        Gateway
+	commands       CommandService
+	registry       sessionRegistry
 }
 
 func NewHandler(gateway Gateway, commands CommandService) *Handler {
@@ -145,6 +147,8 @@ func (h *Handler) run(session *agentSession) (runErr error) {
 		return nil
 	}
 
+	session.trafficEnabled = hello.TrafficMirroring
+	session.traffic = make(chan traffic.Delivery, traffic.QueueCapacity)
 	entry := h.registry.entry(session.identity.TrapID)
 	entry.mu.Lock()
 	if entry.current != nil {
@@ -174,7 +178,8 @@ func (h *Handler) run(session *agentSession) (runErr error) {
 
 	if err := session.socket.Reply(session.ctx, first, "agent.welcome", map[string]any{
 		"connection_id": session.connectionID, "trap_id": session.identity.TrapID,
-		"server_time": time.Now().UTC(), "heartbeat_interval_seconds": interval(state),
+		"traffic_mirroring": h.TrafficTargets != nil && hello.TrafficMirroring,
+		"server_time":       time.Now().UTC(), "heartbeat_interval_seconds": interval(state),
 		"offline_after_seconds": 30, "max_batch_events": 100, "max_message_bytes": contract.MaxBodyBytes,
 		"telemetry_ack_timeout_seconds": 10, "current_configuration": state.CurrentConfiguration,
 		"desired_profile_revision": state.DesiredProfileRevision, "desired_state": desiredState(state),
@@ -222,14 +227,16 @@ func desiredState(state State) string {
 }
 
 type agentSession struct {
-	identity     Identity
-	token        string
-	socket       *stream.Socket
-	ctx          context.Context
-	cancel       context.CancelFunc
-	connectionID string
-	active       atomic.Bool
-	heartbeatAt  atomic.Int64
+	trafficEnabled bool
+	traffic        chan traffic.Delivery
+	identity       Identity
+	token          string
+	socket         *stream.Socket
+	ctx            context.Context
+	cancel         context.CancelFunc
+	connectionID   string
+	active         atomic.Bool
+	heartbeatAt    atomic.Int64
 }
 
 type sessionEntry struct {

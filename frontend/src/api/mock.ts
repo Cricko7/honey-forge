@@ -8,6 +8,7 @@ import type {
   SessionView,
   StreamNotification,
   Trap,
+  TrapLink,
   User,
 } from '@/types'
 import { CATALOG } from './catalog'
@@ -279,7 +280,20 @@ function startLive() {
   }, 3500)
 }
 
+const trapLinks: TrapLink[] = []
+
 export const mockApi = {
+  listTrapLinks() {
+    return { items: trapLinks.filter((link) => traps.some((t) => t.id === link.source_id) && traps.some((t) => t.id === link.target_id)).map((link) => ({ ...link })) }
+  },
+  createTrapLink(link: TrapLink): TrapLink {
+    trapLinks.push({ ...link })
+    return { ...link }
+  },
+  deleteTrapLink(link: TrapLink) {
+    const index = trapLinks.findIndex((l) => l.source_id === link.source_id && l.target_id === link.target_id)
+    if (index >= 0) trapLinks.splice(index, 1)
+  },
   getSession(): SessionView {
     return {
       user: USER,

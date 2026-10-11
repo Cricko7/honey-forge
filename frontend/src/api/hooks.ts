@@ -14,12 +14,24 @@ export const qk = {
   commands: (trapId: string) => ['commands', trapId] as const,
   events: (f?: object) => ['events', f ?? {}] as const,
   event: (id: string) => ['event', id] as const,
+  trapLinks: ['trap-links'] as const,
 }
 
 export const useSession = () => useQuery({ queryKey: qk.session, queryFn: api.getSession })
 export const useCanManage = () => canManage(useSession().data)
 export const useCatalog = () => useQuery({ queryKey: qk.catalog, queryFn: api.listCatalog })
 export const useProfiles = () => useQuery({ queryKey: qk.profiles, queryFn: api.listProfiles })
+export const useTrapLinks = () => useQuery({ queryKey: qk.trapLinks, queryFn: api.listTrapLinks, refetchInterval: 3000 })
+
+export function useCreateTrapLink() {
+  const qc = useQueryClient()
+  return useMutation({ mutationFn: api.createTrapLink, onSuccess: () => qc.invalidateQueries({ queryKey: qk.trapLinks }) })
+}
+
+export function useDeleteTrapLink() {
+  const qc = useQueryClient()
+  return useMutation({ mutationFn: api.deleteTrapLink, onSuccess: () => qc.invalidateQueries({ queryKey: qk.trapLinks }) })
+}
 
 export const useTraps = (filter?: { connectivity?: string; profile_id?: string }) =>
   useQuery({ queryKey: qk.traps(filter), queryFn: () => api.listTraps(filter) })

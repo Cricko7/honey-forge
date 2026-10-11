@@ -11,6 +11,7 @@ import (
 	"honey-forge/internal/contract"
 	"honey-forge/internal/mutation"
 	"honey-forge/internal/postgres"
+	"honey-forge/internal/traplinks"
 	"honey-forge/modules/agentws"
 	"honey-forge/modules/audit"
 	authhttp "honey-forge/modules/auth/http"
@@ -141,9 +142,12 @@ func Open(ctx context.Context, config Config) (*Runtime, error) {
 		agentCommands = commandservice.NewAgent(commandRepository, CommandResultCheck(catalogService))
 	}
 	agentHandler := agentws.NewHandler(gateway, agentCommands)
+	links := traplinks.NewService(traplinks.NewRepository(pool))
+	agentHandler.TrafficTargets = links.Targets
 	agentHandler.ClientCAFile = config.AgentClientCAFile
 	trapService := traps.NewService(trapRepository, catalogService, config.AgentWSURL, agentHandler.Revoke).WithAutoDeploy(config.AutoDeployTraps)
 	session := authhttp.NewHandler(authService, logger).RequireSession()
+	traplinks.NewHandler(links, logger).Register(router, session)
 	audit.NewHandler(audit.NewService(audit.NewRepository(pool)), cursors, logger).RegisterRoutes(router, session)
 	traps.NewHandler(trapService, cursors, logger).RegisterRoutes(router, session)
 	events.NewHandler(eventRepository, cursors, logger).RegisterRoutes(router, session)

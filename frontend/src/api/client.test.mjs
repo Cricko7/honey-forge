@@ -61,3 +61,49 @@ test('demo logout allows signing in again', async () => {
   await api.login('demo@example.com', 'demo-password')
   assert.equal((await api.getSession()).user.role, 'admin')
 })
+
+test('trap links use authenticated REST and preserve errors', async () => {
+  const { api, ApiError } = await client('https://operator.example')
+  const originalFetch = globalThis.fetch
+  const originalWindow = globalThis.window
+  const requests = []
+  let status = 200
+  let response = { user: { role: 'admin' }, csrf_token: 'link-csrf' }
+  globalThis.window = { location: { origin: 'https://operator.example' } }
+  globalThis.fetch = async (url, init) => {
+    requests.push({ url, ...init })
+    return new Response(status === 204 ? null : JSON.stringify(response), { status })
+  }
+  try {
+    await api.getSession()
+    response = { items: [] }
+    assert.deepEqual(await api.listTrapLinks(), { items: [] })
+    const link = { source_id: 'a', target_id: 'b' }
+    status = 201; response = link
+    assert.deepEqual(await api.createTrapLink(link), link)
+    assert.equal(requests.at(-1).headers['X-CSRF-Token'], 'link-csrf')
+    assert.equal(requests.at(-1).credentials, 'include')
+    assert.deepEqual(JSON.parse(requests.at(-1).body), link)
+    status = 409; response = { error: { code: 'trap_link_exists', message: 'Already linked' } }
+    await assert.rejects(api.createTrapLink(link), (err) => err instanceof ApiError && err.status === 409)
+    status = 204
+    await api.deleteTrapLink(link)
+    assert.equal(requests.at(-1).method, 'DELETE')
+    assert.equal(requests.at(-1).url, 'https://operator.example/api/trap-links/a/b')
+  } finally { globalThis.fetch = originalFetch; globalThis.window = originalWindow }
+})
+
+test('demo links survive refetch and allow reverse links', async () => {
+  const { api } = await client('')
+  const { items } = await api.listTraps()
+  const link = { source_id: items[0].id, target_id: items[1].id }
+  const reverse = { source_id: link.target_id, target_id: link.source_id }
+  await api.createTrapLink(link)
+  await api.createTrapLink(reverse)
+  assert.equal((await api.listTrapLinks()).items.length, 2)
+  await assert.rejects(api.createTrapLink(link), (err) => err.status === 409)
+  await assert.rejects(api.createTrapLink({ ...link, target_id: link.source_id }), (err) => err.status === 422)
+  await api.deleteTrapLink(link)
+  assert.deepEqual((await api.listTrapLinks()).items, [reverse])
+  await api.deleteTrapLink(reverse)
+})

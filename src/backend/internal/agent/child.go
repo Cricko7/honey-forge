@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"honey-forge/internal/decoys"
+	"honey-forge/internal/platform/traffic"
 	"honey-forge/modules/profiles"
 )
 
@@ -69,7 +70,7 @@ func RunTrap(ctx context.Context) error {
 		return err
 	}
 	defer client.Close()
-	runtime, err := start(ctx, bootstrap.Snapshot, "", client.Emit)
+	runtime, err := start(traffic.WithSink(ctx, client.Mirror), bootstrap.Snapshot, "", client.Emit)
 	if err != nil {
 		return err
 	}
