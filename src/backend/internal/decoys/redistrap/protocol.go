@@ -70,11 +70,16 @@ func bulk(value string) string { return fmt.Sprintf("$%d\r\n%s\r\n", len(value),
 
 type database struct {
 	values   map[string]string
+	bytes    int
 	identity serverIdentity
 }
 
 func newDatabase() *database {
-	return &database{values: map[string]string{"app:mode": "staging", "backup:note": "nightly snapshot pending", "users:admin": "disabled"}, identity: newServerIdentity(6379)}
+	d := &database{values: map[string]string{"app:mode": "staging", "backup:note": "nightly snapshot pending", "users:admin": "disabled"}, identity: newServerIdentity(6379)}
+	for key, value := range d.values {
+		d.bytes += len(key) + len(value)
+	}
+	return d
 }
 
 type serverIdentity struct {
@@ -113,6 +118,16 @@ func (d *database) execute(args []string) (string, bool, bool) {
 		}
 	case "SET":
 		if len(args) == 3 {
+			previous, exists := d.values[args[1]]
+			growth := len(args[2]) - len(previous)
+			if !exists {
+				growth += len(args[1])
+			}
+			// Frame limits do not bound data retained across repeated SETs.
+			if !exists && len(d.values) >= 256 || growth > 256*1024-d.bytes {
+				return "-OOM command not allowed when used memory > 'maxmemory'.\r\n", false, false
+			}
+			d.bytes += growth
 			d.values[args[1]] = args[2]
 			return "+OK\r\n", true, false
 		}
@@ -120,7 +135,8 @@ func (d *database) execute(args []string) (string, bool, bool) {
 		if len(args) >= 2 {
 			deleted := 0
 			for _, key := range args[1:] {
-				if _, ok := d.values[key]; ok {
+				if value, ok := d.values[key]; ok {
+					d.bytes -= len(key) + len(value)
 					delete(d.values, key)
 					deleted++
 				}

@@ -1,7 +1,7 @@
 # Сборка и запуск Go API HoneyForge в Docker (Go на хост ставить не нужно).
 # Контекст сборки — корень репозитория: нужны src/backend и migrations.
 # ------- stage 1: сборка -------
-FROM golang:1.26-alpine AS build
+FROM golang:1.27.2-alpine AS build
 WORKDIR /src
 # Кэш зависимостей
 COPY src/backend/go.mod src/backend/go.sum ./

@@ -15,16 +15,19 @@ import (
 const (
 	authLimit     = 10
 	maxTrackedIPs = 4096
+	// Each Argon2id check needs 64 MiB; IP limits alone do not bound memory.
+	maxConcurrentAuth = 2
 )
 
 type authLimiter struct {
 	mu          sync.Mutex
 	attempts    map[string][]time.Time
 	nextCleanup time.Time
+	inflight    chan struct{}
 }
 
 func newAuthLimiter() *authLimiter {
-	return &authLimiter{attempts: make(map[string][]time.Time)}
+	return &authLimiter{attempts: make(map[string][]time.Time), inflight: make(chan struct{}, maxConcurrentAuth)}
 }
 
 func (l *authLimiter) allow(ip string, now time.Time) (bool, int) {
@@ -62,7 +65,17 @@ func (l *authLimiter) allow(ip string, now time.Time) (bool, int) {
 }
 
 func (l *authLimiter) middleware(c *gin.Context) {
-	if allowed, retry := l.allow(c.ClientIP(), time.Now()); !allowed {
+	allowed, retry := l.allow(c.ClientIP(), time.Now())
+	if allowed {
+		select {
+		case l.inflight <- struct{}{}:
+			defer func() { <-l.inflight }()
+		default:
+			allowed, retry = false, 1
+		}
+	}
+
+	if !allowed {
 		c.Header("Retry-After", strconv.Itoa(retry))
 		httpx.WriteError(c, http.StatusTooManyRequests, "rate_limited", "Too many requests")
 		return

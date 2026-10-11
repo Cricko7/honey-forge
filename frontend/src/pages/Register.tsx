@@ -12,8 +12,8 @@ import type { RegistrationMode } from '@/lib/auth'
 export function RegisterPage() {
   const navigate = useNavigate()
   const qc = useQueryClient()
-  const [email, setEmail] = useState('admin@perimetr.ru')
-  const [password, setPassword] = useState('demo-password-2026')
+  const [email, setEmail] = useState(USE_MOCK ? 'admin@perimetr.ru' : '')
+  const [password, setPassword] = useState(USE_MOCK ? 'demo-password-2026' : '')
   const [mode, setMode] = useState<RegistrationMode>('join')
   const [code, setCode] = useState('')
   const [org, setOrg] = useState('ООО «Периметр»')

@@ -65,8 +65,8 @@ func (d DockerCLI) Deploy(ctx context.Context, target Target, token string, gene
 		"--secret", "source=" + base + "-token,target=nm_token,uid=0,gid=0,mode=0400",
 		"--secret", "source=" + base + "-redis,target=store_url,uid=0,gid=0,mode=0400",
 		"--env", "NM_INSTANCE_ID=" + target.ID,
-		"--env", "NM_TOKEN_FILE=/run/secrets/agent_token",
-		"--env", "NM_STORE_URL_FILE=/run/secrets/redis_url",
+		"--env", "NM_TOKEN_FILE=/run/secrets/nm_token",
+		"--env", "NM_STORE_URL_FILE=/run/secrets/store_url",
 		"--env", "NM_WS_URL=" + d.WSURL}
 	if d.ClientCAFile != "" {
 		revision, err := d.trustRevision()

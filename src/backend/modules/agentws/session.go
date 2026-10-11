@@ -340,7 +340,6 @@ func (h *Handler) ingest(entry *sessionEntry, session *agentSession, message con
 		}
 	}
 
-	busy.Store(false)
 	_ = session.socket.Reply(session.ctx, message, "telemetry.ack", ackPayload(ack))
 }
 

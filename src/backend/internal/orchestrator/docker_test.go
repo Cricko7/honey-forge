@@ -41,7 +41,7 @@ func TestPrepareBootstrapsSingleNodeAndConnectsComposeServices(t *testing.T) {
 		t.Fatal(err)
 	}
 	joined := strings.Join(calls, "\n")
-	for _, want := range []string{"swarm init", "network create --driver overlay --attachable hf-decoys", "network create --driver overlay --attachable hf-mgmt", "network connect --alias api hf-mgmt api-id", "network connect --alias redis hf-mgmt redis-id", "network connect --alias resources.localhost hf-mgmt web-id"} {
+	for _, want := range []string{"swarm init", "network create --driver overlay --attachable nm-decoys", "network create --driver overlay --attachable nm-mgmt", "network connect --alias api nm-mgmt api-id", "network connect --alias redis nm-mgmt redis-id", "network connect --alias resources.localhost nm-mgmt web-id"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("missing %q in calls:\n%s", want, joined)
 		}
@@ -91,39 +91,48 @@ func TestPrepareRejectsSharedManagementNetwork(t *testing.T) {
 }
 
 func TestDockerDeployUsesOneIsolatedSwarmTaskAndSecret(t *testing.T) {
-	var calls [][]string
-	var secretInput string
-	run := func(_ context.Context, input []byte, args ...string) ([]byte, error) {
-		calls = append(calls, append([]string(nil), args...))
-		if len(args) >= 2 && args[0] == "secret" && args[1] == "create" && strings.Contains(strings.Join(args, " "), "-token") {
-			secretInput = string(input)
-		}
-		return nil, nil
-	}
-	d := DockerCLI{Run: run, Network: "decoys", ManagementNetwork: "mgmt", WSURL: "wss://api.example/assets/stream", RedisURL: "rediss://:password@redis:6379/0", TCPImage: "registry/tcp:1", RedisImage: "registry/redis:1"}
-	if err := d.Deploy(t.Context(), Target{ID: "11111111-1111-4111-8111-111111111111", Snapshot: profiles.Snapshot{TypeID: "tcp-banner", TypeVersion: 1}}, "private-token", 1, []int{2222}); err != nil {
-		t.Fatal(err)
-	}
-	if secretInput != "private-token" {
-		t.Fatal("token was not passed through secret stdin")
-	}
-	var create string
-	for _, args := range calls {
-		joined := strings.Join(args, " ")
-		if strings.Contains(joined, "private-token") {
-			t.Fatal("token leaked into command arguments")
-		}
-		if len(args) >= 2 && args[0] == "service" && args[1] == "create" {
-			create = joined
-		}
-	}
-	for _, want := range []string{"--replicas 1", "--read-only", "--cap-drop ALL", "--cap-add SETUID", "--network mgmt", "--hostname {{.Node.Hostname}}", "NM_WORKER_IMAGE=registry/tcp:1", "NM_WORKER_NETWORK=decoys", "/var/run/docker.sock", "com.nodemetrics.isolation=mask3", "registry/tcp:1"} {
-		if !strings.Contains(create, want) {
-			t.Fatalf("service create missing %q: %s", want, create)
-		}
-	}
-	if strings.Contains(create, "--publish") || strings.Contains(create, "--network decoys") {
-		t.Fatal("management agent exposes decoy ports or joins the decoy network")
+	for _, typeID := range []string{"tcp-banner", "redis-emulator"} {
+		t.Run(typeID, func(t *testing.T) {
+			var calls [][]string
+			var secretInput string
+			run := func(_ context.Context, input []byte, args ...string) ([]byte, error) {
+				calls = append(calls, append([]string(nil), args...))
+				if len(args) >= 2 && args[0] == "secret" && args[1] == "create" && strings.Contains(strings.Join(args, " "), "-token") {
+					secretInput = string(input)
+				}
+				return nil, nil
+			}
+			d := DockerCLI{Run: run, Network: "decoys", ManagementNetwork: "mgmt", WSURL: "wss://api.example/assets/stream", RedisURL: "rediss://:password@redis:6379/0", TCPImage: "registry/trap:1", RedisImage: "registry/trap:1"}
+			if err := d.Deploy(t.Context(), Target{ID: "11111111-1111-4111-8111-111111111111", Snapshot: profiles.Snapshot{TypeID: typeID, TypeVersion: 1}}, "private-token", 1, []int{2222}); err != nil {
+				t.Fatal(err)
+			}
+			if secretInput != "private-token" {
+				t.Fatal("token was not passed through secret stdin")
+			}
+			var create string
+			for _, args := range calls {
+				joined := strings.Join(args, " ")
+				if strings.Contains(joined, "private-token") {
+					t.Fatal("token leaked into command arguments")
+				}
+				if len(args) >= 2 && args[0] == "service" && args[1] == "create" {
+					create = joined
+				}
+			}
+			for _, want := range []string{"--replicas 1", "--read-only", "--cap-drop ALL", "--cap-add SETUID", "--network mgmt", "--hostname {{.Node.Hostname}}", "NM_WORKER_IMAGE=registry/trap:1", "NM_WORKER_NETWORK=decoys", "/var/run/docker.sock", "com.nodemetrics.isolation=mask3", "registry/trap:1"} {
+				if !strings.Contains(create, want) {
+					t.Fatalf("service create missing %q: %s", want, create)
+				}
+			}
+			if strings.Contains(create, "--publish") || strings.Contains(create, "--network decoys") {
+				t.Fatal("management agent exposes decoy ports or joins the decoy network")
+			}
+			for _, want := range []string{"target=nm_token,uid=0,gid=0,mode=0400", "NM_TOKEN_FILE=/run/secrets/nm_token", "target=store_url,uid=0,gid=0,mode=0400", "NM_STORE_URL_FILE=/run/secrets/store_url"} {
+				if !strings.Contains(create, want) {
+					t.Fatalf("agent secret mount and file path must agree: missing %q", want)
+				}
+			}
+		})
 	}
 }
 
@@ -148,7 +157,7 @@ func TestDockerDeployPassesSeparateRedisCAThroughSecret(t *testing.T) {
 	if err := d.Deploy(t.Context(), Target{ID: "11111111-1111-4111-8111-111111111111", Snapshot: profiles.Snapshot{TypeID: "tcp-banner", TypeVersion: 1}}, "private-token", 1, nil); err != nil {
 		t.Fatal(err)
 	}
-	if secret != "redis-public-ca" || !strings.Contains(service, "NM_STORE_CA_FILE=/run/secrets/redis_ca") || !strings.Contains(service, "target=redis_ca,uid=0,gid=0,mode=0400") {
+	if secret != "redis-public-ca" || !strings.Contains(service, "NM_STORE_CA_FILE=/run/secrets/store_ca") || !strings.Contains(service, "target=store_ca,uid=0,gid=0,mode=0400") {
 		t.Fatal("Redis CA was not delivered through an isolated Docker secret")
 	}
 }

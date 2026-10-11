@@ -12,7 +12,7 @@ func TestWorkerContainerHasNoManagementAccess(t *testing.T) {
 		t.Fatal(err)
 	}
 	joined := strings.Join(args, " ")
-	for _, want := range []string{"--network hf-decoys", "--read-only", "--cap-drop ALL", "--security-opt no-new-privileges", "--publish 0.0.0.0:2222:2222/tcp", "NM_STDIO=1", "hf/tcp:local --worker"} {
+	for _, want := range []string{"--network nm-decoys", "--read-only", "--cap-drop ALL", "--security-opt no-new-privileges", "--publish 0.0.0.0:2222:2222/tcp", "NM_STDIO=1", "hf/tcp:local --worker"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("missing %q: %s", want, joined)
 		}

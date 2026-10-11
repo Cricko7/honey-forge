@@ -368,7 +368,7 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
-      description: 429 rate_limited; 10 attempts in 60 seconds per client IP, shared by login and registration.
+      description: 429 rate_limited; 10 attempts in 60 seconds per client IP, shared by login and registration. At most two login or registration requests run concurrently per API process; excess concurrent requests return Retry-After of 1 second.
       headers:
         Cache-Control:
           $ref: "#/components/headers/CacheControl"

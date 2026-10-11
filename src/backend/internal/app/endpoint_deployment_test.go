@@ -33,7 +33,11 @@ func TestEndpointDeploymentContract(t *testing.T) {
 					t.Fatal(err)
 				}
 				for _, service := range []string{"agent", "orchestrator"} {
-					if !strings.HasPrefix(compose.Services[service].Environment["AGENT_WS_URL"], "wss://resources.localhost/") {
+					variable := "AGENT_WS_URL"
+					if service == "agent" {
+						variable = "NM_WS_URL"
+					}
+					if !strings.HasPrefix(compose.Services[service].Environment[variable], "wss://resources.localhost/") {
 						t.Fatalf("%s bypasses the resource proxy", service)
 					}
 				}

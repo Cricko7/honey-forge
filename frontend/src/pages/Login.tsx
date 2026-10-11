@@ -10,8 +10,8 @@ import { replaceSessionCache } from '@/api/cache'
 export function LoginPage() {
   const navigate = useNavigate()
   const qc = useQueryClient()
-  const [email, setEmail] = useState('admin@perimetr.ru')
-  const [password, setPassword] = useState('demo-password-2026')
+  const [email, setEmail] = useState(USE_MOCK ? 'admin@perimetr.ru' : '')
+  const [password, setPassword] = useState(USE_MOCK ? 'demo-password-2026' : '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 

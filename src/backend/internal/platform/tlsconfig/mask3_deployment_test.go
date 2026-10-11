@@ -44,7 +44,11 @@ func TestMASK3DeploymentBoundaries(t *testing.T) {
 					t.Fatal("management and decoy networks are not separate")
 				}
 				for _, service := range []string{"agent", "orchestrator"} {
-					if compose.Services[service].Environment["AGENT_REDIS_URL_FILE"] != "/certs/redis-url" {
+					variable := "AGENT_REDIS_URL_FILE"
+					if service == "agent" {
+						variable = "NM_STORE_URL_FILE"
+					}
+					if compose.Services[service].Environment[variable] != "/certs/redis-url" {
 						t.Fatalf("%s does not authenticate to Redis", service)
 					}
 				}

@@ -1,7 +1,7 @@
 # Сборка агента-воркера HoneyForge (node-metrics) в Docker.
 # Один бинарник: обслуживает ловушку и сам порождает дочерний --worker процесс,
 # который открывает TCP-порты приманки. Контекст сборки — корень репозитория.
-FROM golang:1.26-alpine AS build
+FROM golang:1.27.2-alpine AS build
 WORKDIR /src
 COPY src/backend/go.mod src/backend/go.sum ./
 RUN go mod download

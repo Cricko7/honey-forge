@@ -17,19 +17,19 @@
     "lucide-react": "0.454.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "react-router-dom": "6.27.0",
+    "react-router-dom": "6.30.6",
     "reactflow": "11.11.4",
     "recharts": "2.13.3"
   },
   "devDependencies": {
     "@types/react": "18.3.12",
     "@types/react-dom": "18.3.1",
-    "@vitejs/plugin-react": "4.3.3",
+    "@vitejs/plugin-react": "4.7.0",
     "autoprefixer": "10.4.20",
-    "esbuild": "0.21.5",
-    "postcss": "8.4.47",
+    "esbuild": "0.25.12",
+    "postcss": "8.5.23",
     "tailwindcss": "3.4.17",
     "typescript": "5.6.3",
-    "vite": "5.4.11"
+    "vite": "6.4.3"
   }
 }
