@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import { EventDetailModal } from '@/components/EventDetailModal'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -34,6 +36,7 @@ import { formatDateTime, timeAgo } from '@/lib/utils'
 import { commandControls } from '@/lib/command-controls'
 
 export function TrapDetailPage() {
+  const [selectedEvent, setSelectedEvent] = useState<string | null>(null)
   const canManage = useCanManage()
   const navigate = useNavigate()
   const { id = '' } = useParams()
@@ -91,7 +94,7 @@ export function TrapDetailPage() {
           </button>
           <button
             className="btn-ghost"
-            disabled={busy}
+            disabled={busy || trap.runtime_state === 'stopped'}
             onClick={() => sendCommand.mutate({ trapId: id, action: 'stop' })}
           >
             <Square size={15} /> Остановить
@@ -232,9 +235,13 @@ export function TrapDetailPage() {
             </thead>
             <tbody>
               {events!.items.map((e) => (
-                <tr key={e.event_id} className="border-b border-line/40 last:border-0">
+                <tr key={e.event_id} onClick={() => setSelectedEvent(e.event_id)}
+                  className="border-b border-line/40 last:border-0 hover:bg-bg-hover/40 cursor-pointer transition-colors">
                   <td className="px-5 py-2.5 font-mono text-xs text-muted">
-                    {formatDateTime(e.occurred_at)}
+                    <button type="button" className="text-left hover:text-brand focus-visible:underline"
+                      aria-label={`Открыть событие ${e.event_type}, ${formatDateTime(e.occurred_at)}`}>
+                      {formatDateTime(e.occurred_at)}
+                    </button>
                   </td>
                   <td className="px-5 py-2.5">
                     <EventTypeBadge type={e.event_type} />
@@ -251,6 +258,7 @@ export function TrapDetailPage() {
           </table>
         )}
       </Card>
+      <EventDetailModal id={selectedEvent} onClose={() => setSelectedEvent(null)} />
     </div>
   )
 }
