@@ -15,14 +15,16 @@ import (
 	"github.com/gorilla/websocket"
 
 	"honey-forge/internal/contract"
+	"honey-forge/internal/platform/tlsconfig"
 	"honey-forge/internal/stream"
 	"honey-forge/modules/commands"
 )
 
 type Handler struct {
-	gateway  Gateway
-	commands CommandService
-	registry sessionRegistry
+	ClientCAFile string
+	gateway      Gateway
+	commands     CommandService
+	registry     sessionRegistry
 }
 
 func NewHandler(gateway Gateway, commands CommandService) *Handler {
@@ -62,6 +64,13 @@ func (h *Handler) Serve(c *gin.Context) {
 	if !validIdentity(identity) {
 		stream.Resource(c)
 		return
+	}
+	if h.ClientCAFile != "" {
+		trapID, err := tlsconfig.AgentIdentity(c.Request, h.ClientCAFile)
+		if err != nil || trapID != identity.TrapID {
+			stream.Resource(c)
+			return
+		}
 	}
 
 	contract.SetPrincipal(c, contract.Principal{OrganizationID: contract.ID(identity.OrganizationID), TrapID: contract.ID(identity.TrapID), Role: contract.Agent})

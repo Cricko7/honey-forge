@@ -3,6 +3,7 @@ package orchestrator
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -15,6 +16,9 @@ import (
 )
 
 type DockerCLI struct {
+	ClientCAFile    string
+	ClientCAKeyFile string
+	ServerPinsFile  string
 	Run             func(context.Context, []byte, ...string) ([]byte, error)
 	Network         string
 	ProxyService    string
@@ -171,6 +175,17 @@ func (d DockerCLI) Current(ctx context.Context, id string) (ServiceState, error)
 	if err := json.Unmarshal(output, &labels); err != nil {
 		return ServiceState{}, fmt.Errorf("decode trap service labels: %w", err)
 	}
+	var revision string
+	if d.ClientCAFile != "" {
+		revision, err = d.trustRevision()
+		if err != nil {
+			return ServiceState{}, err
+		}
+	}
+	return d.stateFromLabels(labels, id, revision)
+}
+
+func (d DockerCLI) stateFromLabels(labels map[string]string, id, revision string) (ServiceState, error) {
 	if labels["honeyforge.trap"] != id {
 		return ServiceState{}, fmt.Errorf("service name %s belongs to another owner", serviceName(id))
 	}
@@ -189,7 +204,36 @@ func (d DockerCLI) Current(ctx context.Context, id string) (ServiceState, error)
 		}
 	}
 	slices.Sort(ports)
-	return ServiceState{Exists: true, Generation: generation, Ports: ports}, nil
+	var expires time.Time
+	if raw := labels["honeyforge.certificate-expires"]; raw != "" {
+		expires, err = time.Parse(time.RFC3339, raw)
+		if err != nil {
+			return ServiceState{}, fmt.Errorf("invalid certificate expiry: %w", err)
+		}
+	} else if d.ClientCAFile != "" {
+		// Replace tasks deployed before mTLS was introduced.
+		expires = time.Unix(1, 0)
+	}
+	if d.ClientCAFile != "" {
+		if labels["honeyforge.tls-trust"] != revision {
+			expires = time.Unix(1, 0)
+		}
+	}
+	return ServiceState{Exists: true, Generation: generation, Ports: ports, CertificateExpires: expires}, nil
+}
+
+func (d DockerCLI) trustRevision() (string, error) {
+	hash := sha256.New()
+	for _, file := range []string{d.CAFile, d.ClientCAFile, d.ServerPinsFile} {
+		raw, err := os.ReadFile(file)
+		if err != nil {
+			return "", fmt.Errorf("read agent trust configuration: %w", err)
+		}
+		if _, err := hash.Write(raw); err != nil {
+			return "", fmt.Errorf("hash agent trust configuration: %w", err)
+		}
+	}
+	return fmt.Sprintf("%x", hash.Sum(nil)), nil
 }
 
 func (d DockerCLI) Remove(ctx context.Context, id string) error {

@@ -44,7 +44,7 @@ func openIntegrationRuntimeWithDefinitions(t *testing.T, definitions []catalog.D
 	return openIntegrationRuntimeWithOptions(t, definitions, nil, "")
 }
 
-func openIntegrationRuntimeWithOptions(t *testing.T, definitions []catalog.Definition, publisher events.BatchPublisher, agentWSURL string) *Runtime {
+func openIntegrationRuntimeWithOptions(t *testing.T, definitions []catalog.Definition, publisher events.BatchPublisher, agentWSURL string, clientCA ...string) *Runtime {
 	t.Helper()
 	if agentWSURL == "" {
 		agentWSURL = integrationAgentURL
@@ -87,7 +87,12 @@ func openIntegrationRuntimeWithOptions(t *testing.T, definitions []catalog.Defin
 		schemaDSN = databaseURL.String()
 	}
 
+	var agentClientCA string
+	if len(clientCA) > 0 {
+		agentClientCA = clientCA[0]
+	}
 	runtime, err := Open(t.Context(), Config{
+		AgentClientCAFile:  agentClientCA,
 		DatabaseURL:        schemaDSN,
 		CursorKey:          []byte("integration-cursor-key-32-bytes!"),
 		BrowserOrigins:     []string{integrationOrigin},

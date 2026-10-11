@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"honey-forge/internal/contract"
+	"honey-forge/internal/decoys/camouflage"
 	"honey-forge/modules/events"
 	"honey-forge/modules/profiles"
 )
@@ -142,6 +143,11 @@ func serve(ctx context.Context, conn net.Conn, l Listener, config Config, snapsh
 	reason := "banner_sent"
 	var received int64
 	interaction := func() error {
+		if !camouflage.Response(ctx) {
+			reason = "service_stopped"
+			return nil
+		}
+
 		if err := conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
 			return err
 		}

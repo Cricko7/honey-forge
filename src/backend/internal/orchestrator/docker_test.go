@@ -2,10 +2,12 @@ package orchestrator
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"honey-forge/modules/profiles"
 )
@@ -102,5 +104,38 @@ func TestDockerDeployPassesSeparateRedisCAThroughSecret(t *testing.T) {
 	}
 	if secret != "redis-public-ca" || !strings.Contains(service, "AGENT_REDIS_CA_FILE=/run/secrets/redis_ca") || !strings.Contains(service, "target=redis_ca,uid=0,gid=0,mode=0400") {
 		t.Fatal("Redis CA was not delivered through an isolated Docker secret")
+	}
+}
+
+func TestCurrentRotatesWhenServerPinsChange(t *testing.T) {
+	dir := t.TempDir()
+	d := DockerCLI{CAFile: filepath.Join(dir, "ca"), ClientCAFile: filepath.Join(dir, "client-ca"), ServerPinsFile: filepath.Join(dir, "pins")}
+	for _, file := range []string{d.CAFile, d.ClientCAFile, d.ServerPinsFile} {
+		if err := os.WriteFile(file, []byte("initial trust"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	revision, err := d.trustRevision()
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := "11111111-1111-4111-8111-111111111111"
+	labels := map[string]string{"honeyforge.trap": id, "honeyforge.generation": "1", "honeyforge.certificate-expires": time.Now().Add(30 * 24 * time.Hour).Format(time.RFC3339), "honeyforge.tls-trust": revision}
+	d.Run = func(_ context.Context, _ []byte, args ...string) ([]byte, error) {
+		if args[0] == "service" && args[1] == "ls" {
+			return []byte(serviceName(id)), nil
+		}
+		return json.Marshal(labels)
+	}
+	state, err := d.Current(t.Context(), id)
+	if err != nil || !state.CertificateExpires.After(time.Now()) {
+		t.Fatalf("current trust: %+v %v", state, err)
+	}
+	if err := os.WriteFile(d.ServerPinsFile, []byte("old and next pins"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	state, err = d.Current(t.Context(), id)
+	if err != nil || !state.CertificateExpires.Before(time.Now()) {
+		t.Fatalf("changed trust must trigger rotation: %+v %v", state, err)
 	}
 }

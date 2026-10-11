@@ -23,15 +23,22 @@ func main() {
 }
 
 func run() error {
-	databaseURL := os.Getenv("DATABASE_URL")
+	databaseURL, err := postgres.EnvironmentURL()
+	if err != nil {
+		return err
+	}
 	wsURL := os.Getenv("AGENT_WS_URL")
 	redisURL := os.Getenv("AGENT_REDIS_URL")
 	docker := orchestrator.DockerCLI{
+		ClientCAFile: os.Getenv("AGENT_CLIENT_CA_FILE"), ClientCAKeyFile: os.Getenv("AGENT_CLIENT_CA_KEY_FILE"), ServerPinsFile: os.Getenv("AGENT_SERVER_PINS_FILE"),
 		ProxyService: os.Getenv("AGENT_PROXY_SERVICE"),
 		Network:      os.Getenv("DECOY_NETWORK"), WSURL: wsURL, RedisURL: redisURL,
 		CAFile: os.Getenv("AGENT_CA_FILE"), RedisCAFile: os.Getenv("AGENT_REDIS_CA_FILE"), TCPImage: os.Getenv("DECOY_TCP_IMAGE"), RedisImage: os.Getenv("DECOY_REDIS_IMAGE"),
 		HoneytokenImage: os.Getenv("DECOY_HONEYTOKEN_IMAGE"),
 		SSHImage:        os.Getenv("DECOY_SSH_IMAGE"), SandboxImage: os.Getenv("SSH_SANDBOX_IMAGE"),
+	}
+	if docker.ClientCAFile == "" || docker.ClientCAKeyFile == "" || docker.ServerPinsFile == "" {
+		return fmt.Errorf("AGENT_CLIENT_CA_FILE, AGENT_CLIENT_CA_KEY_FILE and AGENT_SERVER_PINS_FILE are required")
 	}
 	if databaseURL == "" || docker.Network == "" || docker.TCPImage == "" || docker.RedisImage == "" {
 		return fmt.Errorf("DATABASE_URL, DECOY_NETWORK, DECOY_TCP_IMAGE and DECOY_REDIS_IMAGE are required")
@@ -53,22 +60,9 @@ func run() error {
 	defer pool.Close()
 	store := orchestrator.PGStore{Pool: pool, WSURL: wsURL}
 	controller := orchestrator.Controller{Store: store, Docker: docker}
-	ticker := time.NewTicker(3 * time.Second)
-	defer ticker.Stop()
-	for {
-		cycle, cancel := context.WithTimeout(ctx, 60*time.Second)
-		err := docker.Prepare(cycle)
-		if err == nil {
-			err = orchestrator.ReconcileLocked(cycle, pool, controller)
-		}
-		cancel()
-		if err != nil && ctx.Err() == nil {
-			slog.ErrorContext(ctx, "deployment reconciliation failed", "error", err)
-		}
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-ticker.C:
-		}
-	}
+	return runLoop(ctx, docker.Prepare, func(cycle context.Context) error {
+		return orchestrator.ReconcileLocked(cycle, pool, controller)
+	}, func(cycle context.Context) error {
+		return docker.CleanupSandboxes(cycle, time.Now())
+	})
 }

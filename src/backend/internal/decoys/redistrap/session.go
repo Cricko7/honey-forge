@@ -11,6 +11,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"honey-forge/internal/decoys/camouflage"
 	"honey-forge/modules/profiles"
 )
 
@@ -26,7 +27,7 @@ func clip(value string, limit int) (string, bool) {
 	return cut, true
 }
 
-func serve(ctx context.Context, conn net.Conn, service string, port int, password string, snapshot profiles.Snapshot, sink Sink) (result error) {
+func serve(ctx context.Context, conn net.Conn, service string, port int, password string, snapshot profiles.Snapshot, sink Sink, identity serverIdentity) (result error) {
 	emitter, err := newEmitter(ctx, conn, port, snapshot, sink)
 	if err != nil {
 		return err
@@ -43,6 +44,7 @@ func serve(ctx context.Context, conn net.Conn, service string, port int, passwor
 	}()
 	reader := bufio.NewReaderSize(conn, 8192)
 	db := newDatabase()
+	db.identity = identity
 	authenticated := false
 	for {
 		if err := conn.SetReadDeadline(time.Now().Add(30 * time.Second)); err != nil {
@@ -103,6 +105,8 @@ func serve(ctx context.Context, conn net.Conn, service string, port int, passwor
 			}
 			if accepted {
 				reply = "+OK\r\n"
+			} else if len(args) != 2 && len(args) != 3 {
+				reply = "-ERR wrong number of arguments for 'auth' command\r\n"
 			} else {
 				reply = "-WRONGPASS invalid username-password pair or user is disabled.\r\n"
 			}
@@ -123,6 +127,11 @@ func serve(ctx context.Context, conn net.Conn, service string, port int, passwor
 				return err
 			}
 		}
+		if !camouflage.Response(ctx) {
+			reason = "service_stopped"
+			return nil
+		}
+
 		if err := writeReply(conn, reply); err != nil {
 			reason = "network_error"
 			return nil

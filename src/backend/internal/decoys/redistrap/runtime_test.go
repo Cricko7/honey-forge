@@ -47,6 +47,7 @@ func TestInteractiveRedisSession(t *testing.T) {
 	for _, tc := range []struct{ command, response string }{
 		{"*2\r\n$3\r\nGET\r\n$4\r\ntest\r\n", "-NOAUTH Authentication required.\r\n"},
 		{"AUTH wrong\r\n", "-WRONGPASS invalid username-password pair or user is disabled.\r\n"},
+		{"AUTH\r\n", "-ERR wrong number of arguments for 'auth' command\r\n"},
 		{"AUTH bait-pass\r\n", "+OK\r\n"},
 		{"SET demo value\r\n", "+OK\r\n"},
 		{"GET demo\r\n", "$5\r\nvalue\r\n"},
@@ -85,8 +86,8 @@ func TestInteractiveRedisSession(t *testing.T) {
 		}
 	}
 done:
-	if len(got) != 10 {
-		t.Fatalf("events = %d, want 10: %+v", len(got), got)
+	if len(got) != 11 {
+		t.Fatalf("events = %d, want 11: %+v", len(got), got)
 	}
 	for i, event := range got {
 		if event.SessionSequence != int64(i+1) || event.SessionID != got[0].SessionID || event.TypeID != "redis-emulator" || event.Destination.Port != port {
@@ -104,7 +105,7 @@ done:
 		Outcome       string `json:"outcome"`
 		ReceivedBytes int    `json:"received_bytes"`
 	}
-	if err := json.Unmarshal(got[4].Data, &action); err != nil || action.Input != "SET demo value" || action.Outcome != "accepted" || action.ReceivedBytes != len("SET demo value\r\n") {
+	if err := json.Unmarshal(got[5].Data, &action); err != nil || action.Input != "SET demo value" || action.Outcome != "accepted" || action.ReceivedBytes != len("SET demo value\r\n") {
 		t.Fatalf("command telemetry: %+v %v", action, err)
 	}
 	var closed struct {
@@ -121,7 +122,7 @@ done:
 	if err := json.Unmarshal(got[2].Data, &auth); err != nil || auth.Password != "wrong" || auth.Outcome != "rejected" {
 		t.Fatalf("rejected auth: %+v %v", auth, err)
 	}
-	if err := json.Unmarshal(got[3].Data, &auth); err != nil || auth.Password != "bait-pass" || auth.Outcome != "accepted" {
+	if err := json.Unmarshal(got[4].Data, &auth); err != nil || auth.Password != "bait-pass" || auth.Outcome != "accepted" {
 		t.Fatalf("accepted auth: %+v %v", auth, err)
 	}
 }

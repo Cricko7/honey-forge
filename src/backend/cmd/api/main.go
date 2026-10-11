@@ -16,6 +16,7 @@ import (
 
 	"honey-forge/internal/app"
 	"honey-forge/internal/platform/tlsconfig"
+	"honey-forge/internal/postgres"
 	"honey-forge/modules/events"
 )
 
@@ -32,9 +33,29 @@ func run() error {
 	if cert == "" || key == "" {
 		return fmt.Errorf("TLS_CERT_FILE and TLS_KEY_FILE are required")
 	}
-	keyBytes, err := base64.StdEncoding.Strict().DecodeString(os.Getenv("CURSOR_KEY"))
+	clientCA := os.Getenv("AGENT_CLIENT_CA_FILE")
+	if clientCA == "" {
+		return fmt.Errorf("AGENT_CLIENT_CA_FILE is required")
+	}
+	serverTLS, err := tlsconfig.AgentServer(cert, key, clientCA)
+	if err != nil {
+		return fmt.Errorf("configure API mTLS: %w", err)
+	}
+	cursorKey := os.Getenv("CURSOR_KEY")
+	if cursorKey == "" && os.Getenv("CURSOR_KEY_FILE") != "" {
+		raw, err := os.ReadFile(os.Getenv("CURSOR_KEY_FILE"))
+		if err != nil {
+			return fmt.Errorf("read cursor key: %w", err)
+		}
+		cursorKey = strings.TrimSpace(string(raw))
+	}
+	keyBytes, err := base64.StdEncoding.Strict().DecodeString(cursorKey)
 	if err != nil || len(keyBytes) != 32 {
 		return fmt.Errorf("CURSOR_KEY must be a base64-encoded 32-byte key")
+	}
+	databaseURL, err := postgres.EnvironmentURL()
+	if err != nil {
+		return err
 	}
 	origins := strings.Split(os.Getenv("BROWSER_ORIGINS"), ",")
 	for i := range origins {
@@ -68,7 +89,7 @@ func run() error {
 		return err
 	}
 	defer publisher.Close()
-	runtime, err := app.Open(startup, app.Config{DatabaseURL: os.Getenv("DATABASE_URL"), CursorKey: keyBytes, BrowserOrigins: origins, PublicOrigin: os.Getenv("API_PUBLIC_ORIGIN"), AgentWSURL: os.Getenv("AGENT_WS_URL"), AutoDeployTraps: os.Getenv("AUTO_DEPLOY_TRAPS") == "true", EventPublisher: publisher, TrustedProxies: trustedProxies})
+	runtime, err := app.Open(startup, app.Config{DatabaseURL: databaseURL, CursorKey: keyBytes, BrowserOrigins: origins, PublicOrigin: os.Getenv("API_PUBLIC_ORIGIN"), AgentWSURL: os.Getenv("AGENT_WS_URL"), AgentClientCAFile: clientCA, AutoDeployTraps: os.Getenv("AUTO_DEPLOY_TRAPS") == "true", EventPublisher: publisher, TrustedProxies: trustedProxies})
 	cancelStartup()
 	if err != nil {
 		return err
@@ -79,11 +100,12 @@ func run() error {
 		addr = ":8443"
 	}
 	server := &http.Server{Addr: addr, Handler: runtime.Router, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 32 * 1024}
+	server.TLSConfig = serverTLS
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	server.BaseContext = func(net.Listener) context.Context { return ctx }
 	done := make(chan error, 1)
-	go func() { done <- server.ListenAndServeTLS(cert, key) }()
+	go func() { done <- server.ListenAndServeTLS("", "") }()
 	select {
 	case err := <-done:
 		if !errors.Is(err, http.ErrServerClosed) {

@@ -24,7 +24,7 @@ import (
 func dialFrontend(t *testing.T, server *httptest.Server, a operatorSession) *websocket.Conn {
 	t.Helper()
 	d := websocket.Dialer{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, Subprotocols: []string{"dashboard-stream.v1"}}
-	h := http.Header{"Origin": []string{integrationOrigin}, "Cookie": []string{"__Host-session=" + a.cookie}}
+	h := http.Header{"Host": []string{strings.TrimPrefix(integrationOrigin, "https://")}, "Origin": []string{integrationOrigin}, "Cookie": []string{"__Host-session=" + a.cookie}}
 	c, res, err := d.Dial("wss"+strings.TrimPrefix(server.URL, "https")+stream.FrontendPath, h)
 	if err != nil {
 		if res != nil {

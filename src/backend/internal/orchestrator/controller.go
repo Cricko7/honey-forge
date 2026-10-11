@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"time"
 
 	"honey-forge/internal/decoys"
 	"honey-forge/modules/profiles"
@@ -23,9 +24,10 @@ type Target struct {
 }
 
 type ServiceState struct {
-	Exists     bool
-	Generation int64
-	Ports      []int
+	CertificateExpires time.Time
+	Exists             bool
+	Generation         int64
+	Ports              []int
 }
 
 type Store interface {
@@ -35,7 +37,7 @@ type Store interface {
 }
 
 type Docker interface {
-	Current(context.Context, string) (ServiceState, error)
+	States(context.Context, []string) (map[string]ServiceState, error)
 	Remove(context.Context, string) error
 	Deploy(context.Context, Target, string, int64, []int) error
 }
@@ -51,6 +53,14 @@ func (c Controller) Reconcile(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("list managed traps: %w", err)
 	}
+	ids := make([]string, len(targets))
+	for i, target := range targets {
+		ids[i] = target.ID
+	}
+	states, err := c.Docker.States(ctx, ids)
+	if err != nil {
+		return fmt.Errorf("inspect managed traps: %w", err)
+	}
 	portsFor := c.Ports
 	if portsFor == nil {
 		portsFor = decoys.Ports
@@ -60,11 +70,7 @@ func (c Controller) Reconcile(ctx context.Context) error {
 		if err := ctx.Err(); err != nil {
 			return errors.Join(append(failures, err)...)
 		}
-		state, err := c.Docker.Current(ctx, target.ID)
-		if err != nil {
-			failures = append(failures, fmt.Errorf("inspect trap %s: %w", target.ID, err))
-			continue
-		}
+		state := states[target.ID]
 		if target.Deleted {
 			if err := c.Docker.Remove(ctx, target.ID); err != nil {
 				failures = append(failures, fmt.Errorf("remove trap %s: %w", target.ID, err))
@@ -77,7 +83,8 @@ func (c Controller) Reconcile(ctx context.Context) error {
 			continue
 		}
 		slices.Sort(ports)
-		current := state.Exists && state.Generation == target.Generation && slices.Equal(state.Ports, ports)
+		certificateCurrent := state.CertificateExpires.IsZero() || state.CertificateExpires.After(time.Now().Add(24*time.Hour))
+		current := state.Exists && state.Generation == target.Generation && slices.Equal(state.Ports, ports) && certificateCurrent
 		if state.Exists && !current {
 			if err := c.Docker.Remove(ctx, target.ID); err != nil {
 				failures = append(failures, fmt.Errorf("replace trap %s: %w", target.ID, err))

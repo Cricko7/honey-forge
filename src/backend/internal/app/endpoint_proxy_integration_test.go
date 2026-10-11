@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/pem"
 	"io"
 	"math/big"
@@ -25,6 +26,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"honey-forge/internal/contract"
+	"honey-forge/internal/platform/tlsconfig"
 	"honey-forge/modules/auth"
 )
 
@@ -34,16 +36,28 @@ func TestTelemetryProxyIntegration(t *testing.T) {
 	if os.Getenv("TEST_NGINX_PROXY") != "1" {
 		t.Skip("TEST_NGINX_PROXY=1 and Linux Docker required")
 	}
-	r := openIntegrationRuntime(t)
+	directory := t.TempDir()
+	clientCA, clientCAKey := proxyClientCA(t, directory)
+	r := openIntegrationRuntimeWithOptions(t, nil, nil, "", clientCA)
 	operator := registerOperator(t, r, "proxy@example.test", auth.OrganizationInput{Mode: "create", Name: "Proxy"})
 	_, trap, _ := createIntegrationTrap(t, r, operator)
 	credentials := decodeIntegration[struct {
 		Token string `json:"token"`
 	}](t, sendOperator(t, r, "POST", "/api/traps/"+trap.ID+"/agent-credentials", `{"expected_generation":0}`, operator, 200))
-	directory := t.TempDir()
-	certificate, roots := proxyCertificate(t, directory)
+	_, roots := proxyCertificate(t, directory)
+	agentCert, agentKey, _, err := tlsconfig.IssueClient(clientCA, clientCAKey, trap.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	clientPair, err := tls.X509KeyPair(agentCert, agentKey)
+	if err != nil {
+		t.Fatal(err)
+	}
 	backend := httptest.NewUnstartedServer(r.Router)
-	backend.TLS = &tls.Config{Certificates: []tls.Certificate{certificate}, MinVersion: tls.VersionTLS12}
+	backend.TLS, err = tlsconfig.AgentServer(filepath.Join(directory, "public.crt"), filepath.Join(directory, "public.key"), clientCA)
+	if err != nil {
+		t.Fatal(err)
+	}
 	backend.StartTLS()
 	defer backend.Close()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -124,7 +138,7 @@ func TestTelemetryProxyIntegration(t *testing.T) {
 			}
 		})
 	}
-	dialer := websocket.Dialer{NetDialContext: dial, TLSClientConfig: &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12}, Subprotocols: []string{"resource-stream.v1"}, HandshakeTimeout: 3 * time.Second}
+	dialer := websocket.Dialer{NetDialContext: dial, TLSClientConfig: &tls.Config{RootCAs: roots, Certificates: []tls.Certificate{clientPair}, MinVersion: tls.VersionTLS12}, Subprotocols: []string{"resource-stream.v1"}, HandshakeTimeout: 3 * time.Second}
 	for _, tt := range []struct {
 		name, token string
 		status      int
@@ -152,6 +166,39 @@ func TestTelemetryProxyIntegration(t *testing.T) {
 			}
 		})
 	}
+}
+
+func proxyClientCA(t *testing.T, directory string) (string, string) {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ca := &x509.Certificate{SerialNumber: big.NewInt(3), Subject: pkix.Name{CommonName: "client CA"}, IsCA: true, BasicConstraintsValid: true, KeyUsage: x509.KeyUsageCertSign, NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(365 * 24 * time.Hour)}
+	raw, err := x509.CreateCertificate(rand.Reader, ca, ca, &key.PublicKey, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	private, err := x509.MarshalPKCS8PrivateKey(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	certFile, keyFile := filepath.Join(directory, "agents-ca.crt"), filepath.Join(directory, "agents-ca.key")
+	for file, data := range map[string][]byte{certFile: pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: raw}), keyFile: pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: private})} {
+		if err := os.WriteFile(file, data, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cert, privateKey, _, err := tlsconfig.IssueClient(certFile, keyFile, tlsconfig.ResourceProxyName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, data := range map[string][]byte{"resource-proxy.crt": cert, "resource-proxy.key": privateKey} {
+		if err := os.WriteFile(filepath.Join(directory, name), data, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return certFile, keyFile
 }
 
 func proxyCertificate(t *testing.T, directory string) (tls.Certificate, *x509.CertPool) {

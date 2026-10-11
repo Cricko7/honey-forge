@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"honey-forge/internal/platform/tlsconfig"
 )
 
 func (d DockerCLI) Deploy(ctx context.Context, target Target, token string, generation int64, ports []int) (err error) {
@@ -65,6 +67,35 @@ func (d DockerCLI) Deploy(ctx context.Context, target Target, token string, gene
 		"--env", "AGENT_TOKEN_FILE=/run/secrets/agent_token",
 		"--env", "AGENT_REDIS_URL_FILE=/run/secrets/redis_url",
 		"--env", "AGENT_WS_URL=" + d.WSURL}
+	if d.ClientCAFile != "" {
+		revision, err := d.trustRevision()
+		if err != nil {
+			return err
+		}
+		certificate, key, expires, err := tlsconfig.IssueClient(d.ClientCAFile, d.ClientCAKeyFile, target.ID)
+		if err != nil {
+			return err
+		}
+		pins, err := os.ReadFile(d.ServerPinsFile)
+		if err != nil {
+			return fmt.Errorf("read server pins: %w", err)
+		}
+		for _, material := range []struct {
+			suffix, target, variable string
+			data                     []byte
+		}{
+			{"-cert", "agent_cert", "AGENT_CERT_FILE", certificate},
+			{"-key", "agent_key", "AGENT_KEY_FILE", key},
+			{"-pins", "server_pins", "AGENT_SERVER_PINS_FILE", pins},
+		} {
+			if err := d.createSecret(ctx, target.ID, base+material.suffix, material.data); err != nil {
+				return err
+			}
+			args = append(args, "--secret", "source="+base+material.suffix+",target="+material.target+",uid=0,gid=0,mode=0400", "--env", material.variable+"=/run/secrets/"+material.target)
+		}
+		args = append(args, "--label", "honeyforge.certificate-expires="+expires.UTC().Format(time.RFC3339))
+		args = append(args, "--label", "honeyforge.tls-trust="+revision)
+	}
 	for _, trust := range []struct{ file, suffix, target, variable string }{
 		{d.CAFile, "-ca", "agent_ca", "AGENT_CA_FILE"},
 		{d.RedisCAFile, "-redis-ca", "redis_ca", "AGENT_REDIS_CA_FILE"},

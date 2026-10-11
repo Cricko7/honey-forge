@@ -28,7 +28,7 @@ func run() error {
 	if len(os.Args) == 2 && os.Args[1] == "--worker" {
 		return agent.RunTrap(ctx)
 	}
-	config, err := tlsconfig.Client(os.Getenv("AGENT_CA_FILE"))
+	config, err := tlsconfig.AgentClient(os.Getenv("AGENT_CA_FILE"), os.Getenv("AGENT_CERT_FILE"), os.Getenv("AGENT_KEY_FILE"), os.Getenv("AGENT_SERVER_PINS_FILE"))
 	if err != nil {
 		return fmt.Errorf("configure agent TLS: %w", err)
 	}

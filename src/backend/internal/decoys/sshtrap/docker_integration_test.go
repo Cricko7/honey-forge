@@ -60,10 +60,17 @@ func TestDockerRealLinuxShellSFTPAndIsolation(t *testing.T) {
 		}
 		return output
 	}
-	output := run("uname -s; id -u; ls /sys/class/net; test ! -e /var/run/docker.sock; test ! -e /run/secrets/agent_token")
-	if string(output) != "Linux\n1000\nlo\n" {
+	output := run("uname -s; id -u; test ! -e /var/run/docker.sock && test ! -e /run/secrets/agent_token")
+	if string(output) != "Linux\n1000\n" {
 		t.Fatalf("sandbox isolation: %s", output)
 	}
+	// Docker Desktop may create inactive tunnel devices even with --network none.
+	run(`test -z "$(tail -n +2 /proc/net/route)" || exit 1
+	for interface in /sys/class/net/*; do
+		test -f "$interface/flags" || continue
+		flags=$(cat "$interface/flags")
+		if test "$((flags & 1))" -ne 0 && test "${interface##*/}" != lo; then exit 1; fi
+	done`)
 	remote, err := sftp.NewClient(client)
 	if err != nil {
 		t.Fatal(err)

@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"honey-forge/internal/beacon"
 	"honey-forge/internal/contract"
 	"honey-forge/modules/commands"
 )
@@ -52,8 +53,8 @@ func (h *Handler) serveMessages(entry *sessionEntry, session *agentSession, hell
 
 	claimTicker := time.NewTicker(time.Second)
 	defer claimTicker.Stop()
-	pingTicker := time.NewTicker(15 * time.Second)
-	defer pingTicker.Stop()
+	pingTimer := time.NewTimer(beacon.Delay(15 * time.Second))
+	defer pingTimer.Stop()
 
 	supportedActions := map[string]bool{}
 	for _, kind := range hello.SupportedTypes {
@@ -104,7 +105,8 @@ func (h *Handler) serveMessages(entry *sessionEntry, session *agentSession, hell
 					return err
 				}
 			}
-		case <-pingTicker.C:
+		case <-pingTimer.C:
+			pingTimer.Reset(beacon.Delay(15 * time.Second))
 			lastPing = time.Now()
 			if err := session.socket.Ping(lastPing.Add(time.Second)); err != nil {
 				return fmt.Errorf("ping agent: %w", err)

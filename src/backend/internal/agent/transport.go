@@ -10,6 +10,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	"honey-forge/internal/beacon"
 	"honey-forge/internal/contract"
 	"honey-forge/modules/agentws"
 	"honey-forge/modules/commands"
@@ -108,9 +109,9 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 			}
 		}
 	}()
-	heartbeat := time.NewTicker(s.HeartbeatInterval())
+	heartbeat := time.NewTimer(beacon.Delay(s.HeartbeatInterval()))
 	defer heartbeat.Stop()
-	flush := time.NewTicker(s.FlushInterval())
+	flush := time.NewTimer(beacon.Delay(s.FlushInterval()))
 	defer flush.Stop()
 	var pending *Batch
 	var pendingMessage contract.ID
@@ -140,6 +141,7 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 		case code := <-local.Failures:
 			s.Failed(code)
 		case <-heartbeat.C:
+			heartbeat.Reset(beacon.Delay(s.HeartbeatInterval()))
 			if err := s.PollRunner(p); err != nil {
 				s.Failed("runtime_start_failed")
 			}
@@ -147,6 +149,7 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 				return err
 			}
 		case <-flush.C:
+			flush.Reset(beacon.Delay(s.FlushInterval()))
 			if err := j.CheckStorage(ctx); err != nil {
 				s.Failed("buffer_unavailable")
 				continue
@@ -208,8 +211,7 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 				if err != nil {
 					return fmt.Errorf("execute command: %w", err)
 				}
-				flush.Reset(s.FlushInterval())
-				heartbeat.Reset(s.HeartbeatInterval())
+				flush.Reset(beacon.Delay(s.FlushInterval()))
 				if err := sendResult(result); err != nil {
 					return err
 				}

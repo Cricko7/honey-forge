@@ -2,21 +2,46 @@
 # Go API собирается в Docker (Go на хост не нужен). Единый origin
 # https://localhost:8443: nginx отдаёт SPA и проксирует API/WSS на Go-бэкенд.
 #
-# Перед запуском: сгенерировать сертификаты (gen-certs.ps1) и задать .env
-# (POSTGRES_PASSWORD, CURSOR_KEY). Запуск: docker compose -f docker-compose.real.yml up --build
+# Запуск без .env и ручной генерации: docker compose -f docker-compose.real.yml up --build -d
 services:
+  tls-init:
+    image: alpine/openssl
+    entrypoint: ["/bin/sh", "/tls/renew.sh"]
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+      CURSOR_KEY: ${CURSOR_KEY:-}
+      AGENT_TRAP_ID: ${AGENT_TRAP_ID:-}
+    volumes:
+      - tls_private:/certs
+      - tls_postgres:/exports/postgres
+      - tls_redis:/exports/redis
+      - tls_kafka:/exports/kafka
+      - tls_api:/exports/api
+      - tls_web:/exports/web
+      - tls_agent:/exports/agent
+      - tls_orchestrator:/exports/orchestrator
+      - ./deploy/tls:/tls:ro
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /certs/bootstrap-ready"]
+      interval: 2s
+      timeout: 2s
+      retries: 60
+    restart: unless-stopped
+
   postgres:
     image: postgres:17
     entrypoint: ["/bin/sh", "/tls/postgres.sh"]
     environment:
       POSTGRES_USER: honey_forge
       POSTGRES_DB: honey_forge
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD_FILE: /certs/postgres-password
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./deploy/tls/postgres.sh:/tls/postgres.sh:ro
-      - ./certs/postgres.crt:/certs/postgres.crt:ro
-      - ./certs/postgres.key:/certs/postgres.key:ro
+      - tls_postgres:/certs:ro
+    depends_on:
+      tls-init:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U honey_forge -d honey_forge"]
       interval: 5s
@@ -47,9 +72,10 @@ services:
       KAFKA_LOG_DIRS: /var/lib/kafka/data
     volumes:
       - kafka_data:/var/lib/kafka/data
-      - ./certs/kafka.pem:/certs/kafka.pem:ro
-      - ./certs/ca.crt:/certs/ca.crt:ro
-      - ./certs/kafka-client.properties:/certs/kafka-client.properties:ro
+      - tls_kafka:/certs:ro
+    depends_on:
+      tls-init:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server kafka:19092 --command-config /certs/kafka-client.properties >/dev/null 2>&1 || exit 1"]
       interval: 10s
@@ -62,9 +88,10 @@ services:
     volumes:
       - redis_data:/data
       - ./deploy/tls/redis.sh:/tls/redis.sh:ro
-      - ./certs/redis.crt:/certs/redis.crt:ro
-      - ./certs/redis.key:/certs/redis.key:ro
-      - ./certs/ca.crt:/certs/ca.crt:ro
+      - tls_redis:/certs:ro
+    depends_on:
+      tls-init:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "redis-cli", "--tls", "--cacert", "/certs/ca.crt", "ping"]
       interval: 5s
@@ -76,8 +103,8 @@ services:
       context: .
       dockerfile: Dockerfile.api
     environment:
-      DATABASE_URL: postgres://honey_forge:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/honey_forge?sslmode=verify-full&sslrootcert=/certs/ca.crt
-      CURSOR_KEY: ${CURSOR_KEY:?Set CURSOR_KEY}
+      POSTGRES_PASSWORD_FILE: /certs/postgres-password
+      CURSOR_KEY_FILE: /certs/cursor-key
       BROWSER_ORIGINS: https://localhost:8443
       API_PUBLIC_ORIGIN: https://localhost:8443
       KAFKA_BROKERS: kafka:19092
@@ -87,12 +114,11 @@ services:
       AUTO_DEPLOY_TRAPS: "true"
       TLS_CERT_FILE: /certs/localhost.crt
       TLS_KEY_FILE: /certs/localhost.key
+      AGENT_CLIENT_CA_FILE: /certs/agents-ca.crt
       API_ADDR: ":8443"
       GIN_MODE: release
     volumes:
-      - ./certs/localhost.crt:/certs/localhost.crt:ro
-      - ./certs/localhost.key:/certs/localhost.key:ro
-      - ./certs/ca.crt:/certs/ca.crt:ro
+      - tls_api:/certs:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -110,12 +136,10 @@ services:
         VITE_API_BASE: https://localhost:8443
     ports:
       - "8443:443"
+    entrypoint: ["/bin/sh", "-c", "/bin/sh /tls/watch-nginx.sh; exec /docker-entrypoint.sh nginx -g 'daemon off;'"]
     volumes:
-      - ./certs/localhost.crt:/etc/nginx/certs/localhost.crt:ro
-      - ./certs/localhost.key:/etc/nginx/certs/localhost.key:ro
-      - ./certs/ca.crt:/etc/nginx/certs/ca.crt:ro
-      - ./certs/resources.crt:/etc/nginx/certs/resources.crt:ro
-      - ./certs/resources.key:/etc/nginx/certs/resources.key:ro
+      - tls_web:/etc/nginx/certs:ro
+      - ./deploy/tls/watch-nginx.sh:/tls/watch-nginx.sh:ro
     networks:
       default:
         aliases: [resources.localhost]
@@ -136,8 +160,11 @@ services:
       AGENT_TOKEN: ${AGENT_TOKEN:-}
       AGENT_REDIS_URL: rediss://redis:6379/1
       AGENT_CA_FILE: /certs/ca.crt
+      AGENT_CERT_FILE: /certs/agent.crt
+      AGENT_KEY_FILE: /certs/agent.key
+      AGENT_SERVER_PINS_FILE: /certs/server-pins
     volumes:
-      - ./certs/ca.crt:/certs/ca.crt:ro
+      - tls_agent:/certs:ro
     ports:
       - "2222:2222"
     depends_on:
@@ -178,7 +205,10 @@ services:
       dockerfile: deploy/decoys/Dockerfile.orchestrator
     environment:
       AGENT_PROXY_SERVICE: web
-      DATABASE_URL: postgres://honey_forge:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/honey_forge?sslmode=verify-full&sslrootcert=/certs/ca.crt
+      AGENT_CLIENT_CA_FILE: /certs/agents-ca.crt
+      AGENT_CLIENT_CA_KEY_FILE: /certs/agents-ca.key
+      AGENT_SERVER_PINS_FILE: /certs/server-pins
+      POSTGRES_PASSWORD_FILE: /certs/postgres-password
       AGENT_WS_URL: wss://resources.localhost/assets/stream
       AGENT_REDIS_URL: rediss://redis:6379/0
       AGENT_CA_FILE: /certs/ca.crt
@@ -190,7 +220,7 @@ services:
       SSH_SANDBOX_IMAGE: ${SSH_SANDBOX_IMAGE:-honeyforge/ssh-sandbox:local}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./certs/ca.crt:/certs/ca.crt:ro
+      - tls_orchestrator:/certs:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -230,6 +260,14 @@ services:
     restart: "no"
 
 volumes:
+  tls_private:
+  tls_postgres:
+  tls_redis:
+  tls_kafka:
+  tls_api:
+  tls_web:
+  tls_agent:
+  tls_orchestrator:
   postgres_data:
   kafka_data:
   redis_data:

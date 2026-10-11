@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
+	"honey-forge/internal/decoys/camouflage"
 	"honey-forge/modules/profiles"
 )
 
@@ -55,7 +56,7 @@ func start(ctx context.Context, snapshot profiles.Snapshot, host string, sink Si
 		return nil, err
 	}
 	service := config.Services[0]
-	serverConfig := &ssh.ServerConfig{MaxAuthTries: 3, PasswordCallback: func(meta ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
+	serverConfig := &ssh.ServerConfig{ServerVersion: "SSH-2.0-OpenSSH_9.2p1", MaxAuthTries: 3, PasswordCallback: func(meta ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
 		if meta.User() != service.Username || subtle.ConstantTimeCompare(password, []byte(service.Password)) != 1 {
 			return nil, fmt.Errorf("authentication rejected")
 		}
@@ -101,7 +102,20 @@ func (r *Runtime) serve(raw net.Conn, serverConfig *ssh.ServerConfig, snapshot p
 	if err := raw.SetDeadline(time.Now().Add(10 * time.Second)); err != nil {
 		return
 	}
-	conn, channels, requests, err := ssh.NewServerConn(raw, serverConfig)
+	if !camouflage.Response(ctx) {
+		return
+	}
+
+	// Each connection owns its callback context; shutdown interrupts authentication.
+	sessionConfig := *serverConfig
+	sessionConfig.PasswordCallback = func(meta ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
+		if !camouflage.Authentication(ctx) {
+			return nil, ctx.Err()
+		}
+		return serverConfig.PasswordCallback(meta, password)
+	}
+
+	conn, channels, requests, err := ssh.NewServerConn(raw, &sessionConfig)
 	if err != nil {
 		return
 	}

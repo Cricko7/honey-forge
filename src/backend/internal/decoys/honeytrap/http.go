@@ -13,10 +13,12 @@ import (
 	"time"
 
 	"honey-forge/internal/contract"
+	"honey-forge/internal/decoys/camouflage"
 	"honey-forge/modules/events"
 )
 
 func (r *Runtime) serveHTTP(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Server", "nginx")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -33,7 +35,7 @@ func (r *Runtime) serveHTTP(w http.ResponseWriter, req *http.Request) {
 				raw, err := json.Marshal(token)
 				if err != nil {
 					r.fail(err)
-					http.Error(w, "Service unavailable", 503)
+					writeError(w, http.StatusServiceUnavailable)
 					return
 				}
 				status, body = http.StatusOK, string(raw)
@@ -50,6 +52,7 @@ func (r *Runtime) serveHTTP(w http.ResponseWriter, req *http.Request) {
 				expected := sha256.Sum256([]byte("Bearer " + token.Value))
 				if len(req.Header.Values("Authorization")) != 1 || subtle.ConstantTimeCompare(provided[:], expected[:]) != 1 {
 					status, body = http.StatusUnauthorized, "Unauthorized\n"
+					w.Header().Set("WWW-Authenticate", `Bearer realm="api"`)
 					break
 				}
 				status, body = http.StatusOK, "{\"status\":\"ok\",\"items\":[]}\n"
@@ -68,7 +71,16 @@ func (r *Runtime) serveHTTP(w http.ResponseWriter, req *http.Request) {
 	if err := r.record(req, triggered); err != nil {
 		r.fail(err)
 		w.Header().Del("Content-Disposition")
-		http.Error(w, "Service unavailable", http.StatusServiceUnavailable)
+		writeError(w, http.StatusServiceUnavailable)
+		return
+	}
+
+	if !camouflage.Response(req.Context()) {
+		return
+	}
+
+	if status >= 400 {
+		writeError(w, status)
 		return
 	}
 
@@ -76,6 +88,15 @@ func (r *Runtime) serveHTTP(w http.ResponseWriter, req *http.Request) {
 	// A disconnected client does not stop the trap.
 	if _, err := w.Write([]byte(body)); err != nil {
 		return
+	}
+}
+
+func writeError(w http.ResponseWriter, status int) {
+	title := fmt.Sprintf("%d %s", status, http.StatusText(status))
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	if _, err := fmt.Fprintf(w, "<html>\r\n<head><title>%s</title></head>\r\n<body>\r\n<center><h1>%s</h1></center>\r\n<hr><center>nginx</center>\r\n</body>\r\n</html>\r\n", title, title); err != nil {
+		return // A disconnected client does not stop the trap.
 	}
 }
 

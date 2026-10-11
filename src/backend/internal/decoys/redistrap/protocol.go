@@ -9,7 +9,10 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
+
+	"honey-forge/internal/contract"
 )
 
 var errFrame = errors.New("invalid Redis command frame")
@@ -66,11 +69,24 @@ func readFrame(reader *bufio.Reader) ([]string, int, error) {
 func bulk(value string) string { return fmt.Sprintf("$%d\r\n%s\r\n", len(value), value) }
 
 type database struct {
-	values map[string]string
+	values   map[string]string
+	identity serverIdentity
 }
 
 func newDatabase() *database {
-	return &database{values: map[string]string{"app:mode": "staging", "backup:note": "nightly snapshot pending", "users:admin": "disabled"}}
+	return &database{values: map[string]string{"app:mode": "staging", "backup:note": "nightly snapshot pending", "users:admin": "disabled"}, identity: newServerIdentity(6379)}
+}
+
+type serverIdentity struct {
+	runID   string
+	port    int
+	started time.Time
+}
+
+func newServerIdentity(port int) serverIdentity {
+	id := strings.ReplaceAll(string(contract.NewID()), "-", "")
+	extra := strings.ReplaceAll(string(contract.NewID()), "-", "")
+	return serverIdentity{runID: id + extra[:8], port: port, started: time.Now()}
 }
 
 func (d *database) execute(args []string) (string, bool, bool) {
@@ -142,8 +158,10 @@ func (d *database) execute(args []string) (string, bool, bool) {
 			return result.String(), true, false
 		}
 	case "INFO":
-		if len(args) == 1 || len(args) == 2 {
-			return bulk("# Server\r\nredis_version:7.2.0\r\nredis_mode:standalone\r\n# Keyspace\r\ndb0:keys=" + strconv.Itoa(len(d.values)) + "\r\n"), true, false
+		return bulk(d.info(args[1:])), true, false
+	case "ROLE":
+		if len(args) == 1 {
+			return "*3\r\n$6\r\nmaster\r\n:0\r\n*0\r\n", true, false
 		}
 	case "SELECT":
 		if len(args) == 2 {
@@ -157,7 +175,9 @@ func (d *database) execute(args []string) (string, bool, bool) {
 			return "+OK\r\n", true, true
 		}
 	default:
-		return "-ERR unknown command '" + strings.ToLower(command) + "'\r\n", false, false
+		// Quote untrusted bytes so a command cannot inject another RESP reply.
+		quoted := strconv.Quote(args[0])
+		return "-ERR unknown command '" + quoted[1:len(quoted)-1] + "', with args beginning with: \r\n", false, false
 	}
 	return wrongArgs, false, false
 }

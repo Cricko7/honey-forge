@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"time"
 
 	"honey-forge/modules/profiles"
 )
@@ -39,6 +40,9 @@ type fakeDocker struct {
 
 func (f *fakeDocker) Current(_ context.Context, id string) (ServiceState, error) {
 	return f.current[id], nil
+}
+func (f *fakeDocker) States(context.Context, []string) (map[string]ServiceState, error) {
+	return f.current, nil
 }
 func (f *fakeDocker) Remove(_ context.Context, id string) error {
 	f.removed = append(f.removed, id)
@@ -96,5 +100,17 @@ func TestReconcileContinuesAfterOneDeploymentFails(t *testing.T) {
 	c := Controller{Store: store, Docker: docker, Ports: func(context.Context, profiles.Snapshot) ([]int, error) { return []int{2222}, nil }}
 	if err := c.Reconcile(t.Context()); err == nil || !reflect.DeepEqual(docker.deployed, []string{"good"}) {
 		t.Fatalf("error=%v deployed=%v", err, docker.deployed)
+	}
+}
+
+func TestReconcileRotatesExpiringCertificate(t *testing.T) {
+	store := &fakeStore{targets: []Target{{ID: "renew", Generation: 1}}}
+	docker := &fakeDocker{current: map[string]ServiceState{"renew": {Exists: true, Generation: 1, CertificateExpires: time.Now().Add(time.Hour)}}}
+	c := Controller{Store: store, Docker: docker, Ports: func(context.Context, profiles.Snapshot) ([]int, error) { return nil, nil }}
+	if err := c.Reconcile(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if len(store.issued) != 1 || len(docker.removed) != 1 || len(docker.deployed) != 1 {
+		t.Fatal("expiring certificate did not rotate token and service")
 	}
 }

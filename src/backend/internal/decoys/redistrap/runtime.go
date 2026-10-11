@@ -43,6 +43,7 @@ func Start(ctx context.Context, snapshot profiles.Snapshot, host string, sink Si
 		return nil, fmt.Errorf("bind Redis service: %w", err)
 	}
 	r := &Runtime{cancel: cancel, listener: listener, connections: map[net.Conn]bool{}, done: make(chan struct{})}
+	identity := newServerIdentity(service.Port)
 	stop := context.AfterFunc(ctx, r.closeConnections)
 	sessions := make(chan struct{}, 64)
 	r.wg.Go(func() {
@@ -72,7 +73,7 @@ func Start(ctx context.Context, snapshot profiles.Snapshot, host string, sink Si
 			r.wg.Go(func() {
 				defer func() { <-sessions }()
 				defer func() { conn.Close(); r.mu.Lock(); delete(r.connections, conn); r.mu.Unlock() }()
-				if err := serve(ctx, conn, service.Name, service.Port, service.Password, snapshot, sink); err != nil {
+				if err := serve(ctx, conn, service.Name, service.Port, service.Password, snapshot, sink, identity); err != nil {
 					r.fail(err)
 				}
 			})

@@ -32,6 +32,7 @@ import (
 )
 
 type Config struct {
+	AgentClientCAFile  string
 	DatabaseURL        string
 	CursorKey          []byte
 	BrowserOrigins     []string
@@ -140,6 +141,7 @@ func Open(ctx context.Context, config Config) (*Runtime, error) {
 		agentCommands = commandservice.NewAgent(commandRepository, CommandResultCheck(catalogService))
 	}
 	agentHandler := agentws.NewHandler(gateway, agentCommands)
+	agentHandler.ClientCAFile = config.AgentClientCAFile
 	trapService := traps.NewService(trapRepository, catalogService, config.AgentWSURL, agentHandler.Revoke).WithAutoDeploy(config.AutoDeployTraps)
 	session := authhttp.NewHandler(authService, logger).RequireSession()
 	audit.NewHandler(audit.NewService(audit.NewRepository(pool)), cursors, logger).RegisterRoutes(router, session)
