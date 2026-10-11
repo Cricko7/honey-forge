@@ -48,6 +48,10 @@ func readBootstrapLine(reader *bufio.Reader) (childBootstrap, error) {
 }
 
 func RunTrap(ctx context.Context) error {
+	if os.Getenv("NM_STDIO") == "1" {
+		stop := handleStdioPipeSignals()
+		defer stop() // Keep SIGPIPE handling active through runtime and TLS cleanup.
+	}
 	reader := bufio.NewReaderSize(os.Stdin, (1<<20)+1)
 	bootstrap, err := readBootstrapLine(reader)
 	if err != nil {

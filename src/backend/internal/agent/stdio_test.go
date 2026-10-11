@@ -28,6 +28,48 @@ func TestStdioWorkerHelper(t *testing.T) {
 	os.Exit(0) // The test harness must not write "PASS" into the TLS stream.
 }
 
+func TestStdioWorkerClosedOutput(t *testing.T) {
+	_, cert, err := newLocalTLS()
+	if err != nil {
+		t.Fatal(err)
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, executable, "-test.run=^TestStdioWorkerHelper$")
+	cmd.Env = append(os.Environ(), "HF_STDIO_HELPER=1", "NM_STDIO=1")
+	var bootstrap bytes.Buffer
+	if err := json.NewEncoder(&bootstrap).Encode(childBootstrap{
+		URL: "wss://127.0.0.1/trap-stream", Token: "private-local-token",
+		Certificate: cert, Snapshot: demoSnapshot(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	cmd.Stdin = &bootstrap
+	output, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer writer.Close()
+	// FD 1 has no reader before the worker's first TLS write. This forces the
+	// broken-pipe path without depending on a race with the parent's shutdown.
+	if err := output.Close(); err != nil {
+		t.Fatal(err)
+	}
+	cmd.Stdout = writer
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("worker did not return after losing its parent: %v; context=%v; stderr=%s", err, ctx.Err(), stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "connect trap to agent") {
+		t.Fatalf("worker did not report a TLS connection error: %s", stderr.String())
+	}
+}
+
 func TestStdioWorkerTelemetryAndParentDisconnect(t *testing.T) {
 	for _, tt := range []struct {
 		name, token string
