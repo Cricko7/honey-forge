@@ -311,17 +311,23 @@ jobs:
       - name: External API, WSS and frontend smoke tests
         env:
           PUBLIC_CA_PEM: ${{ secrets.PUBLIC_CA_PEM }}
+          API_HOST: ${{ secrets.SSH_HOST }}
         run: |
           tls=()
           if [ -n "$PUBLIC_CA_PEM" ]; then
             printf '%s\n' "$PUBLIC_CA_PEM" > "$RUNNER_TEMP/public-ca.crt"
             tls=(--cacert "$RUNNER_TEMP/public-ca.crt")
           fi
+          DOMAIN=$(echo "$PUBLIC_ORIGIN" | sed -E 's|https?://||; s|/.*||')
+          echo "Testing $PUBLIC_ORIGIN via $API_HOST"
           for entry in '/api/session:401' '/assets/stream:401' '/api/stream:401' '/:200' '/app/profiles:200'; do
             path="${entry%:*}"
             expected="${entry##*:}"
-            code=$(curl "${tls[@]}" --silent --show-error --max-time 20 --retry 3 --output /dev/null --write-out '%{http_code}' "$PUBLIC_ORIGIN$path")
+            code=$(curl "${tls[@]}" --silent --show-error --max-time 20 --retry 3 \
+              --resolve "$DOMAIN:443:$API_HOST" \
+              --output /dev/null --write-out '%{http_code}' "$PUBLIC_ORIGIN$path")
             echo "$path: $code"
             test "$code" = "$expected"
           done
-          curl "${tls[@]}" --fail --silent --show-error --max-time 20 "$PUBLIC_ORIGIN/" | grep -q '<div id="root">'
+          curl "${tls[@]}" --fail --silent --show-error --max-time 20 \
+            --resolve "$DOMAIN:443:$API_HOST" "$PUBLIC_ORIGIN/" | grep -q '<div id="root">'
