@@ -16,21 +16,23 @@ import (
 )
 
 type DockerCLI struct {
-	ClientCAFile    string
-	ClientCAKeyFile string
-	ServerPinsFile  string
-	Run             func(context.Context, []byte, ...string) ([]byte, error)
-	Network         string
-	ProxyService    string
-	WSURL           string
-	RedisURL        string
-	CAFile          string
-	RedisCAFile     string
-	TCPImage        string
-	RedisImage      string
-	HoneytokenImage string
-	SSHImage        string
-	SandboxImage    string
+	ClientCAFile      string
+	ClientCAKeyFile   string
+	ServerPinsFile    string
+	Run               func(context.Context, []byte, ...string) ([]byte, error)
+	Network           string
+	ManagementNetwork string
+	WorkerBindIP      string
+	ProxyService      string
+	WSURL             string
+	RedisURL          string
+	CAFile            string
+	RedisCAFile       string
+	TCPImage          string
+	RedisImage        string
+	HoneytokenImage   string
+	SSHImage          string
+	SandboxImage      string
 }
 
 func runDocker(ctx context.Context, input []byte, args ...string) ([]byte, error) {
@@ -53,6 +55,9 @@ func (d DockerCLI) call(ctx context.Context, input []byte, args ...string) ([]by
 }
 
 func (d DockerCLI) Prepare(ctx context.Context) error {
+	if d.ManagementNetwork == "" || d.Network == "" || d.ManagementNetwork == d.Network || d.Network == "host" || d.ManagementNetwork == "host" {
+		return fmt.Errorf("distinct DECOY_NETWORK and MGMT_NETWORK are required")
+	}
 	if err := d.CleanupSandboxes(ctx, time.Now()); err != nil {
 		return err
 	}
@@ -72,25 +77,9 @@ func (d DockerCLI) Prepare(ctx context.Context) error {
 	if _, err := d.call(ctx, nil, "node", "ls", "--format", "{{.ID}}"); err != nil {
 		return fmt.Errorf("orchestrator must run on a Swarm manager: %w", err)
 	}
-	listed, err := d.call(ctx, nil, "network", "ls", "--filter", "name="+d.Network, "--format", "{{.Name}}")
-	if err != nil {
-		return fmt.Errorf("list decoy networks: %w", err)
-	}
-	found := false
-	for _, name := range strings.Fields(string(listed)) {
-		found = found || name == d.Network
-	}
-	if !found {
-		if _, err := d.call(ctx, nil, "network", "create", "--driver", "overlay", "--attachable", d.Network); err != nil {
-			return fmt.Errorf("create decoy network: %w", err)
-		}
-	} else {
-		kind, err := d.call(ctx, nil, "network", "inspect", d.Network, "--format", "{{.Driver}} {{.Attachable}}")
-		if err != nil {
-			return fmt.Errorf("inspect decoy network: %w", err)
-		}
-		if strings.TrimSpace(string(kind)) != "overlay true" {
-			return fmt.Errorf("decoy network %s must be attachable overlay", d.Network)
+	for _, network := range []string{d.Network, d.ManagementNetwork} {
+		if err := d.ensureNetwork(ctx, network); err != nil {
+			return err
 		}
 	}
 	hostname, err := os.Hostname()
@@ -121,6 +110,31 @@ func (d DockerCLI) Prepare(ctx context.Context) error {
 	return nil
 }
 
+func (d DockerCLI) ensureNetwork(ctx context.Context, network string) error {
+	listed, err := d.call(ctx, nil, "network", "ls", "--filter", "name="+network, "--format", "{{.Name}}")
+	if err != nil {
+		return fmt.Errorf("list decoy networks: %w", err)
+	}
+	found := false
+	for _, name := range strings.Fields(string(listed)) {
+		found = found || name == network
+	}
+	if !found {
+		if _, err := d.call(ctx, nil, "network", "create", "--driver", "overlay", "--attachable", network); err != nil {
+			return fmt.Errorf("create decoy network: %w", err)
+		}
+	} else {
+		kind, err := d.call(ctx, nil, "network", "inspect", network, "--format", "{{.Driver}} {{.Attachable}}")
+		if err != nil {
+			return fmt.Errorf("inspect decoy network: %w", err)
+		}
+		if strings.TrimSpace(string(kind)) != "overlay true" {
+			return fmt.Errorf("network %s must be attachable overlay", network)
+		}
+	}
+	return nil
+}
+
 func (d DockerCLI) connectComposeService(ctx context.Context, project, service, alias string) error {
 	output, err := d.call(ctx, nil, "ps", "--filter", "label=com.docker.compose.project="+project, "--filter", "label=com.docker.compose.service="+service, "--format", "{{.ID}}")
 	if err != nil {
@@ -138,11 +152,15 @@ func (d DockerCLI) connectComposeService(ctx context.Context, project, service, 
 	if err := json.Unmarshal(joined, &networks); err != nil {
 		return fmt.Errorf("decode Compose %s networks: %w", service, err)
 	}
-	if _, attached := networks[d.Network]; attached {
-		return nil
+	if _, attached := networks[d.ManagementNetwork]; !attached {
+		if _, err := d.call(ctx, nil, "network", "connect", "--alias", alias, d.ManagementNetwork, ids[0]); err != nil {
+			return fmt.Errorf("connect Compose %s to management network: %w", service, err)
+		}
 	}
-	if _, err := d.call(ctx, nil, "network", "connect", "--alias", alias, d.Network, ids[0]); err != nil {
-		return fmt.Errorf("connect Compose %s to decoy network: %w", service, err)
+	if _, attached := networks[d.Network]; attached {
+		if _, err := d.call(ctx, nil, "network", "disconnect", d.Network, ids[0]); err != nil {
+			return fmt.Errorf("disconnect Compose %s from decoy network: %w", service, err)
+		}
 	}
 	return nil
 }
@@ -219,7 +237,7 @@ func (d DockerCLI) stateFromLabels(labels map[string]string, id, revision string
 			expires = time.Unix(1, 0)
 		}
 	}
-	return ServiceState{Exists: true, Generation: generation, Ports: ports, CertificateExpires: expires}, nil
+	return ServiceState{Exists: true, Generation: generation, Ports: ports, CertificateExpires: expires, UnsafeNetwork: labels["honeyforge.isolation"] != "mask3"}, nil
 }
 
 func (d DockerCLI) trustRevision() (string, error) {
@@ -244,6 +262,15 @@ func (d DockerCLI) Remove(ctx context.Context, id string) error {
 	if exists {
 		if _, err := d.call(ctx, nil, "service", "rm", serviceName(id)); err != nil {
 			return fmt.Errorf("remove trap service: %w", err)
+		}
+	}
+	workers, err := d.call(ctx, nil, "ps", "--all", "--filter", "label=honeyforge.worker="+id, "--format", "{{.ID}}")
+	if err != nil {
+		return fmt.Errorf("list trap workers: %w", err)
+	}
+	for _, worker := range strings.Fields(string(workers)) {
+		if _, err := d.call(ctx, nil, "rm", "--force", worker); err != nil {
+			return fmt.Errorf("remove trap worker: %w", err)
 		}
 	}
 	return d.removeSecrets(ctx, id)

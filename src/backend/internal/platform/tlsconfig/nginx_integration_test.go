@@ -97,7 +97,7 @@ func TestNginxMutualTLSIntegration(t *testing.T) {
 	// and the overwritten forwarding header. Docker Desktop reaches the host peer.
 	configText := strings.ReplaceAll(string(raw), "\r\n", "\n")
 	resource := configText[strings.LastIndex(configText, "server {\n"):]
-	resource = strings.NewReplacer("resources.example.org", "localhost", "resources.crt", "public.crt", "resources.key", "public.key", "backend-ca.crt", "public.crt", "https://127.0.0.1:8443", fmt.Sprintf("https://host.docker.internal:%d", port)).Replace(resource)
+	resource = strings.NewReplacer("listen 127.0.0.1:443 ssl", "listen 443 ssl", "resources.honey-forge-seg-fault.ru", "localhost", "resources.crt", "public.crt", "resources.key", "public.key", "backend-ca.crt", "public.crt", "https://127.0.0.1:8443", fmt.Sprintf("https://host.docker.internal:%d", port)).Replace(resource)
 	if err := os.WriteFile(filepath.Join(dir, "nginx.conf"), []byte("events {}\nhttp {\n"+resource+"\n}"), 0600); err != nil {
 		t.Fatal(err)
 	}

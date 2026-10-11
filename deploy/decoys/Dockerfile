@@ -6,9 +6,10 @@ COPY src/backend ./
 RUN CGO_ENABLED=0 go build -p 1 -trimpath -o /out/agent ./cmd/agent
 
 FROM alpine:3.20 AS runtime
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates docker-cli iptables su-exec
 COPY --from=build /out/agent /agent
-ENTRYPOINT ["/agent"]
+COPY deploy/decoys/entrypoint.sh /entrypoint.sh
+ENTRYPOINT ["/bin/sh", "/entrypoint.sh"]
 
 FROM runtime AS tcp
 ENV DECOY_TYPE=tcp-banner
@@ -21,5 +22,4 @@ ENV DECOY_TYPE=honeytoken-http
 
 # Trusted SSH gateway. Attacker processes run only in the separate sandbox image.
 FROM runtime AS ssh
-RUN apk add --no-cache docker-cli
 ENV DECOY_TYPE=ssh-high-interaction

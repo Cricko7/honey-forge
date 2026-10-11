@@ -78,7 +78,7 @@ go build -trimpath -buildvcs=false -o edge-worker.exe ./cmd/agent
 $env:AGENT_WS_URL = '<agent_ws_url из ответа реквизитов>'
 $env:AGENT_TRAP_ID = '<trap_id из ответа реквизитов>'
 $env:AGENT_TOKEN = '<token из ответа реквизитов>'
-$env:AGENT_REDIS_URL = 'rediss://127.0.0.1:6379/0'
+$env:AGENT_REDIS_URL = "rediss://:$($env:REDIS_PASSWORD)@127.0.0.1:6379/0"
 # Redis запускается на машине агента:
 # docker compose up -d redis
 # Для локального backend с собственным CA:

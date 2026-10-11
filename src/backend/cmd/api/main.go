@@ -95,10 +95,7 @@ func run() error {
 		return err
 	}
 	defer runtime.Close()
-	addr := os.Getenv("API_ADDR")
-	if addr == "" {
-		addr = ":8443"
-	}
+	addr := apiAddress()
 	server := &http.Server{Addr: addr, Handler: runtime.Router, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 32 * 1024}
 	server.TLSConfig = serverTLS
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

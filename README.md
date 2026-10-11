@@ -79,7 +79,7 @@ go build ./...
 $env:TEST_DATABASE_URL = 'postgres://user:password@127.0.0.1:5432/honey_forge_test?sslmode=verify-full&sslrootcert=C:/certs/ca.crt'
 $env:TEST_KAFKA_BROKERS = '127.0.0.1:29092'
 $env:TEST_KAFKA_CA_FILE = 'C:\certs\ca.crt'
-$env:TEST_REDIS_URL = 'rediss://127.0.0.1:6379/0'
+$env:TEST_REDIS_URL = "rediss://:$($env:REDIS_PASSWORD)@127.0.0.1:6379/0"
 $env:TEST_REDIS_CA_FILE = 'C:\certs\ca.crt'
 go test -tags=integration ./... -count=1
 go test -race -tags=integration ./... -count=1
@@ -93,6 +93,11 @@ go test -race -tags=integration ./... -count=1
 | Переменная | Назначение |
 |---|---|
 | `POSTGRES_PASSWORD` | Обязательный пароль PostgreSQL для Docker Compose. |
+| `REDIS_PASSWORD` | Пароль Redis: минимум 32 hex-символа. Для `compose.yaml` обязателен; полный локальный стек генерирует и сохраняет его автоматически. Healthcheck и агенты проходят аутентификацию. |
+| `AGENT_REDIS_URL_FILE` | Файл с TLS URL Redis и паролем; используется локальным bootstrap и Docker secrets, имеет приоритет над `AGENT_REDIS_URL`. |
+| `MGMT_NETWORK` | Управляющая overlay-сеть, по умолчанию `hf-mgmt`; должна отличаться от `DECOY_NETWORK`. |
+| `MGMT_BIND_IP` | IP панели в Compose; по умолчанию `127.0.0.1`. Для удалённого доступа — адрес из изолированной mgmt-подсети. |
+| `DECOY_BIND_IP` | IP публикации портов обычных приманок; по умолчанию `0.0.0.0`. На сервере укажите интерфейс сегмента приманок. |
 | `DATABASE_URL` | Обязательная строка подключения к PostgreSQL с `sslmode=verify-full`; для своего CA задайте `sslrootcert`. |
 | `CURSOR_KEY` | Обязательный постоянный ключ: 32 байта в Base64; сохраните его между перезапусками. |
 | `BROWSER_ORIGINS` | Обязательные разрешённые HTTPS-origin браузера, через запятую. Для этих origin сервер отдаёт CORS-заголовки (Allow-Origin/Credentials) и отвечает на preflight; отдельный origin фронтенда (`app.example.org`) работает без общего прокси. |
@@ -103,9 +108,9 @@ go test -race -tags=integration ./... -count=1
 | `KAFKA_TELEMETRY_TOPIC` | Тема телеметрии; по умолчанию `honey-forge.telemetry`. |
 | `API_PUBLIC_ORIGIN` | Обязательный HTTPS origin операторского API. |
 | `AGENT_WS_URL` | Обязательный WSS URL вида `wss://resources.example.org/assets/stream`; хост отличается от API и всех `BROWSER_ORIGINS`. |
-| `API_ADDR` | Адрес API; по умолчанию `:8443`. |
+| `API_ADDR` | Адрес API; по умолчанию `127.0.0.1:8443`. В приватном контейнере Compose явно задаёт `:8443`. |
 | `GIN_MODE` | Для развёрнутого сервера задайте `release`. |
-| `AGENT_REDIS_URL` | Обязательный TLS URL буфера агента, например `rediss://127.0.0.1:6379/0`; открытый Redis и `skip_verify=true` запрещены. |
+| `AGENT_REDIS_URL` | Обязательный TLS URL буфера агента с паролем, например `rediss://:PASSWORD@redis:6379/0`; открытый Redis и `skip_verify=true` запрещены. |
 | `AGENT_CA_FILE` | CA управляющего API; пусто — системные доверенные CA. |
 | `AGENT_REDIS_CA_FILE` | CA Redis; по умолчанию используется `AGENT_CA_FILE`, затем системные CA. Оркестратор передаёт отдельный CA через Docker secret. |
 | `TEST_KAFKA_CA_FILE`, `TEST_REDIS_CA_FILE` | CA тестовых Kafka и Redis; пусто — системные доверенные CA. |
@@ -133,6 +138,7 @@ TLS-файлам. Значения `POSTGRES_PASSWORD` и `CURSOR_KEY` сген�
 
 ```powershell
 $env:POSTGRES_PASSWORD = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+$env:REDIS_PASSWORD = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32)).ToLowerInvariant()
 $env:CURSOR_KEY = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
 .\gen-certs.ps1
 $tlsCA = (Resolve-Path certs/ca.crt).Path.Replace('\', '/')
@@ -144,7 +150,7 @@ $env:API_PUBLIC_ORIGIN = 'https://localhost:8443'
 $env:AGENT_WS_URL = 'wss://resources.localhost:8443/assets/stream'
 $env:TLS_CERT_FILE = (Resolve-Path certs/resources.crt).Path
 $env:TLS_KEY_FILE = (Resolve-Path certs/resources.key).Path
-$env:API_ADDR = ':8443'
+$env:API_ADDR = '127.0.0.1:8443'
 $env:GIN_MODE = 'release'
 ```
 
@@ -154,7 +160,9 @@ $env:GIN_MODE = 'release'
 добавьте `127.0.0.1 resources.localhost` в hosts. Для проверки curl можно использовать
 `--resolve resources.localhost:8443:127.0.0.1`. Новый сертификат `resources.crt`
 создаётся повторным запуском `gen-certs.ps1`. Оркестратор подключает nginx
-к сети ловушек под нейтральным DNS-именем через `AGENT_PROXY_SERVICE=web`.
+к управляющей сети `hf-mgmt` под нейтральным DNS-именем через `AGENT_PROXY_SERVICE=web`.
+Процессы обычных приманок работают в отдельных контейнерах сети `hf-decoys`,
+без управляющих секретов и исходящих соединений. Телеметрия передаётся по TLS-pipe.
 
 Если запускаете только Go-процесс без nginx, используйте HTTPS-сертификат
 с SAN для обоих хостов либо запускайте его за настроенным прокси. Пример продолжения:
@@ -173,7 +181,7 @@ go run ./cmd/api
 ### Nginx перед API
 
 Ниже — развёртывание на **одном Linux-хосте** (команды установки — для
-Debian/Ubuntu): nginx принимает публичный HTTPS/WSS на 443, а Go API слушает
+Debian/Ubuntu): nginx принимает управляющий HTTPS/WSS на mgmt-IP:443, а Go API слушает
 только `127.0.0.1:8443`. Пример конфигурации:
 [deploy/nginx/honey-forge.conf](deploy/nginx/honey-forge.conf). Агент и его TCP
 ловушки могут находиться на других хостах. Если nginx и API размещены на разных
@@ -237,7 +245,7 @@ upstream и разрешите к нему доступ только с хост
    ```
 
    Выполняйте `install` из корня репозитория. В конфиге замените
-   `server_name honeyforge.example` на домен API, `resources.example.org` — на
+   `server_name honey-forge-seg-fault.ru` на домен API, `resources.honey-forge-seg-fault.ru` — на
    отдельный нейтральный домен ресурса. Настройте DNS этого домена на nginx и
    сертификат с его SAN (`resources.crt`/`resources.key` в шаблоне); проверьте
    также сертификат API и `backend-ca.crt`. Не размещайте панель HoneyForge

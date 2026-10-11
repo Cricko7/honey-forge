@@ -15,12 +15,12 @@ func TestDeployHoneytokens(t *testing.T) {
 			create = append([]string(nil), args...)
 		}
 		return nil, nil
-	}, Network: "decoys", WSURL: "wss://api.example/assets/stream", RedisURL: "redis://redis:6379/0", HoneytokenImage: "registry/honeytokens:1"}
+	}, Network: "decoys", ManagementNetwork: "mgmt", WSURL: "wss://api.example/assets/stream", RedisURL: "rediss://:password@redis:6379/0", HoneytokenImage: "registry/honeytokens:1"}
 	if err := d.Deploy(t.Context(), Target{ID: "11111111-1111-4111-8111-111111111111", Snapshot: profiles.Snapshot{TypeID: "honeytoken-http", TypeVersion: 1}}, "agent-secret", 1, []int{8080}); err != nil {
 		t.Fatal(err)
 	}
 	args := strings.Join(create, " ")
-	if !strings.Contains(args, "registry/honeytokens:1") || !strings.Contains(args, "published=8080,target=8080") {
+	if !strings.Contains(args, "TRAP_WORKER_IMAGE=registry/honeytokens:1") || strings.Contains(args, "--publish") {
 		t.Fatal(args)
 	}
 }

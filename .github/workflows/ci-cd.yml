@@ -18,6 +18,7 @@ jobs:
       - name: Start TLS infrastructure
         env:
           POSTGRES_PASSWORD: test
+          REDIS_PASSWORD: 0123456789abcdef0123456789abcdef
         run: |
           sh ./gen-certs.sh
           docker compose up -d --wait --wait-timeout 180
@@ -41,7 +42,7 @@ jobs:
           TEST_DATABASE_URL: postgres://honey_forge:test@127.0.0.1:5432/honey_forge?sslmode=verify-full&sslrootcert=${{ github.workspace }}/certs/ca.crt
           TEST_KAFKA_BROKERS: 127.0.0.1:29092
           TEST_KAFKA_CA_FILE: ${{ github.workspace }}/certs/ca.crt
-          TEST_REDIS_URL: rediss://127.0.0.1:6379/0
+          TEST_REDIS_URL: rediss://:0123456789abcdef0123456789abcdef@127.0.0.1:6379/0
           TEST_REDIS_CA_FILE: ${{ github.workspace }}/certs/ca.crt
           TEST_NGINX_PROXY: "1"
         run: go test -race -tags=integration ./... -count=1
@@ -54,6 +55,14 @@ jobs:
           docker build -f deploy/decoys/Dockerfile.sandbox -t "$SSH_SANDBOX_IMAGE" .
           cd src/backend
           go test -race -tags=integration ./internal/decoys/sshtrap -run TestDockerRealLinuxShellSFTPAndIsolation -count=1 -timeout=120s
+      - name: MASK-3 worker isolation acceptance
+        env:
+          TEST_MASK3_DOCKER: "1"
+          DECOY_TCP_IMAGE: honeyforge/tcp-decoy:test
+        run: |
+          docker build -f deploy/decoys/Dockerfile --target tcp -t "$DECOY_TCP_IMAGE" .
+          cd src/backend
+          go test -race -tags=integration ./internal/agent -run TestDockerWorkerMASK3Isolation -count=1 -timeout=120s
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -280,8 +289,10 @@ jobs:
               api_id=$(compose "$INCOMING/release.env" ps -q api)
               redis_id=$(compose "$INCOMING/release.env" ps -q redis)
               if [ -n "$api_id" ] && [ -n "$redis_id" ] && \
-                 [ "$(docker inspect --format '{{if index .NetworkSettings.Networks "hf-decoys"}}ready{{end}}' "$api_id")" = ready ] && \
-                 [ "$(docker inspect --format '{{if index .NetworkSettings.Networks "hf-decoys"}}ready{{end}}' "$redis_id")" = ready ]; then
+                 [ "$(docker inspect --format '{{if index .NetworkSettings.Networks "hf-mgmt"}}ready{{end}}' "$api_id")" = ready ] && \
+                 [ "$(docker inspect --format '{{if index .NetworkSettings.Networks "hf-mgmt"}}ready{{end}}' "$redis_id")" = ready ] && \
+                 [ -z "$(docker inspect --format '{{if index .NetworkSettings.Networks "hf-decoys"}}unsafe{{end}}' "$api_id")" ] && \
+                 [ -z "$(docker inspect --format '{{if index .NetworkSettings.Networks "hf-decoys"}}unsafe{{end}}' "$redis_id")" ]; then
                 ready=1; break
               fi
               sleep 2
@@ -296,7 +307,7 @@ jobs:
                 honeyforge/honeytoken-decoy:*) image="$DECOY_HONEYTOKEN_IMAGE";;
                 *) echo "Unchanged service $service: $old_image"; continue;;
               esac
-              docker service update --detach=false --no-resolve-image --image "$image" --update-order stop-first --update-parallelism 1 --update-failure-action rollback "$service"
+              docker service update --detach=false --no-resolve-image --image "$image" --env-add "TRAP_WORKER_IMAGE=$image" --update-order stop-first --update-parallelism 1 --update-failure-action rollback "$service"
               state=$(docker service inspect --format '{{if .UpdateStatus}}{{.UpdateStatus.State}}{{end}}' "$service")
               test "$state" = completed
             done
@@ -306,7 +317,9 @@ jobs:
             mv -Tf "$FRONT.next" "$FRONT"
             sudo -n nginx -t
             sudo -n systemctl reload nginx
-            code=$(curl --silent --show-error --max-time 10 --cacert /etc/honey-forge/certs/public-ca.crt --output /dev/null --write-out '%{http_code}' "$EXPECTED_ORIGIN/api/session")
+            operator_host=${EXPECTED_ORIGIN#https://}; operator_host=${operator_host%%:*}
+            operator_ip=$(sed -n 's/^MGMT_BIND_IP=//p' "$CONFIG"); operator_ip=${operator_ip:-127.0.0.1}
+            code=$(curl --silent --show-error --max-time 10 --cacert /etc/honey-forge/certs/public-ca.crt --resolve "$operator_host:443:$operator_ip" --output /dev/null --write-out '%{http_code}' "$EXPECTED_ORIGIN/api/session")
             test "$code" = 401
             ln -s "$INCOMING" "$ROOT/current.next"
             mv -Tf "$ROOT/current.next" "$ROOT/current"
@@ -314,48 +327,59 @@ jobs:
             trap - EXIT
             echo 'Docker API, orchestrator, TCP/Redis agents and frontend updated'
 
-      - name: External API, WSS and frontend smoke tests
+      - name: Management API, WSS and frontend smoke tests over SSH
+        uses: appleboy/ssh-action@v1
         env:
-          PUBLIC_CA_PEM: ${{ secrets.PUBLIC_CA_PEM }}
-          API_HOST: ${{ secrets.SSH_HOST }}
-        run: |
-          tls=()
-          if [ -n "$PUBLIC_CA_PEM" ]; then
-            printf '%s\n' "$PUBLIC_CA_PEM" > "$RUNNER_TEMP/public-ca.crt"
-            tls=(--cacert "$RUNNER_TEMP/public-ca.crt")
-          fi
-          DOMAIN=$(echo "$PUBLIC_ORIGIN" | sed -E 's|https?://||; s|/.*||')
-          echo "Testing $PUBLIC_ORIGIN via $API_HOST"
-          for entry in '/api/session:401' '/assets/stream:404' '/api/stream:401' '/:200' '/app/profiles:200'; do
-            path="${entry%:*}"
-            expected="${entry##*:}"
-            code=$(curl "${tls[@]}" --silent --show-error --max-time 20 --retry 3 \
-              --resolve "$DOMAIN:443:$API_HOST" \
-              --output /dev/null --write-out '%{http_code}' "$PUBLIC_ORIGIN$path")
-            echo "$path: $code"
-            test "$code" = "$expected"
-          done
-          curl "${tls[@]}" --fail --silent --show-error --max-time 20 "$PUBLIC_ORIGIN/" | grep -q '<div id="root">'
-          RESOURCE_AUTHORITY=${TELEMETRY_ORIGIN#https://}
-          RESOURCE_HOST=${RESOURCE_AUTHORITY%%:*}
-          RESOURCE_PORT=443
-          if [[ "$RESOURCE_AUTHORITY" == *:* ]]; then RESOURCE_PORT=${RESOURCE_AUTHORITY##*:}; fi
-          resolve=(--resolve "$RESOURCE_HOST:$RESOURCE_PORT:$API_HOST")
-          for entry in '/:200' '/assets/stream:200' '/api/session:404' '/api/stream:404' '/app/profiles:404'; do
-            path="${entry%:*}"; expected="${entry##*:}"
-            code=$(curl "${tls[@]}" "${resolve[@]}" --silent --show-error --max-time 20 \
-              --output /dev/null --write-out '%{http_code}' "$TELEMETRY_ORIGIN$path")
-            echo "resource $path: $code"
-            test "$code" = "$expected"
-          done
-          curl "${tls[@]}" "${resolve[@]}" --fail --silent --show-error --max-time 20 \
-            "$TELEMETRY_ORIGIN/" | grep -q '<title>Resource Library</title>'
-          curl "${tls[@]}" "${resolve[@]}" --fail --silent --show-error --max-time 20 \
-            --output "$RUNNER_TEMP/resource.js" "$TELEMETRY_ORIGIN/assets/stream"
-          curl "${tls[@]}" "${resolve[@]}" --fail --silent --show-error --max-time 20 \
-            -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Authorization: Bearer invalid-smoke-token' \
-            --output "$RUNNER_TEMP/rejected.js" "$TELEMETRY_ORIGIN/assets/stream"
-          cmp "$RUNNER_TEMP/resource.js" "$RUNNER_TEMP/rejected.js"
-          if grep -Eiq 'honeyforge|honeypot|agent_unauthenticated|Invalid agent credentials' "$RUNNER_TEMP/resource.js"; then
-            echo '::error::Resource response discloses the telemetry channel'; exit 1
-          fi
+          EXPECTED_ORIGIN: ${{ env.PUBLIC_ORIGIN }}
+          EXPECTED_TELEMETRY_ORIGIN: ${{ env.TELEMETRY_ORIGIN }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ vars.SSH_PORT || 22 }}
+          envs: EXPECTED_ORIGIN,EXPECTED_TELEMETRY_ORIGIN
+          command_timeout: 5m
+          script: |
+            set -eu
+            PUBLIC_ORIGIN=$EXPECTED_ORIGIN
+            TELEMETRY_ORIGIN=$EXPECTED_TELEMETRY_ORIGIN
+            API_HOST=$(sed -n 's/^MGMT_BIND_IP=//p' /etc/honey-forge/production.env)
+            API_HOST=${API_HOST:-127.0.0.1}
+            SMOKE_TMP=$(mktemp -d)
+            trap 'rm -f "$SMOKE_TMP/resource.js" "$SMOKE_TMP/rejected.js"; rmdir "$SMOKE_TMP"' EXIT
+            tls=(--cacert /etc/honey-forge/certs/public-ca.crt)
+            DOMAIN=$(echo "$PUBLIC_ORIGIN" | sed -E 's|https?://||; s|/.*||')
+            echo "Testing $PUBLIC_ORIGIN via $API_HOST"
+            for entry in '/api/session:401' '/assets/stream:404' '/api/stream:401' '/:200' '/app/profiles:200'; do
+              path="${entry%:*}"
+              expected="${entry##*:}"
+              code=$(curl "${tls[@]}" --silent --show-error --max-time 20 --retry 3 \
+                --resolve "$DOMAIN:443:$API_HOST" \
+                --output /dev/null --write-out '%{http_code}' "$PUBLIC_ORIGIN$path")
+              echo "$path: $code"
+              test "$code" = "$expected"
+            done
+            curl "${tls[@]}" --resolve "$DOMAIN:443:$API_HOST" --fail --silent --show-error --max-time 20 "$PUBLIC_ORIGIN/" | grep -q '<div id="root">'
+            RESOURCE_AUTHORITY=${TELEMETRY_ORIGIN#https://}
+            RESOURCE_HOST=${RESOURCE_AUTHORITY%%:*}
+            RESOURCE_PORT=443
+            if [[ "$RESOURCE_AUTHORITY" == *:* ]]; then RESOURCE_PORT=${RESOURCE_AUTHORITY##*:}; fi
+            resolve=(--resolve "$RESOURCE_HOST:$RESOURCE_PORT:$API_HOST")
+            for entry in '/:200' '/assets/stream:200' '/api/session:404' '/api/stream:404' '/app/profiles:404'; do
+              path="${entry%:*}"; expected="${entry##*:}"
+              code=$(curl "${tls[@]}" "${resolve[@]}" --silent --show-error --max-time 20 \
+                --output /dev/null --write-out '%{http_code}' "$TELEMETRY_ORIGIN$path")
+              echo "resource $path: $code"
+              test "$code" = "$expected"
+            done
+            curl "${tls[@]}" "${resolve[@]}" --fail --silent --show-error --max-time 20 \
+              "$TELEMETRY_ORIGIN/" | grep -q '<title>Resource Library</title>'
+            curl "${tls[@]}" "${resolve[@]}" --fail --silent --show-error --max-time 20 \
+              --output "$SMOKE_TMP/resource.js" "$TELEMETRY_ORIGIN/assets/stream"
+            curl "${tls[@]}" "${resolve[@]}" --fail --silent --show-error --max-time 20 \
+              -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Authorization: Bearer invalid-smoke-token' \
+              --output "$SMOKE_TMP/rejected.js" "$TELEMETRY_ORIGIN/assets/stream"
+            cmp "$SMOKE_TMP/resource.js" "$SMOKE_TMP/rejected.js"
+            if grep -Eiq 'honeyforge|honeypot|agent_unauthenticated|Invalid agent credentials' "$SMOKE_TMP/resource.js"; then
+              echo '::error::Resource response discloses the telemetry channel'; exit 1
+            fi

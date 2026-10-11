@@ -10,6 +10,18 @@ import (
 	"honey-forge/modules/profiles"
 )
 
+func TestReconcileReplacesLegacySharedNetworkDeployment(t *testing.T) {
+	store := &fakeStore{targets: []Target{{ID: "legacy", Generation: 1}}}
+	docker := &fakeDocker{current: map[string]ServiceState{"legacy": {Exists: true, Generation: 1, Ports: []int{2222}, UnsafeNetwork: true}}}
+	c := Controller{Store: store, Docker: docker, Ports: func(context.Context, profiles.Snapshot) ([]int, error) { return []int{2222}, nil }}
+	if err := c.Reconcile(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(docker.removed, []string{"legacy"}) || !reflect.DeepEqual(docker.deployed, []string{"legacy"}) {
+		t.Fatalf("legacy deployment kept: removed=%v deployed=%v", docker.removed, docker.deployed)
+	}
+}
+
 type fakeStore struct {
 	targets  []Target
 	issued   []string

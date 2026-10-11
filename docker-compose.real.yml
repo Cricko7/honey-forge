@@ -9,6 +9,7 @@ services:
     entrypoint: ["/bin/sh", "/tls/renew.sh"]
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       CURSOR_KEY: ${CURSOR_KEY:-}
       AGENT_TRAP_ID: ${AGENT_TRAP_ID:-}
     volumes:
@@ -85,6 +86,8 @@ services:
   redis:
     image: redis:7.4.6
     entrypoint: ["/bin/sh", "/tls/redis.sh"]
+    environment:
+      REDIS_PASSWORD_FILE: /certs/redis-password
     volumes:
       - redis_data:/data
       - ./deploy/tls/redis.sh:/tls/redis.sh:ro
@@ -93,7 +96,7 @@ services:
       tls-init:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "redis-cli", "--tls", "--cacert", "/certs/ca.crt", "ping"]
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$(cat /certs/redis-password)\" redis-cli --tls --cacert /certs/ca.crt ping | grep -qx PONG"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -110,7 +113,6 @@ services:
       KAFKA_BROKERS: kafka:19092
       KAFKA_CA_FILE: /certs/ca.crt
       AGENT_WS_URL: wss://resources.localhost:8443/assets/stream
-      AGENT_REDIS_URL: rediss://redis:6379/0
       AUTO_DEPLOY_TRAPS: "true"
       TLS_CERT_FILE: /certs/localhost.crt
       TLS_KEY_FILE: /certs/localhost.key
@@ -135,7 +137,7 @@ services:
       args:
         VITE_API_BASE: https://localhost:8443
     ports:
-      - "8443:443"
+      - "${MGMT_BIND_IP:-127.0.0.1}:8443:443"
     entrypoint: ["/bin/sh", "-c", "/bin/sh /tls/watch-nginx.sh; exec /docker-entrypoint.sh nginx -g 'daemon off;'"]
     volumes:
       - tls_web:/etc/nginx/certs:ro
@@ -158,15 +160,17 @@ services:
       AGENT_WS_URL: wss://resources.localhost/assets/stream
       AGENT_TRAP_ID: ${AGENT_TRAP_ID:-}
       AGENT_TOKEN: ${AGENT_TOKEN:-}
-      AGENT_REDIS_URL: rediss://redis:6379/1
+      AGENT_REDIS_URL_FILE: /certs/redis-url
       AGENT_CA_FILE: /certs/ca.crt
       AGENT_CERT_FILE: /certs/agent.crt
       AGENT_KEY_FILE: /certs/agent.key
       AGENT_SERVER_PINS_FILE: /certs/server-pins
+      TRAP_WORKER_IMAGE: ${DECOY_TCP_IMAGE:-honeyforge/tcp-decoy:local}
+      TRAP_WORKER_NETWORK: ${DECOY_NETWORK:-hf-decoys}
+      DECOY_BIND_IP: ${DECOY_BIND_IP:-0.0.0.0}
     volumes:
       - tls_agent:/certs:ro
-    ports:
-      - "2222:2222"
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       - web
       - redis
@@ -210,9 +214,11 @@ services:
       AGENT_SERVER_PINS_FILE: /certs/server-pins
       POSTGRES_PASSWORD_FILE: /certs/postgres-password
       AGENT_WS_URL: wss://resources.localhost/assets/stream
-      AGENT_REDIS_URL: rediss://redis:6379/0
+      AGENT_REDIS_URL_FILE: /certs/redis-url
       AGENT_CA_FILE: /certs/ca.crt
       DECOY_NETWORK: ${DECOY_NETWORK:-hf-decoys}
+      MGMT_NETWORK: ${MGMT_NETWORK:-hf-mgmt}
+      DECOY_BIND_IP: ${DECOY_BIND_IP:-0.0.0.0}
       DECOY_TCP_IMAGE: ${DECOY_TCP_IMAGE:-honeyforge/tcp-decoy:local}
       DECOY_REDIS_IMAGE: ${DECOY_REDIS_IMAGE:-honeyforge/redis-decoy:local}
       DECOY_HONEYTOKEN_IMAGE: ${DECOY_HONEYTOKEN_IMAGE:-honeyforge/honeytoken-decoy:local}

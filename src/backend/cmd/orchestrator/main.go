@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"honey-forge/internal/orchestrator"
+	"honey-forge/internal/platform/secrets"
 	"honey-forge/internal/postgres"
 )
 
@@ -28,11 +29,16 @@ func run() error {
 		return err
 	}
 	wsURL := os.Getenv("AGENT_WS_URL")
-	redisURL := os.Getenv("AGENT_REDIS_URL")
+	redisURL, err := secrets.Environment("AGENT_REDIS_URL")
+	if err != nil {
+		return err
+	}
 	docker := orchestrator.DockerCLI{
 		ClientCAFile: os.Getenv("AGENT_CLIENT_CA_FILE"), ClientCAKeyFile: os.Getenv("AGENT_CLIENT_CA_KEY_FILE"), ServerPinsFile: os.Getenv("AGENT_SERVER_PINS_FILE"),
-		ProxyService: os.Getenv("AGENT_PROXY_SERVICE"),
-		Network:      os.Getenv("DECOY_NETWORK"), WSURL: wsURL, RedisURL: redisURL,
+		ProxyService:      os.Getenv("AGENT_PROXY_SERVICE"),
+		ManagementNetwork: os.Getenv("MGMT_NETWORK"),
+		WorkerBindIP:      os.Getenv("DECOY_BIND_IP"),
+		Network:           os.Getenv("DECOY_NETWORK"), WSURL: wsURL, RedisURL: redisURL,
 		CAFile: os.Getenv("AGENT_CA_FILE"), RedisCAFile: os.Getenv("AGENT_REDIS_CA_FILE"), TCPImage: os.Getenv("DECOY_TCP_IMAGE"), RedisImage: os.Getenv("DECOY_REDIS_IMAGE"),
 		HoneytokenImage: os.Getenv("DECOY_HONEYTOKEN_IMAGE"),
 		SSHImage:        os.Getenv("DECOY_SSH_IMAGE"), SandboxImage: os.Getenv("SSH_SANDBOX_IMAGE"),

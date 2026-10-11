@@ -38,7 +38,7 @@ func TestEndpointDeploymentContract(t *testing.T) {
 					}
 				}
 				if compose.Services["orchestrator"].Environment["AGENT_PROXY_SERVICE"] != "web" {
-					t.Fatal("resource proxy must be reachable from the decoy network")
+					t.Fatal("resource proxy must be reachable from the management network")
 				}
 			}
 		})

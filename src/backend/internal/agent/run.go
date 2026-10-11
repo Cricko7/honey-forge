@@ -32,9 +32,15 @@ type Options struct {
 	TLS            *tls.Config
 	RedisTLS       *tls.Config
 	SupportedTypes []agentws.SupportedType
+	WorkerImage    string
+	WorkerNetwork  string
+	WorkerBindIP   string
 }
 
 func Run(ctx context.Context, opts Options) error {
+	if (opts.WorkerImage == "") != (opts.WorkerNetwork == "") || opts.WorkerNetwork == "host" || opts.WorkerNetwork == "none" {
+		return fmt.Errorf("TRAP_WORKER_IMAGE and an isolated TRAP_WORKER_NETWORK must be configured together")
+	}
 	endpoint, err := url.Parse(opts.URL)
 	if err != nil || endpoint.Scheme != "wss" || endpoint.Host == "" || endpoint.Path != "/assets/stream" || endpoint.User != nil || endpoint.RawQuery != "" || endpoint.Fragment != "" {
 		return fmt.Errorf("AGENT_WS_URL must be wss://host/assets/stream")
@@ -100,7 +106,8 @@ func Run(ctx context.Context, opts Options) error {
 		defer cancel()
 		server.Shutdown(shutdown)
 	}()
-	p := &Process{Executable: opts.Executable, URL: "wss://" + listener.Addr().String() + "/trap-stream", Certificate: localCertificate, Local: local}
+	p := &Process{Executable: opts.Executable, URL: "wss://" + listener.Addr().String() + "/trap-stream", Certificate: localCertificate, Local: local,
+		WorkerImage: opts.WorkerImage, WorkerNetwork: opts.WorkerNetwork, WorkerBindIP: opts.WorkerBindIP, TrapID: opts.TrapID}
 	s := NewService(j, p)
 	defer s.Shutdown()
 	if err := s.Restore(ctx); err != nil {

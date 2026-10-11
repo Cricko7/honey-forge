@@ -6,16 +6,20 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 
 	"honey-forge/internal/agent"
 	"honey-forge/internal/decoys"
+	"honey-forge/internal/platform/secrets"
 	"honey-forge/internal/platform/tlsconfig"
 )
 
 func main() {
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+	logOutput := os.Stdout
+	if os.Getenv("TRAP_STDIO") == "1" {
+		logOutput = os.Stderr
+	}
+	slog.SetDefault(slog.New(slog.NewJSONHandler(logOutput, nil)))
 	if err := run(); err != nil {
 		slog.Error("agent stopped", "error", err)
 		os.Exit(1)
@@ -40,11 +44,11 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("configure Redis TLS: %w", err)
 	}
-	token, err := secret("AGENT_TOKEN", os.Getenv("AGENT_TOKEN_FILE"))
+	token, err := secrets.Environment("AGENT_TOKEN")
 	if err != nil {
 		return err
 	}
-	redisURL, err := secret("AGENT_REDIS_URL", os.Getenv("AGENT_REDIS_URL_FILE"))
+	redisURL, err := secrets.Environment("AGENT_REDIS_URL")
 	if err != nil {
 		return err
 	}
@@ -55,16 +59,6 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	return agent.Run(ctx, agent.Options{URL: os.Getenv("AGENT_WS_URL"), Token: token, TrapID: os.Getenv("AGENT_TRAP_ID"), RedisURL: redisURL, TLS: config, RedisTLS: redisTLS, SupportedTypes: supported})
-}
-
-func secret(name, file string) (string, error) {
-	if file == "" {
-		return os.Getenv(name), nil
-	}
-	raw, err := os.ReadFile(file)
-	if err != nil {
-		return "", fmt.Errorf("read %s file: %w", name, err)
-	}
-	return strings.TrimSuffix(string(raw), "\n"), nil
+	return agent.Run(ctx, agent.Options{URL: os.Getenv("AGENT_WS_URL"), Token: token, TrapID: os.Getenv("AGENT_TRAP_ID"), RedisURL: redisURL, TLS: config, RedisTLS: redisTLS, SupportedTypes: supported,
+		WorkerImage: os.Getenv("TRAP_WORKER_IMAGE"), WorkerNetwork: os.Getenv("TRAP_WORKER_NETWORK"), WorkerBindIP: os.Getenv("DECOY_BIND_IP")})
 }

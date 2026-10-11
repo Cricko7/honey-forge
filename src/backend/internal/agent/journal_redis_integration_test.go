@@ -10,8 +10,40 @@ import (
 	"honey-forge/internal/platform/tlsconfig"
 	"honey-forge/modules/events"
 	"os"
+	"strings"
 	"testing"
 )
+
+func TestRedisRejectsMissingAndWrongCredentials(t *testing.T) {
+	address := redisTestURL(t)
+	for _, tt := range []struct {
+		name, password string
+		authorized     bool
+	}{{"valid credentials", "", true}, {"missing password", "", false}, {"wrong password", "wrong-test-password", false}} {
+		t.Run(tt.name, func(t *testing.T) {
+			opts, err := redisOptions(address, redisTestTLS(t))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tt.authorized && opts.Password == "" {
+				t.Fatal("TEST_REDIS_URL must include the Redis password")
+			}
+			if !tt.authorized {
+				opts.Username = ""
+				opts.Password = tt.password
+			}
+			client := redis.NewClient(opts)
+			defer client.Close()
+			err = client.Ping(t.Context()).Err()
+			if (err == nil) != tt.authorized {
+				t.Fatalf("authorized=%v error=%v", tt.authorized, err)
+			}
+			if err != nil && !strings.Contains(err.Error(), "NOAUTH") && !strings.Contains(err.Error(), "WRONGPASS") {
+				t.Fatalf("failure did not enforce authentication: %v", err)
+			}
+		})
+	}
+}
 
 func redisTestURL(t *testing.T) string {
 	t.Helper()

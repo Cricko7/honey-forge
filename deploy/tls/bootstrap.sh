@@ -17,6 +17,17 @@ if [ ! -s cursor-key ]; then
   if [ -n "${CURSOR_KEY:-}" ]; then printf '%s' "$CURSOR_KEY" > cursor-key;
   else openssl rand -base64 32 > cursor-key; fi
 fi
+if [ ! -s redis-password ]; then
+  if [ -n "${REDIS_PASSWORD:-}" ]; then printf '%s' "$REDIS_PASSWORD" > redis-password;
+  else openssl rand -hex 32 > redis-password; fi
+elif [ -n "${REDIS_PASSWORD:-}" ] && [ "$(cat redis-password)" != "$REDIS_PASSWORD" ]; then
+  echo 'REDIS_PASSWORD differs from the saved Redis password' >&2
+  exit 1
+fi
+redis_password=$(cat redis-password)
+case "$redis_password" in *[!a-fA-F0-9]*) echo 'Redis password must be hexadecimal' >&2; exit 1;; esac
+[ "${#redis_password}" -ge 32 ] || { echo 'Redis password must contain at least 32 hexadecimal characters' >&2; exit 1; }
+printf 'rediss://:%s@redis:6379/0\n' "$redis_password" > redis-url
 
 /bin/sh /tls/generate.sh
 
@@ -34,12 +45,13 @@ publish() {
   done
 }
 publish postgres postgres.crt postgres.key postgres-password
-publish redis redis.crt redis.key ca.crt
+publish redis redis.crt redis.key ca.crt redis-password
 publish kafka kafka.pem ca.crt kafka-client.properties
 chown 1000:1000 /exports/kafka/kafka.pem
 publish api localhost.crt localhost.key ca.crt agents-ca.crt postgres-password cursor-key
 publish web localhost.crt localhost.key resources.crt resources.key ca.crt agents-ca.crt resource-proxy.crt resource-proxy.key
-publish orchestrator ca.crt agents-ca.crt agents-ca.key server-pins postgres-password
-publish agent ca.crt server-pins
+publish orchestrator ca.crt agents-ca.crt agents-ca.key server-pins postgres-password redis-url
+printf 'rediss://:%s@redis:6379/1\n' "$redis_password" > redis-url
+publish agent ca.crt server-pins redis-url
 if [ -n "${AGENT_TRAP_ID:-}" ]; then publish agent agent.crt agent.key; fi
 touch /certs/bootstrap-ready

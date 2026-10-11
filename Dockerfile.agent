@@ -9,7 +9,7 @@ COPY src/backend ./
 RUN CGO_ENABLED=0 go build -trimpath -buildvcs=false -o /out/edge-worker ./cmd/agent
 
 FROM alpine:3.20
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates docker-cli
 WORKDIR /app
 COPY --from=build /out/edge-worker ./edge-worker
 ENTRYPOINT ["./edge-worker"]

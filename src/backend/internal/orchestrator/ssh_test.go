@@ -10,7 +10,7 @@ import (
 
 func TestSSHDeploySeparatesTrustedGatewayAndSandbox(t *testing.T) {
 	var create string
-	d := DockerCLI{Network: "decoys", WSURL: "wss://api/assets/stream", RedisURL: "redis://redis:6379", SSHImage: "hf/ssh:local", SandboxImage: "hf/sandbox:local", Run: func(_ context.Context, _ []byte, args ...string) ([]byte, error) {
+	d := DockerCLI{Network: "decoys", ManagementNetwork: "mgmt", WSURL: "wss://api/assets/stream", RedisURL: "rediss://:password@redis:6379", SSHImage: "hf/ssh:local", SandboxImage: "hf/sandbox:local", Run: func(_ context.Context, _ []byte, args ...string) ([]byte, error) {
 		if len(args) > 1 && args[0] == "service" && args[1] == "create" {
 			create = strings.Join(args, " ")
 		}

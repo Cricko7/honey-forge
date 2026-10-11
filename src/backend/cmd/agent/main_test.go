@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"honey-forge/internal/platform/secrets"
 )
 
 func TestSecretFromFile(t *testing.T) {
@@ -11,7 +13,8 @@ func TestSecretFromFile(t *testing.T) {
 	if err := os.WriteFile(path, []byte("private-token\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	value, err := secret("AGENT_TOKEN", path)
+	t.Setenv("AGENT_TOKEN_FILE", path)
+	value, err := secrets.Environment("AGENT_TOKEN")
 	if err != nil || value != "private-token" {
 		t.Fatalf("secret()=%q, %v", value, err)
 	}

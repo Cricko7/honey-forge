@@ -26,7 +26,7 @@ func (d DockerCLI) Deploy(ctx context.Context, target Target, token string, gene
 			return fmt.Errorf("SSH sandbox image is required")
 		}
 	}
-	if image == "" || d.Network == "" || d.WSURL == "" || d.RedisURL == "" || token == "" {
+	if image == "" || d.Network == "" || d.ManagementNetwork == "" || d.Network == d.ManagementNetwork || d.WSURL == "" || d.RedisURL == "" || token == "" {
 		return fmt.Errorf("incomplete trap deployment configuration")
 	}
 	if err := d.removeSecrets(ctx, target.ID); err != nil {
@@ -57,7 +57,8 @@ func (d DockerCLI) Deploy(ctx context.Context, target Target, token string, gene
 		"--label", "honeyforge.trap=" + target.ID,
 		"--label", "honeyforge.generation=" + strconv.FormatInt(generation, 10),
 		"--label", "honeyforge.ports=" + portLabel(ports),
-		"--replicas", "1", "--network", d.Network, "--hostname", "{{.Node.Hostname}}", "--init", "--read-only", "--cap-drop", "ALL", "--cap-add", "SETUID", "--cap-add", "SETGID",
+		"--label", "honeyforge.isolation=mask3",
+		"--replicas", "1", "--network", d.ManagementNetwork, "--hostname", "{{.Node.Hostname}}", "--init", "--read-only", "--cap-drop", "ALL", "--cap-add", "SETUID", "--cap-add", "SETGID",
 		"--sysctl", "net.ipv4.ip_unprivileged_port_start=0",
 		"--limit-memory", memory, "--reserve-memory", "64m", "--reserve-cpu", "0.1", "--limit-pids", "128", "--user", "0:0",
 		"--restart-condition", "on-failure",
@@ -116,13 +117,21 @@ func (d DockerCLI) Deploy(ctx context.Context, target Target, token string, gene
 		if port < 1 || port > 65535 {
 			return fmt.Errorf("invalid trap port %d", port)
 		}
-		args = append(args, "--publish", fmt.Sprintf("published=%d,target=%d,protocol=tcp,mode=host", port, port))
+		if target.Snapshot.TypeID == "ssh-high-interaction" {
+			args = append(args, "--publish", fmt.Sprintf("published=%d,target=%d,protocol=tcp,mode=host", port, port))
+		}
 	}
+	// Only the trusted supervisor can use Docker. Decoy workers receive neither
+	// this socket nor management credentials, and communicate through a TLS pipe.
+	args = append(args, "--mount", "type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock")
 	if target.Snapshot.TypeID == "ssh-high-interaction" {
-		args = append(args, "--constraint", "node.role==manager",
-			"--mount", "type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock",
-			"--env", "SSH_SANDBOX_IMAGE="+d.SandboxImage,
+		args = append(args, "--constraint", "node.role==manager", "--env", "SSH_SANDBOX_IMAGE="+d.SandboxImage,
 			"--limit-cpu", "1")
+	} else {
+		args = append(args, "--env", "TRAP_WORKER_IMAGE="+image, "--env", "TRAP_WORKER_NETWORK="+d.Network)
+		if d.WorkerBindIP != "" {
+			args = append(args, "--env", "DECOY_BIND_IP="+d.WorkerBindIP)
+		}
 	}
 	args = append(args, image)
 	if _, err := d.call(ctx, nil, args...); err != nil {

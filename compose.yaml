@@ -2,6 +2,8 @@ services:
   redis:
     image: redis:7.4.6
     entrypoint: ["/bin/sh", "/tls/redis.sh"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD}
     ports:
       - "127.0.0.1:6379:6379"
     volumes:
@@ -11,7 +13,7 @@ services:
       - ./certs/redis.key:/certs/redis.key:ro
       - ./certs/ca.crt:/certs/ca.crt:ro
     healthcheck:
-      test: ["CMD", "redis-cli", "--tls", "--cacert", "/certs/ca.crt", "ping"]
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$${REDIS_PASSWORD}\" redis-cli --tls --cacert /certs/ca.crt ping | grep -qx PONG"]
       interval: 5s
       timeout: 3s
       retries: 10

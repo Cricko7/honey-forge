@@ -3,6 +3,7 @@ package orchestrator
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,15 +36,57 @@ func TestPrepareBootstrapsSingleNodeAndConnectsComposeServices(t *testing.T) {
 		}
 		return nil, nil
 	}
-	d := DockerCLI{Run: run, Network: "hf-decoys", ProxyService: "web", WSURL: "wss://resources.localhost/assets/stream"}
+	d := DockerCLI{Run: run, Network: "hf-decoys", ManagementNetwork: "hf-mgmt", ProxyService: "web", WSURL: "wss://resources.localhost/assets/stream"}
 	if err := d.Prepare(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	joined := strings.Join(calls, "\n")
-	for _, want := range []string{"swarm init", "network create --driver overlay --attachable hf-decoys", "network connect --alias api hf-decoys api-id", "network connect --alias redis hf-decoys redis-id", "network connect --alias resources.localhost hf-decoys web-id"} {
+	for _, want := range []string{"swarm init", "network create --driver overlay --attachable hf-decoys", "network create --driver overlay --attachable hf-mgmt", "network connect --alias api hf-mgmt api-id", "network connect --alias redis hf-mgmt redis-id", "network connect --alias resources.localhost hf-mgmt web-id"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("missing %q in calls:\n%s", want, joined)
 		}
+	}
+	if strings.Contains(joined, "hf-decoys api-id") || strings.Contains(joined, "hf-decoys redis-id") || strings.Contains(joined, "hf-decoys web-id") {
+		t.Fatal("management services were connected to the decoy network")
+	}
+}
+
+func TestPrepareRemovesLegacyManagementAttachment(t *testing.T) {
+	for _, tt := range []struct {
+		name            string
+		disconnectError bool
+	}{{"upgrade", false}, {"disconnect failure", true}} {
+		t.Run(tt.name, func(t *testing.T) {
+			var calls []string
+			d := DockerCLI{Network: "decoys", ManagementNetwork: "mgmt", Run: func(_ context.Context, _ []byte, args ...string) ([]byte, error) {
+				call := strings.Join(args, " ")
+				calls = append(calls, call)
+				switch {
+				case strings.HasPrefix(call, "ps "):
+					return []byte("api-id"), nil
+				case strings.HasPrefix(call, "inspect "):
+					return []byte(`{"decoys":{},"mgmt":{}}`), nil
+				case strings.HasPrefix(call, "network disconnect") && tt.disconnectError:
+					return nil, fmt.Errorf("disconnect denied")
+				}
+				return nil, nil
+			}}
+			err := d.connectComposeService(t.Context(), "project", "api", "api")
+			if (err != nil) != tt.disconnectError {
+				t.Fatalf("err=%v", err)
+			}
+			if !strings.Contains(strings.Join(calls, "\n"), "network disconnect decoys api-id") {
+				t.Fatal("legacy management attachment remains")
+			}
+		})
+	}
+}
+
+func TestPrepareRejectsSharedManagementNetwork(t *testing.T) {
+	called := false
+	d := DockerCLI{Network: "decoys", ManagementNetwork: "decoys", Run: func(context.Context, []byte, ...string) ([]byte, error) { called = true; return nil, nil }}
+	if err := d.Prepare(t.Context()); err == nil || called {
+		t.Fatal("unsafe networking caused Docker side effects")
 	}
 }
 
@@ -57,7 +100,7 @@ func TestDockerDeployUsesOneIsolatedSwarmTaskAndSecret(t *testing.T) {
 		}
 		return nil, nil
 	}
-	d := DockerCLI{Run: run, Network: "decoys", WSURL: "wss://api.example/assets/stream", RedisURL: "redis://redis:6379/0", TCPImage: "registry/tcp:1", RedisImage: "registry/redis:1"}
+	d := DockerCLI{Run: run, Network: "decoys", ManagementNetwork: "mgmt", WSURL: "wss://api.example/assets/stream", RedisURL: "rediss://:password@redis:6379/0", TCPImage: "registry/tcp:1", RedisImage: "registry/redis:1"}
 	if err := d.Deploy(t.Context(), Target{ID: "11111111-1111-4111-8111-111111111111", Snapshot: profiles.Snapshot{TypeID: "tcp-banner", TypeVersion: 1}}, "private-token", 1, []int{2222}); err != nil {
 		t.Fatal(err)
 	}
@@ -74,10 +117,13 @@ func TestDockerDeployUsesOneIsolatedSwarmTaskAndSecret(t *testing.T) {
 			create = joined
 		}
 	}
-	for _, want := range []string{"--replicas 1", "--read-only", "--cap-drop ALL", "--cap-add SETUID", "--network decoys", "--hostname {{.Node.Hostname}}", "--publish published=2222,target=2222,protocol=tcp,mode=host", "registry/tcp:1"} {
+	for _, want := range []string{"--replicas 1", "--read-only", "--cap-drop ALL", "--cap-add SETUID", "--network mgmt", "--hostname {{.Node.Hostname}}", "TRAP_WORKER_IMAGE=registry/tcp:1", "TRAP_WORKER_NETWORK=decoys", "/var/run/docker.sock", "honeyforge.isolation=mask3", "registry/tcp:1"} {
 		if !strings.Contains(create, want) {
 			t.Fatalf("service create missing %q: %s", want, create)
 		}
+	}
+	if strings.Contains(create, "--publish") || strings.Contains(create, "--network decoys") {
+		t.Fatal("management agent exposes decoy ports or joins the decoy network")
 	}
 }
 
@@ -87,7 +133,7 @@ func TestDockerDeployPassesSeparateRedisCAThroughSecret(t *testing.T) {
 		t.Fatal(err)
 	}
 	var secret, service string
-	d := DockerCLI{Network: "decoys", WSURL: "wss://api.example/assets/stream", RedisURL: "rediss://redis:6379/0", TCPImage: "registry/tcp:1", RedisCAFile: caFile,
+	d := DockerCLI{Network: "decoys", ManagementNetwork: "mgmt", WSURL: "wss://api.example/assets/stream", RedisURL: "rediss://:password@redis:6379/0", TCPImage: "registry/tcp:1", RedisCAFile: caFile,
 		Run: func(_ context.Context, input []byte, args ...string) ([]byte, error) {
 			joined := strings.Join(args, " ")
 			if strings.HasPrefix(joined, "secret create ") && strings.Contains(joined, "-redis-ca") {

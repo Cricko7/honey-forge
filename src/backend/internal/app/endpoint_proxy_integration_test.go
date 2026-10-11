@@ -72,7 +72,7 @@ func TestTelemetryProxyIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	config := strings.NewReplacer("listen 443 ssl", "listen "+proxyAddress+" ssl", "honeyforge.example", "operator.example", "resources.example.org", "resources.example", "https://127.0.0.1:8443", backend.URL).Replace(string(raw))
+	config := strings.NewReplacer("listen 127.0.0.1:443 ssl", "listen "+proxyAddress+" ssl", "resources.honey-forge-seg-fault.ru", "resources.example", "honey-forge-seg-fault.ru", "operator.example", "https://127.0.0.1:8443", backend.URL).Replace(string(raw))
 	if err := os.WriteFile(filepath.Join(directory, "nginx.conf"), []byte("events {}\nhttp {\n"+config+"\n}"), 0600); err != nil {
 		t.Fatal(err)
 	}

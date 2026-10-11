@@ -5,7 +5,6 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"reflect"
 	"sync"
@@ -162,64 +161,3 @@ func writeLocal(conn *websocket.Conn, payload any) error {
 	}
 	return conn.WriteJSON(payload)
 }
-
-type LocalClient struct {
-	conn *websocket.Conn
-	mu   sync.Mutex
-}
-
-func DialLocal(ctx context.Context, url, token string, certificate []byte) (*LocalClient, error) {
-	config, err := localClientTLS(url, certificate)
-	if err != nil {
-		return nil, err
-	}
-	conn, response, err := (&websocket.Dialer{HandshakeTimeout: 5 * time.Second, TLSClientConfig: config}).DialContext(ctx, url, http.Header{"Authorization": []string{"Bearer " + token}})
-	if response != nil && response.Body != nil {
-		response.Body.Close()
-	}
-	if err != nil {
-		return nil, fmt.Errorf("connect trap to agent: %w", err)
-	}
-	conn.SetReadLimit(16 * 1024)
-	return &LocalClient{conn: conn}, nil
-}
-
-func (c *LocalClient) exchange(ctx context.Context, payload any, field, want string) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	stop := context.AfterFunc(ctx, func() { c.conn.Close() })
-	defer stop()
-	deadline := time.Now().Add(5 * time.Second)
-	if err := c.conn.SetWriteDeadline(deadline); err != nil {
-		return err
-	}
-	if err := c.conn.WriteJSON(payload); err != nil {
-		return fmt.Errorf("send trap message: %w", err)
-	}
-	if err := c.conn.SetReadDeadline(deadline); err != nil {
-		return err
-	}
-	var reply map[string]json.RawMessage
-	if err := c.conn.ReadJSON(&reply); err != nil {
-		return fmt.Errorf("read local acknowledgement: %w", err)
-	}
-	if field == "ready" {
-		if string(reply[field]) != "true" {
-			return fmt.Errorf("trap readiness rejected")
-		}
-		return nil
-	}
-	var got string
-	if json.Unmarshal(reply[field], &got) != nil || got != want {
-		return fmt.Errorf("event was not locally committed")
-	}
-	return nil
-}
-
-func (c *LocalClient) Emit(ctx context.Context, e events.AgentEvent) error {
-	return c.exchange(ctx, e, "event_id", e.EventID)
-}
-func (c *LocalClient) Ready(ctx context.Context) error {
-	return c.exchange(ctx, map[string]string{"type": "trap.ready"}, "ready", "")
-}
-func (c *LocalClient) Close() error { return c.conn.Close() }

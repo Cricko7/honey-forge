@@ -1,10 +1,13 @@
 package agent
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"time"
 
@@ -20,11 +23,22 @@ type childBootstrap struct {
 }
 
 func readChildBootstrap(reader io.Reader) (childBootstrap, error) {
+	return readBootstrapLine(bufio.NewReaderSize(reader, (1<<20)+1))
+}
+
+func readBootstrapLine(reader *bufio.Reader) (childBootstrap, error) {
 	var bootstrap childBootstrap
-	decoder := json.NewDecoder(io.LimitReader(reader, 1<<20))
+	line, err := reader.ReadSlice('\n')
+	if err != nil && err != io.EOF || len(line) > 1<<20 {
+		return bootstrap, fmt.Errorf("trap bootstrap exceeds size limit or is incomplete")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(line))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&bootstrap); err != nil {
 		return bootstrap, fmt.Errorf("read trap bootstrap: %w", err)
+	}
+	if err := decoder.Decode(new(any)); err != io.EOF {
+		return bootstrap, fmt.Errorf("trap bootstrap must contain one JSON object")
 	}
 	if bootstrap.URL == "" || bootstrap.Token == "" || len(bootstrap.Certificate) == 0 {
 		return bootstrap, fmt.Errorf("incomplete trap bootstrap")
@@ -33,7 +47,8 @@ func readChildBootstrap(reader io.Reader) (childBootstrap, error) {
 }
 
 func RunTrap(ctx context.Context) error {
-	bootstrap, err := readChildBootstrap(os.Stdin)
+	reader := bufio.NewReaderSize(os.Stdin, (1<<20)+1)
+	bootstrap, err := readBootstrapLine(reader)
 	if err != nil {
 		return err
 	}
@@ -44,7 +59,12 @@ func RunTrap(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	client, err := DialLocal(ctx, bootstrap.URL, bootstrap.Token, bootstrap.Certificate)
+	var client *LocalClient
+	if os.Getenv("TRAP_STDIO") == "1" {
+		client, err = dialLocalPipe(ctx, bootstrap.URL, bootstrap.Token, bootstrap.Certificate, &stdioConn{reader: reader, input: os.Stdin, output: os.Stdout})
+	} else {
+		client, err = DialLocal(ctx, bootstrap.URL, bootstrap.Token, bootstrap.Certificate)
+	}
 	if err != nil {
 		return err
 	}
@@ -59,15 +79,24 @@ func RunTrap(ctx context.Context) error {
 	}
 	// Parent pipe EOF also stops an orphaned trap when the agent exits or crashes.
 	done := make(chan struct{})
-	go func() { io.Copy(io.Discard, os.Stdin); close(done) }()
+	if os.Getenv("TRAP_STDIO") != "1" {
+		go func() {
+			if _, err := io.Copy(io.Discard, reader); err != nil {
+				slog.DebugContext(ctx, "trap shutdown pipe closed", "error", err)
+			}
+			close(done)
+		}()
+	}
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return nil
 		case <-done:
 			return nil
+		case <-client.Done():
+			return fmt.Errorf("local agent connection closed")
 		case <-ticker.C:
 			if err := runtime.Err(); err != nil {
 				return fmt.Errorf("trap runtime failed: %w", err)

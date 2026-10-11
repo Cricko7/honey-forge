@@ -23,10 +23,18 @@ SSH high-interaction добавлен отдельно: [запуск, запи�
   Если тега нет — поправить на доступный патч в `Dockerfile.api`, `deploy/decoys/Dockerfile` и `deploy/decoys/Dockerfile.orchestrator`.
 
 ## 1. Секреты и сертификаты (из корня репозитория)
+Полный локальный стек генерирует и сохраняет пароли PostgreSQL/Redis, ключ
+курсора и TLS-материалы в именованных томах при первом запуске. `.env` и ручная
+генерация не требуются. Каждый сервис получает только свои файлы; Redis URL
+с паролем передаётся агенту и оркестратору через `AGENT_REDIS_URL_FILE`.
+
+Для явного задания секретов можно использовать `.env`:
 ```powershell
 Copy-Item .env.real.example .env
 ```
-Вписать в `.env` два ключа. ВАЖНО: `POSTGRES_PASSWORD` должен быть URL-безопасным
+Вписать в `.env` три секрета: `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `CURSOR_KEY`.
+`REDIS_PASSWORD` должен содержать минимум 32 hex-символа; используйте отдельное
+случайное значение. ВАЖНО: `POSTGRES_PASSWORD` должен быть URL-безопасным
 (символы `+ / =` из Base64 ломают разбор `DATABASE_URL` → `invalid database configuration`),
 поэтому для пароля берём HEX, а для `CURSOR_KEY` — ровно 32 байта в Base64:
 ```powershell
@@ -34,6 +42,8 @@ Copy-Item .env.real.example .env
 $rng = New-Object System.Security.Cryptography.RNGCryptoServiceProvider
 $b = New-Object byte[] 24; $rng.GetBytes($b)
 ($b | ForEach-Object { $_.ToString('x2') }) -join ''                 # POSTGRES_PASSWORD (hex)
+$r = New-Object byte[] 32; $rng.GetBytes($r)
+($r | ForEach-Object { $_.ToString('x2') }) -join ''                 # REDIS_PASSWORD (hex)
 $k = New-Object byte[] 32; $rng.GetBytes($k); [Convert]::ToBase64String($k)   # CURSOR_KEY (base64)
 .\gen-certs.ps1   # стабильный CA и отдельные сертификаты сервисов (openssl из Docker)
 ```
@@ -45,6 +55,22 @@ $k = New-Object byte[] 32; $rng.GetBytes($k); [Convert]::ToBase64String($k)   # 
 Закрытый ключ CA не монтируется в сервисы. Повторный запуск генератора сохраняет
 CA и действующие сертификаты, обновляет истекающие сертификаты. Не удаляйте CA
 при обычном обновлении: его смена требует обновить доверие у агентов.
+
+MASK-3: панель публикуется только на `127.0.0.1:8443`. Для удалённых операторов
+задайте `MGMT_BIND_IP` адресом отдельного управляющего интерфейса и запретите
+маршрутизацию из сегмента приманок в эту подсеть. Не задавайте wildcard-адрес.
+Управляющие агенты, API, nginx и Redis используют `hf-mgmt`; обычные приманки —
+`hf-decoys`, без доступа к управляющим секретам, Docker socket и исходящим
+соединениям. Их TCP-ответы и TLS-телеметрия по pipe продолжают работать.
+SSH-шлюз доверенный; атакующий выполняет команды только в sandbox с `--network none`.
+
+При обновлении полного локального стека пароль Redis создаст bootstrap;
+для отдельного production Compose задайте `REDIS_PASSWORD`. Пересоберите все образы
+приманок. Оркестратор отключает API/Redis/nginx от прежней общей сети и заменяет
+старые управляемые сервисы; при этом активные соединения приманок прервутся.
+Для отдельного production Compose также передайте `MGMT_NETWORK`, пароль Redis,
+Docker socket доверенным агентам и настройки `TRAP_WORKER_IMAGE`/`TRAP_WORKER_NETWORK`.
+Полная проверка изоляции в CI: `TestDockerWorkerMASK3Isolation`.
 
 При переходе с прежнего стека запустите генератор и пересоздайте контейнеры
 через `docker compose -f docker-compose.real.yml up --build -d --force-recreate`.

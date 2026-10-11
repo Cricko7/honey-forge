@@ -25,6 +25,7 @@ type Target struct {
 
 type ServiceState struct {
 	CertificateExpires time.Time
+	UnsafeNetwork      bool
 	Exists             bool
 	Generation         int64
 	Ports              []int
@@ -84,7 +85,7 @@ func (c Controller) Reconcile(ctx context.Context) error {
 		}
 		slices.Sort(ports)
 		certificateCurrent := state.CertificateExpires.IsZero() || state.CertificateExpires.After(time.Now().Add(24*time.Hour))
-		current := state.Exists && state.Generation == target.Generation && slices.Equal(state.Ports, ports) && certificateCurrent
+		current := state.Exists && !state.UnsafeNetwork && state.Generation == target.Generation && slices.Equal(state.Ports, ports) && certificateCurrent
 		if state.Exists && !current {
 			if err := c.Docker.Remove(ctx, target.ID); err != nil {
 				failures = append(failures, fmt.Errorf("replace trap %s: %w", target.ID, err))
