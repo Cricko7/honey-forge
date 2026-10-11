@@ -33,16 +33,17 @@ function StatCard({
   delta?: string
 }) {
   return (
-    <Card>
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="text-xs text-muted mb-2">{label}</div>
-          <div className="text-3xl font-semibold tracking-tight text-fg">{value}</div>
-          {delta && <div className="text-xs mt-2 text-muted">{delta}</div>}
-        </div>
-        <div className="h-10 w-10 rounded-lg bg-brand/10 grid place-items-center">
-          <Icon size={18} className="text-brand" />
-        </div>
+    <Card className="relative overflow-hidden">
+      {/* приглушённая иконка-watermark в правом верхнем углу */}
+      <Icon
+        size={52}
+        strokeWidth={1.5}
+        className="pointer-events-none absolute -bottom-2 -right-2 text-brand/10"
+      />
+      <div className="relative">
+        <div className="text-xs text-muted mb-2">{label}</div>
+        <div className="text-3xl font-semibold tracking-tight text-fg">{value}</div>
+        {delta && <div className="text-xs mt-2 text-muted">{delta}</div>}
       </div>
     </Card>
   )
