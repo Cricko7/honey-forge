@@ -52,15 +52,15 @@ func RunTrap(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if allowed := os.Getenv("DECOY_TYPE"); allowed != "" && allowed != bootstrap.Snapshot.TypeID {
-		return fmt.Errorf("snapshot type does not match decoy image")
+	if allowed := os.Getenv("NM_ROLE"); allowed != "" && allowed != bootstrap.Snapshot.TypeID {
+		return fmt.Errorf("snapshot type does not match image")
 	}
 	start, err := decoys.Select(bootstrap.Snapshot)
 	if err != nil {
 		return err
 	}
 	var client *LocalClient
-	if os.Getenv("TRAP_STDIO") == "1" {
+	if os.Getenv("NM_STDIO") == "1" {
 		client, err = dialLocalPipe(ctx, bootstrap.URL, bootstrap.Token, bootstrap.Certificate, &stdioConn{reader: reader, input: os.Stdin, output: os.Stdout})
 	} else {
 		client, err = DialLocal(ctx, bootstrap.URL, bootstrap.Token, bootstrap.Certificate)
@@ -79,7 +79,7 @@ func RunTrap(ctx context.Context) error {
 	}
 	// Parent pipe EOF also stops an orphaned trap when the agent exits or crashes.
 	done := make(chan struct{})
-	if os.Getenv("TRAP_STDIO") != "1" {
+	if os.Getenv("NM_STDIO") != "1" {
 		go func() {
 			if _, err := io.Copy(io.Discard, reader); err != nil {
 				slog.DebugContext(ctx, "trap shutdown pipe closed", "error", err)

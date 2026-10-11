@@ -6,18 +6,18 @@ import (
 )
 
 func TestWorkerContainerHasNoManagementAccess(t *testing.T) {
-	p := Process{WorkerImage: "hf/tcp:local", WorkerNetwork: "hf-decoys", TrapID: "11111111-1111-4111-8111-111111111111"}
+	p := Process{WorkerImage: "hf/tcp:local", WorkerNetwork: "nm-decoys", TrapID: "11111111-1111-4111-8111-111111111111"}
 	args, err := p.workerArgs(t.Context(), demoSnapshot())
 	if err != nil {
 		t.Fatal(err)
 	}
 	joined := strings.Join(args, " ")
-	for _, want := range []string{"--network hf-decoys", "--read-only", "--cap-drop ALL", "--security-opt no-new-privileges", "--publish 0.0.0.0:2222:2222/tcp", "TRAP_STDIO=1", "hf/tcp:local --worker"} {
+	for _, want := range []string{"--network hf-decoys", "--read-only", "--cap-drop ALL", "--security-opt no-new-privileges", "--publish 0.0.0.0:2222:2222/tcp", "NM_STDIO=1", "hf/tcp:local --worker"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("missing %q: %s", want, joined)
 		}
 	}
-	for _, bad := range []string{"hf-mgmt", "AGENT_", "docker.sock", "--secret", "--mount", "--privileged", "--network host"} {
+	for _, bad := range []string{"nm-mgmt", "AGENT_", "docker.sock", "--secret", "--mount", "--privileged", "--network host"} {
 		if strings.Contains(joined, bad) {
 			t.Fatalf("worker crosses management boundary: %s", bad)
 		}

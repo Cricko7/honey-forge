@@ -21,7 +21,7 @@ import (
 
 func TestDockerRealLinuxShellSFTPAndIsolation(t *testing.T) {
 	if os.Getenv("TEST_SSH_DOCKER") != "1" {
-		t.Skip("TEST_SSH_DOCKER=1 and a built SSH_SANDBOX_IMAGE are required")
+		t.Skip("TEST_SSH_DOCKER=1 and a built NM_SANDBOX_IMAGE are required")
 	}
 	probe, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -117,7 +117,7 @@ func TestDockerRealLinuxShellSFTPAndIsolation(t *testing.T) {
 	if !complete {
 		t.Fatal("upload was not recorded")
 	}
-	output, err = exec.CommandContext(t.Context(), "docker", "ps", "--all", "--filter", "name=hf-session-"+captured[0].SessionID, "--format", "{{.Names}}").CombinedOutput()
+	output, err = exec.CommandContext(t.Context(), "docker", "ps", "--all", "--filter", "name=node-metrics-session-"+captured[0].SessionID, "--format", "{{.Names}}").CombinedOutput()
 	if err != nil || strings.TrimSpace(string(output)) != "" {
 		t.Fatalf("sandbox was not removed: %s %v", output, err)
 	}

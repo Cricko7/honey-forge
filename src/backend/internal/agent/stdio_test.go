@@ -71,7 +71,7 @@ func TestStdioWorkerTelemetryAndParentDisconnect(t *testing.T) {
 				t.Fatal(err)
 			}
 			cmd := exec.CommandContext(t.Context(), executable, "-test.run=^TestStdioWorkerHelper$")
-			cmd.Env = append(os.Environ(), "HF_STDIO_HELPER=1", "TRAP_STDIO=1")
+			cmd.Env = append(os.Environ(), "HF_STDIO_HELPER=1", "NM_STDIO=1")
 			stdin, err := cmd.StdinPipe()
 			if err != nil {
 				t.Fatal(err)

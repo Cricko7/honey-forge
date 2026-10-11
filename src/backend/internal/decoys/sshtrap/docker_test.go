@@ -11,7 +11,7 @@ func TestSandboxArgumentsNeverExposeHostOrControlPlane(t *testing.T) {
 		t.Fatal(err)
 	}
 	joined := strings.Join(args, " ")
-	for _, flag := range []string{"--network none", "--read-only", "--cap-drop ALL", "--security-opt no-new-privileges", "--memory 128m", "--cpus 0.5", "--pids-limit 64", "--user 1000:1000", "--tmpfs /home/sandbox:", "--label honeyforge.sandbox=true"} {
+	for _, flag := range []string{"--network none", "--read-only", "--cap-drop ALL", "--security-opt no-new-privileges", "--memory 128m", "--cpus 0.5", "--pids-limit 64", "--user 1000:1000", "--tmpfs /home/sandbox:", "--label com.nodemetrics.sandbox=true"} {
 		if !strings.Contains(joined, flag) {
 			t.Fatalf("missing isolation %s: %s", flag, joined)
 		}

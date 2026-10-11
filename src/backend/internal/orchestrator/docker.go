@@ -165,7 +165,7 @@ func (d DockerCLI) connectComposeService(ctx context.Context, project, service, 
 	return nil
 }
 
-func serviceName(id string) string { return "hf-trap-" + id }
+func serviceName(id string) string { return "node-metrics-" + id }
 
 func (d DockerCLI) exists(ctx context.Context, id string) (bool, error) {
 	output, err := d.call(ctx, nil, "service", "ls", "--filter", "name="+serviceName(id), "--format", "{{.Name}}")
@@ -204,15 +204,15 @@ func (d DockerCLI) Current(ctx context.Context, id string) (ServiceState, error)
 }
 
 func (d DockerCLI) stateFromLabels(labels map[string]string, id, revision string) (ServiceState, error) {
-	if labels["honeyforge.trap"] != id {
+	if labels["com.nodemetrics.instance"] != id {
 		return ServiceState{}, fmt.Errorf("service name %s belongs to another owner", serviceName(id))
 	}
-	generation, err := strconv.ParseInt(labels["honeyforge.generation"], 10, 64)
+	generation, err := strconv.ParseInt(labels["com.nodemetrics.generation"], 10, 64)
 	if err != nil {
 		return ServiceState{}, fmt.Errorf("invalid trap service generation: %w", err)
 	}
 	var ports []int
-	if raw := labels["honeyforge.ports"]; raw != "" {
+	if raw := labels["com.nodemetrics.ports"]; raw != "" {
 		for _, part := range strings.Split(raw, ",") {
 			port, err := strconv.Atoi(part)
 			if err != nil {
@@ -223,7 +223,7 @@ func (d DockerCLI) stateFromLabels(labels map[string]string, id, revision string
 	}
 	slices.Sort(ports)
 	var expires time.Time
-	if raw := labels["honeyforge.certificate-expires"]; raw != "" {
+	if raw := labels["com.nodemetrics.certificate-expires"]; raw != "" {
 		expires, err = time.Parse(time.RFC3339, raw)
 		if err != nil {
 			return ServiceState{}, fmt.Errorf("invalid certificate expiry: %w", err)
@@ -233,11 +233,11 @@ func (d DockerCLI) stateFromLabels(labels map[string]string, id, revision string
 		expires = time.Unix(1, 0)
 	}
 	if d.ClientCAFile != "" {
-		if labels["honeyforge.tls-trust"] != revision {
+		if labels["com.nodemetrics.tls-trust"] != revision {
 			expires = time.Unix(1, 0)
 		}
 	}
-	return ServiceState{Exists: true, Generation: generation, Ports: ports, CertificateExpires: expires, UnsafeNetwork: labels["honeyforge.isolation"] != "mask3"}, nil
+	return ServiceState{Exists: true, Generation: generation, Ports: ports, CertificateExpires: expires, UnsafeNetwork: labels["com.nodemetrics.isolation"] != "mask3"}, nil
 }
 
 func (d DockerCLI) trustRevision() (string, error) {
@@ -264,7 +264,7 @@ func (d DockerCLI) Remove(ctx context.Context, id string) error {
 			return fmt.Errorf("remove trap service: %w", err)
 		}
 	}
-	workers, err := d.call(ctx, nil, "ps", "--all", "--filter", "label=honeyforge.worker="+id, "--format", "{{.ID}}")
+	workers, err := d.call(ctx, nil, "ps", "--all", "--filter", "label=com.nodemetrics.worker="+id, "--format", "{{.ID}}")
 	if err != nil {
 		return fmt.Errorf("list trap workers: %w", err)
 	}
@@ -277,12 +277,12 @@ func (d DockerCLI) Remove(ctx context.Context, id string) error {
 }
 
 func (d DockerCLI) removeSecrets(ctx context.Context, id string) error {
-	output, err := d.call(ctx, nil, "secret", "ls", "--filter", "label=honeyforge.trap="+id, "--format", "{{.Name}}")
+	output, err := d.call(ctx, nil, "secret", "ls", "--filter", "label=com.nodemetrics.instance="+id, "--format", "{{.Name}}")
 	if err != nil {
 		return fmt.Errorf("list trap secrets: %w", err)
 	}
 	for _, name := range strings.Fields(string(output)) {
-		if !strings.HasPrefix(name, "hf-") || !strings.Contains(name, id) {
+		if !strings.HasPrefix(name, "nm-") || !strings.Contains(name, id) {
 			return fmt.Errorf("unexpected secret name for trap %s", id)
 		}
 		if _, err := d.call(ctx, nil, "secret", "rm", name); err != nil {
@@ -293,7 +293,7 @@ func (d DockerCLI) removeSecrets(ctx context.Context, id string) error {
 }
 
 func (d DockerCLI) createSecret(ctx context.Context, id, name string, value []byte) error {
-	if _, err := d.call(ctx, value, "secret", "create", "--label", "honeyforge.trap="+id, name, "-"); err != nil {
+	if _, err := d.call(ctx, value, "secret", "create", "--label", "com.nodemetrics.instance="+id, name, "-"); err != nil {
 		return fmt.Errorf("create trap secret %s: %w", name, err)
 	}
 	return nil

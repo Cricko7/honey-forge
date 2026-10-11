@@ -25,8 +25,8 @@ func sandboxArgs(id, image, publicKey string, seconds int) ([]string, error) {
 	if !contract.ValidID(id) || image == "" || seconds < 10 || seconds > 3600 {
 		return nil, fmt.Errorf("invalid sandbox configuration")
 	}
-	return []string{"run", "--detach", "--rm", "--init", "--pull=never", "--name", "hf-session-" + id,
-		"--label", "honeyforge.sandbox=true", "--label", "honeyforge.expires=" + strconv.FormatInt(time.Now().Add(time.Duration(seconds)*time.Second).Unix(), 10),
+	return []string{"run", "--detach", "--rm", "--init", "--pull=never", "--name", "node-metrics-session-" + id,
+		"--label", "com.nodemetrics.sandbox=true", "--label", "com.nodemetrics.expires=" + strconv.FormatInt(time.Now().Add(time.Duration(seconds)*time.Second).Unix(), 10),
 		"--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
 		"--memory", "128m", "--memory-swap", "128m", "--cpus", "0.5", "--pids-limit", "64", "--user", "1000:1000",
 		"--tmpfs", "/home/sandbox:rw,nosuid,nodev,size=32m,uid=1000,gid=1000,mode=0700",
@@ -60,7 +60,7 @@ func (d dockerBackend) Open(ctx context.Context, id string, seconds int) (*ssh.C
 	if _, err := dockerCall(startup, args...); err != nil {
 		return nil, nil, err
 	}
-	name := "hf-session-" + id
+	name := "node-metrics-session-" + id
 	cleanup := func() error {
 		removeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()

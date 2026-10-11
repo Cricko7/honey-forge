@@ -18,7 +18,7 @@ import (
 	"honey-forge/modules/profiles"
 )
 
-func (p *Process) workerName() string { return "hf-worker-" + p.TrapID }
+func (p *Process) workerName() string { return "nm-worker-" + p.TrapID }
 
 func (p *Process) workerArgs(ctx context.Context, snapshot profiles.Snapshot) ([]string, error) {
 	if p.WorkerImage == "" || p.WorkerNetwork == "" || p.WorkerNetwork == "host" || p.WorkerNetwork == "none" || !contract.ValidID(p.TrapID) {
@@ -29,14 +29,14 @@ func (p *Process) workerArgs(ctx context.Context, snapshot profiles.Snapshot) ([
 		ip = "0.0.0.0"
 	}
 	if net.ParseIP(ip) == nil {
-		return nil, fmt.Errorf("DECOY_BIND_IP must be an IP address")
+		return nil, fmt.Errorf("NM_BIND_IP must be an IP address")
 	}
 	ports, err := decoys.Ports(ctx, snapshot)
 	if err != nil {
 		return nil, fmt.Errorf("worker ports: %w", err)
 	}
 	args := []string{"run", "--rm", "--interactive", "--init", "--pull=never", "--name", p.workerName(),
-		"--label", "honeyforge.worker=" + p.TrapID,
+		"--label", "com.nodemetrics.worker=" + p.TrapID,
 		"--network", p.WorkerNetwork, "--read-only", "--cap-drop", "ALL",
 		"--tmpfs", "/run:rw,nosuid,nodev,noexec,size=1m,mode=0755",
 		// The entrypoint installs an egress firewall, then drops to UID 65532.
@@ -46,7 +46,7 @@ func (p *Process) workerArgs(ctx context.Context, snapshot profiles.Snapshot) ([
 		"--sysctl", "net.ipv4.ip_unprivileged_port_start=0",
 		"--sysctl", "net.ipv6.conf.all.disable_ipv6=1",
 		"--memory", "128m", "--memory-swap", "128m", "--pids-limit", "128",
-		"--env", "TRAP_STDIO=1"}
+		"--env", "NM_STDIO=1"}
 	for _, port := range ports {
 		args = append(args, "--publish", net.JoinHostPort(ip, strconv.Itoa(port))+":"+strconv.Itoa(port)+"/tcp")
 	}
@@ -55,7 +55,7 @@ func (p *Process) workerArgs(ctx context.Context, snapshot profiles.Snapshot) ([
 
 // A restart only removes a container bearing this trap's ownership label.
 func (p *Process) removeWorker(ctx context.Context) error {
-	output, err := exec.CommandContext(ctx, "docker", "ps", "--all", "--filter", "label=honeyforge.worker="+p.TrapID, "--format", "{{.ID}}").CombinedOutput()
+	output, err := exec.CommandContext(ctx, "docker", "ps", "--all", "--filter", "label=com.nodemetrics.worker="+p.TrapID, "--format", "{{.ID}}").CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("list old trap worker: %w", err)
 	}

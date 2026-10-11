@@ -43,7 +43,7 @@ func TestDockerWorkerMASK3Isolation(t *testing.T) {
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		for _, args := range [][]string{{"rm", "--force", "hf-worker-" + id}, {"rm", "--force", probeName}, {"network", "rm", network}} {
+		for _, args := range [][]string{{"rm", "--force", "nm-worker-" + id}, {"rm", "--force", probeName}, {"network", "rm", network}} {
 			if output, err := exec.CommandContext(ctx, "docker", args...).CombinedOutput(); err != nil && !strings.Contains(string(output), "No such container") {
 				t.Errorf("cleanup: %v %s", err, output)
 			}

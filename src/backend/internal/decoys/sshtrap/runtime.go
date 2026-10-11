@@ -29,9 +29,9 @@ type Runtime struct {
 }
 
 func Start(ctx context.Context, snapshot profiles.Snapshot, host string, sink Sink) (*Runtime, error) {
-	image := os.Getenv("SSH_SANDBOX_IMAGE")
+	image := os.Getenv("NM_SANDBOX_IMAGE")
 	if image == "" {
-		return nil, fmt.Errorf("SSH_SANDBOX_IMAGE is required")
+		return nil, fmt.Errorf("NM_SANDBOX_IMAGE is required")
 	}
 	if _, err := exec.LookPath("docker"); err != nil {
 		return nil, fmt.Errorf("SSH gateway requires Docker CLI: %w", err)

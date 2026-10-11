@@ -14,7 +14,7 @@ func TestStatesUsesTwoDockerCallsForManyTraps(t *testing.T) {
 	for i := range ids {
 		ids[i] = fmt.Sprintf("11111111-1111-4111-8111-%012d", i)
 		names[i] = serviceName(ids[i])
-		rows = append(rows, fmt.Sprintf(`%s {"honeyforge.trap":"%s","honeyforge.generation":"1","honeyforge.ports":"2222"}`, names[i], ids[i]))
+		rows = append(rows, fmt.Sprintf(`%s {"com.nodemetrics.instance":"%s","com.nodemetrics.generation":"1","com.nodemetrics.ports":"2222"}`, names[i], ids[i]))
 	}
 	calls := 0
 	d := DockerCLI{Run: func(_ context.Context, _ []byte, args ...string) ([]byte, error) {
@@ -46,7 +46,7 @@ func TestStatesRejectsWrongOwner(t *testing.T) {
 		if args[1] == "ls" {
 			return []byte(serviceName(id)), nil
 		}
-		return []byte(serviceName(id) + ` {"honeyforge.trap":"another","honeyforge.generation":"1"}`), nil
+		return []byte(serviceName(id) + ` {"com.nodemetrics.instance":"another","com.nodemetrics.generation":"1"}`), nil
 	}}
 	if _, err := d.States(t.Context(), []string{id}); err == nil {
 		t.Fatal("another owner's service was accepted")

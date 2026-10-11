@@ -20,7 +20,7 @@ func TestDeployHoneytokens(t *testing.T) {
 		t.Fatal(err)
 	}
 	args := strings.Join(create, " ")
-	if !strings.Contains(args, "TRAP_WORKER_IMAGE=registry/honeytokens:1") || strings.Contains(args, "--publish") {
+	if !strings.Contains(args, "NM_WORKER_IMAGE=registry/honeytokens:1") || strings.Contains(args, "--publish") {
 		t.Fatal(args)
 	}
 }

@@ -13,17 +13,17 @@ import (
 // CleanupSandboxes enforces a host-side TTL even after a gateway crashes or an
 // attacker stops the sandbox's sleep process. Labels are outside attacker access.
 func (d DockerCLI) CleanupSandboxes(ctx context.Context, now time.Time) error {
-	output, err := d.call(ctx, nil, "ps", "--all", "--filter", "label=honeyforge.sandbox=true", "--format", "{{.ID}}")
+	output, err := d.call(ctx, nil, "ps", "--all", "--filter", "label=com.nodemetrics.sandbox=true", "--format", "{{.ID}}")
 	if err != nil {
 		return fmt.Errorf("list SSH sandboxes: %w", err)
 	}
 	for _, id := range strings.Fields(string(output)) {
-		info, err := d.call(ctx, nil, "container", "inspect", id, "--format", `{{.Name}} {{index .Config.Labels "honeyforge.expires"}}`)
+		info, err := d.call(ctx, nil, "container", "inspect", id, "--format", `{{.Name}} {{index .Config.Labels "com.nodemetrics.expires"}}`)
 		if err != nil {
 			return fmt.Errorf("inspect SSH sandbox: %w", err)
 		}
 		fields := strings.Fields(string(info))
-		if len(fields) != 2 || !strings.HasPrefix(fields[0], "/hf-session-") || !contract.ValidID(strings.TrimPrefix(fields[0], "/hf-session-")) {
+		if len(fields) != 2 || !strings.HasPrefix(fields[0], "/node-metrics-session-") || !contract.ValidID(strings.TrimPrefix(fields[0], "/node-metrics-session-")) {
 			return fmt.Errorf("invalid owned SSH sandbox metadata")
 		}
 		expires, err := strconv.ParseInt(fields[1], 10, 64)

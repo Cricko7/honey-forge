@@ -1,4 +1,4 @@
-# Сборка агента-воркера HoneyForge (edge-worker) в Docker.
+# Сборка агента-воркера HoneyForge (node-metrics) в Docker.
 # Один бинарник: обслуживает ловушку и сам порождает дочерний --worker процесс,
 # который открывает TCP-порты приманки. Контекст сборки — корень репозитория.
 FROM golang:1.26-alpine AS build
@@ -6,10 +6,10 @@ WORKDIR /src
 COPY src/backend/go.mod src/backend/go.sum ./
 RUN go mod download
 COPY src/backend ./
-RUN CGO_ENABLED=0 go build -trimpath -buildvcs=false -o /out/edge-worker ./cmd/agent
+RUN CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags="-s -w" -o /out/node-metrics ./cmd/agent
 
 FROM alpine:3.20
 RUN apk add --no-cache ca-certificates docker-cli
 WORKDIR /app
-COPY --from=build /out/edge-worker ./edge-worker
-ENTRYPOINT ["./edge-worker"]
+COPY --from=build /out/node-metrics /usr/local/bin/node-metrics
+ENTRYPOINT ["/usr/local/bin/node-metrics"]

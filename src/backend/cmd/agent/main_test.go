@@ -13,8 +13,8 @@ func TestSecretFromFile(t *testing.T) {
 	if err := os.WriteFile(path, []byte("private-token\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("AGENT_TOKEN_FILE", path)
-	value, err := secrets.Environment("AGENT_TOKEN")
+	t.Setenv("NM_TOKEN_FILE", path)
+	value, err := secrets.Environment("NM_TOKEN")
 	if err != nil || value != "private-token" {
 		t.Fatalf("secret()=%q, %v", value, err)
 	}

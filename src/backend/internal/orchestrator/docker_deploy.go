@@ -32,7 +32,7 @@ func (d DockerCLI) Deploy(ctx context.Context, target Target, token string, gene
 	if err := d.removeSecrets(ctx, target.ID); err != nil {
 		return err
 	}
-	base := fmt.Sprintf("hf-%s-%d", target.ID, generation)
+	base := fmt.Sprintf("nm-%s-%d", target.ID, generation)
 	cleanup := true
 	defer func() {
 		if cleanup {
@@ -54,20 +54,20 @@ func (d DockerCLI) Deploy(ctx context.Context, target Target, token string, gene
 		memory = "512m"
 	}
 	args := []string{"service", "create", "--detach=true", "--name", serviceName(target.ID),
-		"--label", "honeyforge.trap=" + target.ID,
-		"--label", "honeyforge.generation=" + strconv.FormatInt(generation, 10),
-		"--label", "honeyforge.ports=" + portLabel(ports),
-		"--label", "honeyforge.isolation=mask3",
+		"--label", "com.nodemetrics.instance=" + target.ID,
+		"--label", "com.nodemetrics.generation=" + strconv.FormatInt(generation, 10),
+		"--label", "com.nodemetrics.ports=" + portLabel(ports),
+		"--label", "com.nodemetrics.isolation=mask3",
 		"--replicas", "1", "--network", d.ManagementNetwork, "--hostname", "{{.Node.Hostname}}", "--init", "--read-only", "--cap-drop", "ALL", "--cap-add", "SETUID", "--cap-add", "SETGID",
 		"--sysctl", "net.ipv4.ip_unprivileged_port_start=0",
 		"--limit-memory", memory, "--reserve-memory", "64m", "--reserve-cpu", "0.1", "--limit-pids", "128", "--user", "0:0",
 		"--restart-condition", "on-failure",
-		"--secret", "source=" + base + "-token,target=agent_token,uid=0,gid=0,mode=0400",
-		"--secret", "source=" + base + "-redis,target=redis_url,uid=0,gid=0,mode=0400",
-		"--env", "AGENT_TRAP_ID=" + target.ID,
-		"--env", "AGENT_TOKEN_FILE=/run/secrets/agent_token",
-		"--env", "AGENT_REDIS_URL_FILE=/run/secrets/redis_url",
-		"--env", "AGENT_WS_URL=" + d.WSURL}
+		"--secret", "source=" + base + "-token,target=nm_token,uid=0,gid=0,mode=0400",
+		"--secret", "source=" + base + "-redis,target=store_url,uid=0,gid=0,mode=0400",
+		"--env", "NM_INSTANCE_ID=" + target.ID,
+		"--env", "NM_TOKEN_FILE=/run/secrets/agent_token",
+		"--env", "NM_STORE_URL_FILE=/run/secrets/redis_url",
+		"--env", "NM_WS_URL=" + d.WSURL}
 	if d.ClientCAFile != "" {
 		revision, err := d.trustRevision()
 		if err != nil {
@@ -85,21 +85,21 @@ func (d DockerCLI) Deploy(ctx context.Context, target Target, token string, gene
 			suffix, target, variable string
 			data                     []byte
 		}{
-			{"-cert", "agent_cert", "AGENT_CERT_FILE", certificate},
-			{"-key", "agent_key", "AGENT_KEY_FILE", key},
-			{"-pins", "server_pins", "AGENT_SERVER_PINS_FILE", pins},
+			{"-cert", "nm_cert", "NM_CERT_FILE", certificate},
+			{"-key", "nm_key", "NM_KEY_FILE", key},
+			{"-pins", "nm_server_pins", "NM_SERVER_PINS_FILE", pins},
 		} {
 			if err := d.createSecret(ctx, target.ID, base+material.suffix, material.data); err != nil {
 				return err
 			}
 			args = append(args, "--secret", "source="+base+material.suffix+",target="+material.target+",uid=0,gid=0,mode=0400", "--env", material.variable+"=/run/secrets/"+material.target)
 		}
-		args = append(args, "--label", "honeyforge.certificate-expires="+expires.UTC().Format(time.RFC3339))
-		args = append(args, "--label", "honeyforge.tls-trust="+revision)
+		args = append(args, "--label", "com.nodemetrics.certificate-expires="+expires.UTC().Format(time.RFC3339))
+		args = append(args, "--label", "com.nodemetrics.tls-trust="+revision)
 	}
 	for _, trust := range []struct{ file, suffix, target, variable string }{
-		{d.CAFile, "-ca", "agent_ca", "AGENT_CA_FILE"},
-		{d.RedisCAFile, "-redis-ca", "redis_ca", "AGENT_REDIS_CA_FILE"},
+		{d.CAFile, "-ca", "nm_ca", "NM_CA_FILE"},
+		{d.RedisCAFile, "-redis-ca", "store_ca", "NM_STORE_CA_FILE"},
 	} {
 		if trust.file == "" {
 			continue
@@ -125,12 +125,12 @@ func (d DockerCLI) Deploy(ctx context.Context, target Target, token string, gene
 	// this socket nor management credentials, and communicate through a TLS pipe.
 	args = append(args, "--mount", "type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock")
 	if target.Snapshot.TypeID == "ssh-high-interaction" {
-		args = append(args, "--constraint", "node.role==manager", "--env", "SSH_SANDBOX_IMAGE="+d.SandboxImage,
+		args = append(args, "--constraint", "node.role==manager", "--env", "NM_SANDBOX_IMAGE="+d.SandboxImage,
 			"--limit-cpu", "1")
 	} else {
-		args = append(args, "--env", "TRAP_WORKER_IMAGE="+image, "--env", "TRAP_WORKER_NETWORK="+d.Network)
+		args = append(args, "--env", "NM_WORKER_IMAGE="+image, "--env", "NM_WORKER_NETWORK="+d.Network)
 		if d.WorkerBindIP != "" {
-			args = append(args, "--env", "DECOY_BIND_IP="+d.WorkerBindIP)
+			args = append(args, "--env", "NM_BIND_IP="+d.WorkerBindIP)
 		}
 	}
 	args = append(args, image)

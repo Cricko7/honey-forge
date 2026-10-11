@@ -27,14 +27,14 @@ const redisLeaseMilliseconds = 15000
 func redisOptions(address string, config *tls.Config) (*redis.Options, error) {
 	opts, err := redis.ParseURL(address)
 	if err != nil || opts.TLSConfig == nil {
-		return nil, fmt.Errorf("AGENT_REDIS_URL must use rediss:// with certificate verification")
+		return nil, fmt.Errorf("NM_STORE_URL must use rediss:// with certificate verification")
 	}
 	if opts.TLSConfig.InsecureSkipVerify {
 		return nil, fmt.Errorf("Redis TLS certificate verification cannot be disabled")
 	}
 	secure, err := tlsconfig.Secure(config)
 	if err != nil {
-		return nil, fmt.Errorf("configure Redis TLS: %w", err)
+		return nil, fmt.Errorf("configure store TLS: %w", err)
 	}
 	secure.ServerName = opts.TLSConfig.ServerName
 	opts.TLSConfig = secure
@@ -56,7 +56,7 @@ func OpenRedisJournal(ctx context.Context, address, identity string, capacity in
 	opts.DialTimeout = 2 * time.Second
 	opts.ReadTimeout = 2 * time.Second
 	opts.WriteTimeout = 2 * time.Second
-	store := &redisJournal{client: redis.NewClient(opts), key: "honey-forge:{" + identity + "}:journal", owner: string(contract.NewID())}
+	store := &redisJournal{client: redis.NewClient(opts), key: "nm:{" + identity + "}:journal", owner: string(contract.NewID())}
 	failed := true
 	defer func() {
 		if failed {

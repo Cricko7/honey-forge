@@ -9,7 +9,7 @@ func TestRunRejectsPartialWorkerIsolationBeforeOpeningStorage(t *testing.T) {
 	for _, tt := range []struct{ name, image, network string }{{"missing network", "image", ""}, {"missing image", "", "decoys"}, {"host networking", "image", "host"}, {"no decoy interface", "image", "none"}} {
 		t.Run(tt.name, func(t *testing.T) {
 			err := Run(t.Context(), Options{WorkerImage: tt.image, WorkerNetwork: tt.network})
-			if err == nil || !strings.Contains(err.Error(), "TRAP_WORKER_IMAGE") {
+			if err == nil || !strings.Contains(err.Error(), "NM_WORKER_IMAGE") {
 				t.Fatalf("isolation configuration silently fell back: %v", err)
 			}
 		})
@@ -29,7 +29,7 @@ func TestRunRejectsUnsafeBackendURL(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			err := Run(t.Context(), Options{URL: tt.url})
-			if err == nil || !strings.Contains(err.Error(), "AGENT_WS_URL must be wss://host/assets/stream") {
+			if err == nil || !strings.Contains(err.Error(), "NM_WS_URL must be wss://host/assets/stream") {
 				t.Fatalf("unsafe URL must be rejected before opening storage: %v", err)
 			}
 		})

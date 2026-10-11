@@ -19,7 +19,7 @@ func TestSSHDeploySeparatesTrustedGatewayAndSandbox(t *testing.T) {
 	if err := d.Deploy(t.Context(), Target{ID: "11111111-1111-4111-8111-111111111111", Snapshot: profiles.Snapshot{TypeID: "ssh-high-interaction", TypeVersion: 1}}, "token", 1, []int{2222}); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"hf/ssh:local", "SSH_SANDBOX_IMAGE=hf/sandbox:local", "/var/run/docker.sock", "--constraint node.role==manager"} {
+	for _, want := range []string{"hf/ssh:local", "NM_SANDBOX_IMAGE=hf/sandbox:local", "/var/run/docker.sock", "--constraint node.role==manager"} {
 		if !strings.Contains(create, want) {
 			t.Fatalf("missing %s in %s", want, create)
 		}

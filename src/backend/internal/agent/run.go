@@ -39,14 +39,14 @@ type Options struct {
 
 func Run(ctx context.Context, opts Options) error {
 	if (opts.WorkerImage == "") != (opts.WorkerNetwork == "") || opts.WorkerNetwork == "host" || opts.WorkerNetwork == "none" {
-		return fmt.Errorf("TRAP_WORKER_IMAGE and an isolated TRAP_WORKER_NETWORK must be configured together")
+		return fmt.Errorf("NM_WORKER_IMAGE and an isolated NM_WORKER_NETWORK must be configured together")
 	}
 	endpoint, err := url.Parse(opts.URL)
 	if err != nil || endpoint.Scheme != "wss" || endpoint.Host == "" || endpoint.Path != "/assets/stream" || endpoint.User != nil || endpoint.RawQuery != "" || endpoint.Fragment != "" {
-		return fmt.Errorf("AGENT_WS_URL must be wss://host/assets/stream")
+		return fmt.Errorf("NM_WS_URL must be wss://host/assets/stream")
 	}
 	if opts.Token == "" || !contract.ValidID(opts.TrapID) || (opts.JournalPath == "" && opts.RedisURL == "") {
-		return fmt.Errorf("AGENT_TOKEN, AGENT_TRAP_ID and AGENT_REDIS_URL are required")
+		return fmt.Errorf("NM_TOKEN, NM_INSTANCE_ID and NM_STORE_URL are required")
 	}
 	opts.TLS, err = tlsconfig.Secure(opts.TLS)
 	if err != nil {

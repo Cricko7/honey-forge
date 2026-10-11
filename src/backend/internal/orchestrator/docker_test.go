@@ -36,7 +36,7 @@ func TestPrepareBootstrapsSingleNodeAndConnectsComposeServices(t *testing.T) {
 		}
 		return nil, nil
 	}
-	d := DockerCLI{Run: run, Network: "hf-decoys", ManagementNetwork: "hf-mgmt", ProxyService: "web", WSURL: "wss://resources.localhost/assets/stream"}
+	d := DockerCLI{Run: run, Network: "nm-decoys", ManagementNetwork: "nm-mgmt", ProxyService: "web", WSURL: "wss://resources.localhost/assets/stream"}
 	if err := d.Prepare(t.Context()); err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestPrepareBootstrapsSingleNodeAndConnectsComposeServices(t *testing.T) {
 			t.Fatalf("missing %q in calls:\n%s", want, joined)
 		}
 	}
-	if strings.Contains(joined, "hf-decoys api-id") || strings.Contains(joined, "hf-decoys redis-id") || strings.Contains(joined, "hf-decoys web-id") {
+	if strings.Contains(joined, "nm-decoys api-id") || strings.Contains(joined, "nm-decoys redis-id") || strings.Contains(joined, "nm-decoys web-id") {
 		t.Fatal("management services were connected to the decoy network")
 	}
 }
@@ -117,7 +117,7 @@ func TestDockerDeployUsesOneIsolatedSwarmTaskAndSecret(t *testing.T) {
 			create = joined
 		}
 	}
-	for _, want := range []string{"--replicas 1", "--read-only", "--cap-drop ALL", "--cap-add SETUID", "--network mgmt", "--hostname {{.Node.Hostname}}", "TRAP_WORKER_IMAGE=registry/tcp:1", "TRAP_WORKER_NETWORK=decoys", "/var/run/docker.sock", "honeyforge.isolation=mask3", "registry/tcp:1"} {
+	for _, want := range []string{"--replicas 1", "--read-only", "--cap-drop ALL", "--cap-add SETUID", "--network mgmt", "--hostname {{.Node.Hostname}}", "NM_WORKER_IMAGE=registry/tcp:1", "NM_WORKER_NETWORK=decoys", "/var/run/docker.sock", "com.nodemetrics.isolation=mask3", "registry/tcp:1"} {
 		if !strings.Contains(create, want) {
 			t.Fatalf("service create missing %q: %s", want, create)
 		}
@@ -148,7 +148,7 @@ func TestDockerDeployPassesSeparateRedisCAThroughSecret(t *testing.T) {
 	if err := d.Deploy(t.Context(), Target{ID: "11111111-1111-4111-8111-111111111111", Snapshot: profiles.Snapshot{TypeID: "tcp-banner", TypeVersion: 1}}, "private-token", 1, nil); err != nil {
 		t.Fatal(err)
 	}
-	if secret != "redis-public-ca" || !strings.Contains(service, "AGENT_REDIS_CA_FILE=/run/secrets/redis_ca") || !strings.Contains(service, "target=redis_ca,uid=0,gid=0,mode=0400") {
+	if secret != "redis-public-ca" || !strings.Contains(service, "NM_STORE_CA_FILE=/run/secrets/redis_ca") || !strings.Contains(service, "target=redis_ca,uid=0,gid=0,mode=0400") {
 		t.Fatal("Redis CA was not delivered through an isolated Docker secret")
 	}
 }
@@ -166,7 +166,7 @@ func TestCurrentRotatesWhenServerPinsChange(t *testing.T) {
 		t.Fatal(err)
 	}
 	id := "11111111-1111-4111-8111-111111111111"
-	labels := map[string]string{"honeyforge.trap": id, "honeyforge.generation": "1", "honeyforge.certificate-expires": time.Now().Add(30 * 24 * time.Hour).Format(time.RFC3339), "honeyforge.tls-trust": revision}
+	labels := map[string]string{"com.nodemetrics.instance": id, "com.nodemetrics.generation": "1", "com.nodemetrics.certificate-expires": time.Now().Add(30 * 24 * time.Hour).Format(time.RFC3339), "com.nodemetrics.tls-trust": revision}
 	d.Run = func(_ context.Context, _ []byte, args ...string) ([]byte, error) {
 		if args[0] == "service" && args[1] == "ls" {
 			return []byte(serviceName(id)), nil
