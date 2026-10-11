@@ -361,7 +361,9 @@ Workflow загружает бинарник и миграции в уникал
 локальный `/healthz` с проверкой TLS. Публичная проверка с GitHub runner ожидает
 `401` для `/api/session`, `404` для `/assets/stream` на операторском origin и
 `200` для страницы/JavaScript на отдельном ресурсе. Задайте GitHub variable
-`TELEMETRY_ORIGIN=https://resources.example.org`, `API_PUBLIC_ORIGIN` и
+`TELEMETRY_ORIGIN=https://resources.example.org` в GitHub либо оставьте переменную
+пустой: workflow прочитает origin из `AGENT_WS_URL` в серверном
+`/etc/honey-forge/production.env`. Задайте `API_PUBLIC_ORIGIN` и
 `AGENT_WS_URL` в `production.env` и передайте последние две настройки в контейнер
 API; оркестратор тоже использует новый `AGENT_WS_URL`. Обновите установленный
 nginx до развёртывания: workflow не заменяет вручную настроенный конфиг сервера.

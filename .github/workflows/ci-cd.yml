@@ -98,6 +98,29 @@ jobs:
             echo '::error::API_BASE_URL must be an HTTPS origin without a path'
             exit 1
           }
+
+      - name: Read telemetry origin from production configuration
+        if: env.TELEMETRY_ORIGIN == ''
+        id: telemetry_config
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ vars.SSH_PORT || 22 }}
+          capture_stdout: true
+          script: |
+            set -eu
+            test -r /etc/honey-forge/production.env
+            sed -n 's|^AGENT_WS_URL=wss://\([^/]*\)/assets/stream$|TELEMETRY_ORIGIN=https://\1|p' /etc/honey-forge/production.env
+
+      - name: Validate telemetry origin
+        env:
+          SERVER_TELEMETRY_CONFIG: ${{ steps.telemetry_config.outputs.stdout }}
+        run: |
+          if [ -z "$TELEMETRY_ORIGIN" ]; then
+            TELEMETRY_ORIGIN=$(printf '%s\n' "$SERVER_TELEMETRY_CONFIG" | sed -n 's/^TELEMETRY_ORIGIN=//p')
+          fi
           [[ "$TELEMETRY_ORIGIN" =~ ^https://[a-zA-Z0-9.-]+(:[0-9]+)?$ ]] || {
             echo '::error::TELEMETRY_ORIGIN must be a separate HTTPS resource origin'
             exit 1
@@ -108,6 +131,7 @@ jobs:
             echo '::error::Telemetry and operator API must use different hosts'
             exit 1
           }
+          printf 'TELEMETRY_ORIGIN=%s\n' "$TELEMETRY_ORIGIN" >> "$GITHUB_ENV"
 
       # Опционально: диагностика. Удалите после первого успешного деплоя.
       - name: Debug fingerprint (optional)
