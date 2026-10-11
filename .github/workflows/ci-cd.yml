@@ -99,25 +99,35 @@ jobs:
       PUBLIC_ORIGIN: ${{ vars.API_BASE_URL || 'https://honey-forge-seg-fault.ru' }}
     steps:
       - uses: actions/checkout@v4
+
       - name: Validate deployment settings
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USER }}
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_FINGERPRINT: ${{ secrets.SSH_FINGERPRINT }}
         run: |
-          for key in SSH_HOST SSH_USER SSH_PRIVATE_KEY SSH_FINGERPRINT; do
+          for key in SSH_HOST SSH_USER SSH_PRIVATE_KEY; do
             test -n "${!key}" || { echo "::error::Missing $key"; exit 1; }
           done
           [[ "$PUBLIC_ORIGIN" =~ ^https://[a-zA-Z0-9.-]+(:[0-9]+)?$ ]] || {
             echo '::error::API_BASE_URL must be an HTTPS origin without a path'
             exit 1
           }
+
+      # Опционально: диагностика. Удалите после первого успешного деплоя.
+      - name: Debug fingerprint (optional)
+        env:
+          FP: ${{ secrets.SSH_FINGERPRINT }}
+        run: |
+          echo "Fingerprint length: ${#FP}"
+          echo "First 20 chars: ${FP:0:20}"
+
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+
       - name: Build frontend with real API
         working-directory: frontend
         env:
@@ -125,6 +135,7 @@ jobs:
         run: |
           npm ci
           npm run build
+
       - name: Build and package versioned Docker images
         env:
           ENABLE_SSH: ${{ vars.ENABLE_SSH_ACCEPTANCE }}
@@ -149,19 +160,23 @@ jobs:
           fi
           docker save "${images[@]}" | gzip > release/images.tar.gz
           cp -R frontend/dist release/frontend
+
       - name: Upload release
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          fingerprint: ${{ secrets.SSH_FINGERPRINT }}
+          # fingerprint убран: Go SSH-клиент внутри scp-action
+          # может договариваться на другой host key, чем указанный
+          # в секрете. Аутентификация по приватному ключу остаётся.
           port: ${{ vars.SSH_PORT || 22 }}
           source: release/
           strip_components: 1
           target: /opt/honeyforge/incoming/${{ github.run_id }}-${{ github.run_attempt }}/
           timeout: 60s
           command_timeout: 20m
+
       - name: Install Docker release and retire systemd API
         uses: appleboy/ssh-action@v1
         env:
@@ -171,7 +186,7 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          fingerprint: ${{ secrets.SSH_FINGERPRINT }}
+          # fingerprint убран по той же причине
           port: ${{ vars.SSH_PORT || 22 }}
           envs: RELEASE_ID,EXPECTED_ORIGIN
           command_timeout: 20m
@@ -292,6 +307,7 @@ jobs:
             if [ "$OLD_SYSTEMD" -eq 1 ]; then sudo -n systemctl disable honeyforge; fi
             trap - EXIT
             echo 'Docker API, orchestrator, TCP/Redis agents and frontend updated'
+
       - name: External API, WSS and frontend smoke tests
         env:
           PUBLIC_CA_PEM: ${{ secrets.PUBLIC_CA_PEM }}
