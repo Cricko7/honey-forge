@@ -27,6 +27,7 @@ import (
 )
 
 const integrationOrigin = "https://operator.example"
+const integrationAgentURL = "wss://resources.example/assets/stream"
 const integrationPassword = "demo-password-2026"
 
 type operatorSession struct {
@@ -45,6 +46,9 @@ func openIntegrationRuntimeWithDefinitions(t *testing.T, definitions []catalog.D
 
 func openIntegrationRuntimeWithOptions(t *testing.T, definitions []catalog.Definition, publisher events.BatchPublisher, agentWSURL string) *Runtime {
 	t.Helper()
+	if agentWSURL == "" {
+		agentWSURL = integrationAgentURL
+	}
 
 	dsn := os.Getenv("TEST_DATABASE_URL")
 	if dsn == "" {
@@ -87,6 +91,7 @@ func openIntegrationRuntimeWithOptions(t *testing.T, definitions []catalog.Defin
 		DatabaseURL:        schemaDSN,
 		CursorKey:          []byte("integration-cursor-key-32-bytes!"),
 		BrowserOrigins:     []string{integrationOrigin},
+		PublicOrigin:       integrationOrigin,
 		MigrationsPath:     "../../../../migrations",
 		Logger:             slog.New(slog.NewTextHandler(io.Discard, nil)),
 		CatalogDefinitions: definitions,

@@ -91,7 +91,8 @@ go test -race -tags=integration ./... -count=1
 | `KAFKA_BROKERS` | Обязательные адреса брокеров Kafka, через запятую. |
 | `KAFKA_CA_FILE` | CA брокеров Kafka; пусто — системные доверенные CA. TLS 1.2+ и проверка имени обязательны. |
 | `KAFKA_TELEMETRY_TOPIC` | Тема телеметрии; по умолчанию `honey-forge.telemetry`. |
-| `AGENT_WS_URL` | Необязательный внешний WSS URL вида `wss://host/assets/stream`; по умолчанию строится из первого `BROWSER_ORIGINS`. |
+| `API_PUBLIC_ORIGIN` | Обязательный HTTPS origin операторского API. |
+| `AGENT_WS_URL` | Обязательный WSS URL вида `wss://resources.example.org/assets/stream`; хост отличается от API и всех `BROWSER_ORIGINS`. |
 | `API_ADDR` | Адрес API; по умолчанию `:8443`. |
 | `GIN_MODE` | Для развёрнутого сервера задайте `release`. |
 | `AGENT_REDIS_URL` | Обязательный TLS URL буфера агента, например `rediss://127.0.0.1:6379/0`; открытый Redis и `skip_verify=true` запрещены. |
@@ -129,11 +130,26 @@ $env:DATABASE_URL = "postgres://honey_forge:$([Uri]::EscapeDataString($env:POSTG
 $env:BROWSER_ORIGINS = 'https://localhost:3000'
 $env:KAFKA_BROKERS = '127.0.0.1:29092'
 $env:KAFKA_CA_FILE = $tlsCA
-$env:AGENT_WS_URL = 'wss://localhost:8443/assets/stream'
-$env:TLS_CERT_FILE = (Resolve-Path certs/localhost.crt).Path
-$env:TLS_KEY_FILE = (Resolve-Path certs/localhost.key).Path
+$env:API_PUBLIC_ORIGIN = 'https://localhost:8443'
+$env:AGENT_WS_URL = 'wss://resources.localhost:8443/assets/stream'
+$env:TLS_CERT_FILE = (Resolve-Path certs/resources.crt).Path
+$env:TLS_KEY_FILE = (Resolve-Path certs/resources.key).Path
 $env:API_ADDR = ':8443'
 $env:GIN_MODE = 'release'
+```
+
+Для полного локального стека используйте `docker compose -f docker-compose.real.yml up --build`:
+панель открывается на `https://localhost:8443`, ресурс — на
+`https://resources.localhost:8443`. Доверьте `certs/ca.crt`; при необходимости
+добавьте `127.0.0.1 resources.localhost` в hosts. Для проверки curl можно использовать
+`--resolve resources.localhost:8443:127.0.0.1`. Новый сертификат `resources.crt`
+создаётся повторным запуском `gen-certs.ps1`. Оркестратор подключает nginx
+к сети ловушек под нейтральным DNS-именем через `AGENT_PROXY_SERVICE=web`.
+
+Если запускаете только Go-процесс без nginx, используйте HTTPS-сертификат
+с SAN для обоих хостов либо запускайте его за настроенным прокси. Пример продолжения:
+
+```powershell
 docker compose up -d postgres kafka
 Set-Location src/backend
 go run ./cmd/api
@@ -173,15 +189,17 @@ upstream и разрешите к нему доступ только с хост
    API_ADDR=127.0.0.1:8443
    TLS_CERT_FILE=/etc/honey-forge/tls/backend.crt
    TLS_KEY_FILE=/etc/honey-forge/tls/backend.key
-   AGENT_WS_URL=wss://api.example.org/assets/stream
+   API_PUBLIC_ORIGIN=https://api.example.org
+   AGENT_WS_URL=wss://resources.example.org/assets/stream
    BROWSER_ORIGINS=https://app.example.org
    GIN_MODE=release
    ```
 
-   Замените оба домена своими. `BROWSER_ORIGINS` — фактический HTTPS origin
+   Замените все три домена своими. `BROWSER_ORIGINS` — фактический HTTPS origin
    фронтенда, с которого браузер вызывает API; это не обязательно домен API.
-   Укажите `AGENT_WS_URL` явно, иначе сервер построит его из первого
-   `BROWSER_ORIGINS`. Запускайте API с рабочим каталогом `src/backend`;
+   `AGENT_WS_URL` и `API_PUBLIC_ORIGIN` обязательны. Хост телеметрии должен
+   отличаться от хостов API и фронтенда; различие только портов не подходит.
+   Запускайте API с рабочим каталогом `src/backend`;
    `TLS_CERT_FILE` и `TLS_KEY_FILE` должны быть доступны пользователю его
    процесса. Проверьте локальный HTTPS до установки прокси:
 
@@ -209,8 +227,11 @@ upstream и разрешите к нему доступ только с хост
    ```
 
    Выполняйте `install` из корня репозитория. В конфиге замените
-   `server_name honeyforge.example` на ваш домен и проверьте пути к публичным
-   сертификатам и `backend-ca.crt`. Если `nginx -t` сообщает о повторном
+   `server_name honeyforge.example` на домен API, `resources.example.org` — на
+   отдельный нейтральный домен ресурса. Настройте DNS этого домена на nginx и
+   сертификат с его SAN (`resources.crt`/`resources.key` в шаблоне); проверьте
+   также сертификат API и `backend-ca.crt`. Не размещайте панель HoneyForge
+   на хосте ресурса. Если `nginx -t` сообщает о повторном
    `default_server` для 443, согласуйте существующие сайты: для этого адреса
    должен остаться один сервер по умолчанию. Не перезагружайте nginx, пока
    `nginx -t` не завершится успешно. Если пакет дистрибутива старее 1.19.4,
@@ -225,13 +246,17 @@ upstream и разрешите к нему доступ только с хост
 
    ```sh
    curl -i https://api.example.org/api/session
+   curl -i https://resources.example.org/assets/stream
+   curl -i https://resources.example.org/
+   curl -i https://resources.example.org/api/session
    curl -i https://api.example.org/assets/stream
-   curl -i https://api.example.org/
    ```
 
-   Без cookie первый запрос должен вернуть `401`, без токена агента второй —
-   `401`, а `/` — `404`. Затем подключите тестового агента по выданному
-   `agent_ws_url` и проверьте, что он стал online: HTTP-ответ `401` сам по себе
+   Без cookie первый запрос должен вернуть `401`; ресурс — JavaScript с `200`,
+   его корень — HTML Resource Library с `200`; API на хосте ресурса и агентский
+   путь на хосте API — `404`. Неверный Bearer при попытке upgrade возвращает
+   тот же JavaScript без агентских ошибок. Затем подключите тестового агента по выданному
+   `agent_ws_url` и проверьте, что он стал online: HTTP-ответ `200` сам по себе
    ещё не доказывает успешный WSS Upgrade. Для диагностики используйте
    `sudo journalctl -u nginx -n 100 --no-pager` и журнал Go API. `502` обычно
    означает недоступный `127.0.0.1:8443` или неуспешную проверку его TLS.
@@ -323,8 +348,13 @@ Workflow загружает бинарник и миграции в уникал
 `/opt/honeyforge/incoming/<run_id>-<attempt>`, устанавливает миграции в
 `/opt/honeyforge/migrations` и атомарно заменяет исполняемый файл API перед
 перезапуском. Goose применяет миграции при старте приложения. Затем проверяется
-локальный `/healthz` с проверкой TLS и публичные ответы `401` для `/api/session`
-и `/assets/stream`, `404` для `/`. Публичная проверка выполняется с GitHub runner.
+локальный `/healthz` с проверкой TLS. Публичная проверка с GitHub runner ожидает
+`401` для `/api/session`, `404` для `/assets/stream` на операторском origin и
+`200` для страницы/JavaScript на отдельном ресурсе. Задайте GitHub variable
+`TELEMETRY_ORIGIN=https://resources.example.org`, `API_PUBLIC_ORIGIN` и
+`AGENT_WS_URL` в `production.env` и передайте последние две настройки в контейнер
+API; оркестратор тоже использует новый `AGENT_WS_URL`. Обновите установленный
+nginx до развёртывания: workflow не заменяет вручную настроенный конфиг сервера.
 Деплой не обновляет отдельные приложения агентов.
 
 При неуспешном запуске workflow сообщает ошибку; автоматического отката БД и

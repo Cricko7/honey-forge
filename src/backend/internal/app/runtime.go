@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/url"
 	"os"
 	"time"
 
@@ -41,6 +40,7 @@ type Config struct {
 	AgentGateway       agentws.Gateway
 	AgentCommands      agentws.CommandService
 	AgentWSURL         string
+	PublicOrigin       string
 	AutoDeployTraps    bool
 	Ingester           traps.Ingester
 	EventPublisher     events.BatchPublisher
@@ -67,16 +67,9 @@ type Runtime struct {
 }
 
 func Open(ctx context.Context, config Config) (*Runtime, error) {
-	if config.AgentWSURL == "" {
-		if len(config.BrowserOrigins) > 0 {
-			origin, err := url.Parse(config.BrowserOrigins[0])
-			if err == nil {
-				config.AgentWSURL = "wss://" + origin.Host + "/assets/stream"
-			}
-		}
-	}
-	if endpoint, err := url.Parse(config.AgentWSURL); err != nil || endpoint.Scheme != "wss" || endpoint.Host == "" || endpoint.User != nil || endpoint.RawQuery != "" || endpoint.Fragment != "" || endpoint.Path != "/assets/stream" {
-		return nil, fmt.Errorf("AgentWSURL must be a wss URL ending in /assets/stream")
+	endpoint, err := configureAgentEndpoint(config.AgentWSURL, config.PublicOrigin, config.BrowserOrigins)
+	if err != nil {
+		return nil, err
 	}
 	cursors, err := contract.NewCursorCodec(config.CursorKey)
 	if err != nil {
@@ -110,7 +103,7 @@ func Open(ctx context.Context, config Config) (*Runtime, error) {
 		pool.Close()
 		return nil, fmt.Errorf("install catalog: %w", err)
 	}
-	router := NewRouter(browser.CORSMiddleware())
+	router := NewRouter(telemetryHost(endpoint), browser.CORSMiddleware())
 	if len(config.TrustedProxies) > 0 {
 		if err := router.SetTrustedProxies(config.TrustedProxies); err != nil {
 			pool.Close()

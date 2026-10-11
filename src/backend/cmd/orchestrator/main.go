@@ -27,7 +27,8 @@ func run() error {
 	wsURL := os.Getenv("AGENT_WS_URL")
 	redisURL := os.Getenv("AGENT_REDIS_URL")
 	docker := orchestrator.DockerCLI{
-		Network: os.Getenv("DECOY_NETWORK"), WSURL: wsURL, RedisURL: redisURL,
+		ProxyService: os.Getenv("AGENT_PROXY_SERVICE"),
+		Network:      os.Getenv("DECOY_NETWORK"), WSURL: wsURL, RedisURL: redisURL,
 		CAFile: os.Getenv("AGENT_CA_FILE"), RedisCAFile: os.Getenv("AGENT_REDIS_CA_FILE"), TCPImage: os.Getenv("DECOY_TCP_IMAGE"), RedisImage: os.Getenv("DECOY_REDIS_IMAGE"),
 		HoneytokenImage: os.Getenv("DECOY_HONEYTOKEN_IMAGE"),
 		SSHImage:        os.Getenv("DECOY_SSH_IMAGE"), SandboxImage: os.Getenv("SSH_SANDBOX_IMAGE"),

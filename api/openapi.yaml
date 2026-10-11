@@ -2768,6 +2768,44 @@ paths:
       security:
       - OperatorSession: []
       summary: Read one exact immutable type version (admin or viewer)
+  /:
+    servers:
+    - url: https://resources.example.org
+    get:
+      operationId: publicResourceIndex
+      summary: Resource Library index on the separate resource host
+      description: Plain public HTML linking to the browser resource script. HEAD returns the same headers without a body. This host does not serve the operator application or API.
+      security: []
+      responses:
+        "200":
+          description: Public resource index
+          content:
+            text/html:
+              schema:
+                type: string
+  /assets/stream:
+    servers:
+    - url: https://resources.example.org
+    get:
+      operationId: publicResourceScript
+      summary: Public browser resource script; authenticated agent WebSocket upgrade
+      description: Ordinary GET and rejected agent credentials return the same JavaScript asset with 200, without an authentication error. A valid Bearer token with the required WebSocket handshake upgrades to the agent stream. Available only on the separately configured resource host; the operator host returns 404. HEAD returns the same headers without a body.
+      security: []
+      responses:
+        "200":
+          description: Public JavaScript asset; no telemetry is accepted
+          content:
+            application/javascript:
+              schema:
+                type: string
+        "101":
+          description: Authenticated agent WebSocket; see x-websockets.agent
+        "400":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
   /healthz:
     get:
       operationId: health
@@ -2790,6 +2828,13 @@ x-websockets:
     roles:
     - agent
     separate_https_origin: true
+    subprotocol: resource-stream.v1
+    authentication: Authorization Bearer token; credentials never appear in URL
+    unauthenticated_response:
+      status: 200
+      content_type: application/javascript
+      behavior: Same public asset as an ordinary GET, without agent errors or a WebSocket upgrade. The agent treats this response to its upgrade request as rejected credentials and retains its buffered events.
+    host_isolation: AGENT_WS_URL and API_PUBLIC_ORIGIN are explicit installation settings. The resource hostname must differ from the API hostname and every BROWSER_ORIGINS hostname. The resource host serves a Resource Library index and the asset; operator routes return a plain 404.
   binary_close_code: 1003
   compression: false
   frontend:

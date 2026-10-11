@@ -26,17 +26,19 @@ func TestPrepareBootstrapsSingleNodeAndConnectsComposeServices(t *testing.T) {
 			return []byte("api-id\n"), nil
 		case strings.Contains(call, "com.docker.compose.service=redis"):
 			return []byte("redis-id\n"), nil
-		case strings.HasPrefix(call, "inspect api-id") || strings.HasPrefix(call, "inspect redis-id"):
+		case strings.Contains(call, "com.docker.compose.service=web"):
+			return []byte("web-id\n"), nil
+		case strings.HasPrefix(call, "inspect api-id") || strings.HasPrefix(call, "inspect redis-id") || strings.HasPrefix(call, "inspect web-id"):
 			return []byte(`{"bridge":{}}`), nil
 		}
 		return nil, nil
 	}
-	d := DockerCLI{Run: run, Network: "hf-decoys"}
+	d := DockerCLI{Run: run, Network: "hf-decoys", ProxyService: "web", WSURL: "wss://resources.localhost/assets/stream"}
 	if err := d.Prepare(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	joined := strings.Join(calls, "\n")
-	for _, want := range []string{"swarm init", "network create --driver overlay --attachable hf-decoys", "network connect --alias api hf-decoys api-id", "network connect --alias redis hf-decoys redis-id"} {
+	for _, want := range []string{"swarm init", "network create --driver overlay --attachable hf-decoys", "network connect --alias api hf-decoys api-id", "network connect --alias redis hf-decoys redis-id", "network connect --alias resources.localhost hf-decoys web-id"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("missing %q in calls:\n%s", want, joined)
 		}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"path"
+	"strings"
 
 	"honey-forge/internal/contract"
 )
@@ -25,5 +26,20 @@ func NewAgentEndpoint(origin, streamPath string) (AgentEndpoint, error) {
 
 func (e AgentEndpoint) URL() string { return "wss" + e.origin[len("https"):] + e.path }
 func (e AgentEndpoint) SeparateFrom(operatorOrigin string) bool {
-	return e.origin != operatorOrigin && contract.ValidHTTPSOrigin(operatorOrigin)
+	if !contract.ValidHTTPSOrigin(operatorOrigin) {
+		return false
+	}
+	u, _ := url.Parse(operatorOrigin)
+	return !e.MatchesHost(u.Host)
+}
+
+// Hosts, rather than ports, separate the public resource from the dashboard.
+// Reverse proxies must overwrite Host; forwarded host headers are never used.
+func (e AgentEndpoint) MatchesHost(host string) bool {
+	if !contract.ValidHTTPSOrigin("https://" + host) {
+		return false
+	}
+	u, _ := url.Parse("https://" + host)
+	origin, _ := url.Parse(e.origin)
+	return strings.EqualFold(strings.TrimSuffix(u.Hostname(), "."), strings.TrimSuffix(origin.Hostname(), "."))
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"slices"
@@ -16,6 +17,7 @@ import (
 type DockerCLI struct {
 	Run             func(context.Context, []byte, ...string) ([]byte, error)
 	Network         string
+	ProxyService    string
 	WSURL           string
 	RedisURL        string
 	CAFile          string
@@ -99,14 +101,23 @@ func (d DockerCLI) Prepare(ctx context.Context) error {
 		return fmt.Errorf("orchestrator must run in Docker Compose")
 	}
 	for _, service := range []string{"api", "redis"} {
-		if err := d.connectComposeService(ctx, strings.TrimSpace(string(project)), service); err != nil {
+		if err := d.connectComposeService(ctx, strings.TrimSpace(string(project)), service, service); err != nil {
+			return err
+		}
+	}
+	if d.ProxyService != "" {
+		endpoint, err := url.Parse(d.WSURL)
+		if err != nil || endpoint.Hostname() == "" {
+			return fmt.Errorf("resource proxy requires an agent URL with a host")
+		}
+		if err := d.connectComposeService(ctx, strings.TrimSpace(string(project)), d.ProxyService, endpoint.Hostname()); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (d DockerCLI) connectComposeService(ctx context.Context, project, service string) error {
+func (d DockerCLI) connectComposeService(ctx context.Context, project, service, alias string) error {
 	output, err := d.call(ctx, nil, "ps", "--filter", "label=com.docker.compose.project="+project, "--filter", "label=com.docker.compose.service="+service, "--format", "{{.ID}}")
 	if err != nil {
 		return fmt.Errorf("find Compose %s: %w", service, err)
@@ -126,7 +137,7 @@ func (d DockerCLI) connectComposeService(ctx context.Context, project, service s
 	if _, attached := networks[d.Network]; attached {
 		return nil
 	}
-	if _, err := d.call(ctx, nil, "network", "connect", "--alias", service, d.Network, ids[0]); err != nil {
+	if _, err := d.call(ctx, nil, "network", "connect", "--alias", alias, d.Network, ids[0]); err != nil {
 		return fmt.Errorf("connect Compose %s to decoy network: %w", service, err)
 	}
 	return nil

@@ -26,7 +26,7 @@ func TestFrontendReplaySurvivesRuntimeRestart(t *testing.T) {
 	_, trap, _ := createIntegrationTrap(t, r, a)
 	databaseURL := r.pool.Config().ConnString()
 	r.Close()
-	restarted, err := Open(t.Context(), Config{DatabaseURL: databaseURL, CursorKey: []byte("integration-cursor-key-32-bytes!"), BrowserOrigins: []string{integrationOrigin}, MigrationsPath: "../../../../migrations", Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	restarted, err := Open(t.Context(), Config{DatabaseURL: databaseURL, CursorKey: []byte("integration-cursor-key-32-bytes!"), BrowserOrigins: []string{integrationOrigin}, PublicOrigin: integrationOrigin, AgentWSURL: integrationAgentURL, MigrationsPath: "../../../../migrations", Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -43,6 +43,7 @@ jobs:
           TEST_KAFKA_CA_FILE: ${{ github.workspace }}/certs/ca.crt
           TEST_REDIS_URL: rediss://127.0.0.1:6379/0
           TEST_REDIS_CA_FILE: ${{ github.workspace }}/certs/ca.crt
+          TEST_NGINX_PROXY: "1"
         run: go test -race -tags=integration ./... -count=1
       - name: Optional SSH sandbox acceptance
         if: vars.ENABLE_SSH_ACCEPTANCE == 'true'
@@ -80,6 +81,7 @@ jobs:
       cancel-in-progress: false
     env:
       PUBLIC_ORIGIN: ${{ vars.API_BASE_URL || 'https://honey-forge-seg-fault.ru' }}
+      TELEMETRY_ORIGIN: ${{ vars.TELEMETRY_ORIGIN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -94,6 +96,16 @@ jobs:
           done
           [[ "$PUBLIC_ORIGIN" =~ ^https://[a-zA-Z0-9.-]+(:[0-9]+)?$ ]] || {
             echo '::error::API_BASE_URL must be an HTTPS origin without a path'
+            exit 1
+          }
+          [[ "$TELEMETRY_ORIGIN" =~ ^https://[a-zA-Z0-9.-]+(:[0-9]+)?$ ]] || {
+            echo '::error::TELEMETRY_ORIGIN must be a separate HTTPS resource origin'
+            exit 1
+          }
+          public_host=${PUBLIC_ORIGIN#https://}; public_host=${public_host%%:*}
+          resource_host=${TELEMETRY_ORIGIN#https://}; resource_host=${resource_host%%:*}
+          test "${public_host,,}" != "${resource_host,,}" || {
+            echo '::error::Telemetry and operator API must use different hosts'
             exit 1
           }
 
@@ -165,13 +177,14 @@ jobs:
         env:
           RELEASE_ID: ${{ github.run_id }}-${{ github.run_attempt }}
           EXPECTED_ORIGIN: ${{ env.PUBLIC_ORIGIN }}
+          EXPECTED_TELEMETRY_ORIGIN: ${{ env.TELEMETRY_ORIGIN }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           # fingerprint убран по той же причине
           port: ${{ vars.SSH_PORT || 22 }}
-          envs: RELEASE_ID,EXPECTED_ORIGIN
+          envs: RELEASE_ID,EXPECTED_ORIGIN,EXPECTED_TELEMETRY_ORIGIN
           command_timeout: 20m
           script: |
             set -eu
@@ -202,6 +215,13 @@ jobs:
             compose "$INCOMING/release.env" config --quiet
             grep -Fx "PUBLIC_ORIGIN=$EXPECTED_ORIGIN" "$CONFIG" >/dev/null || {
               echo 'PUBLIC_ORIGIN on the server must match API_BASE_URL'; exit 1;
+            }
+            grep -Fx "API_PUBLIC_ORIGIN=$EXPECTED_ORIGIN" "$CONFIG" >/dev/null || {
+              echo 'Set API_PUBLIC_ORIGIN in production.env and pass it to the API container'; exit 1;
+            }
+            expected_agent_url="wss://${EXPECTED_TELEMETRY_ORIGIN#https://}/assets/stream"
+            grep -Fx "AGENT_WS_URL=$expected_agent_url" "$CONFIG" >/dev/null || {
+              echo 'AGENT_WS_URL must point to TELEMETRY_ORIGIN in production.env and both API/orchestrator containers'; exit 1;
             }
             for key in POSTGRES_VOLUME KAFKA_VOLUME REDIS_VOLUME; do
               volume=$(sed -n "s/^$key=//p" "$CONFIG")
@@ -303,7 +323,7 @@ jobs:
           fi
           DOMAIN=$(echo "$PUBLIC_ORIGIN" | sed -E 's|https?://||; s|/.*||')
           echo "Testing $PUBLIC_ORIGIN via $API_HOST"
-          for entry in '/api/session:401' '/assets/stream:401' '/api/stream:401' '/:200' '/app/profiles:200'; do
+          for entry in '/api/session:401' '/assets/stream:404' '/api/stream:401' '/:200' '/app/profiles:200'; do
             path="${entry%:*}"
             expected="${entry##*:}"
             code=$(curl "${tls[@]}" --silent --show-error --max-time 20 --retry 3 \
@@ -313,3 +333,26 @@ jobs:
             test "$code" = "$expected"
           done
           curl "${tls[@]}" --fail --silent --show-error --max-time 20 "$PUBLIC_ORIGIN/" | grep -q '<div id="root">'
+          RESOURCE_AUTHORITY=${TELEMETRY_ORIGIN#https://}
+          RESOURCE_HOST=${RESOURCE_AUTHORITY%%:*}
+          RESOURCE_PORT=443
+          if [[ "$RESOURCE_AUTHORITY" == *:* ]]; then RESOURCE_PORT=${RESOURCE_AUTHORITY##*:}; fi
+          resolve=(--resolve "$RESOURCE_HOST:$RESOURCE_PORT:$API_HOST")
+          for entry in '/:200' '/assets/stream:200' '/api/session:404' '/api/stream:404' '/app/profiles:404'; do
+            path="${entry%:*}"; expected="${entry##*:}"
+            code=$(curl "${tls[@]}" "${resolve[@]}" --silent --show-error --max-time 20 \
+              --output /dev/null --write-out '%{http_code}' "$TELEMETRY_ORIGIN$path")
+            echo "resource $path: $code"
+            test "$code" = "$expected"
+          done
+          curl "${tls[@]}" "${resolve[@]}" --fail --silent --show-error --max-time 20 \
+            "$TELEMETRY_ORIGIN/" | grep -q '<title>Resource Library</title>'
+          curl "${tls[@]}" "${resolve[@]}" --fail --silent --show-error --max-time 20 \
+            --output "$RUNNER_TEMP/resource.js" "$TELEMETRY_ORIGIN/assets/stream"
+          curl "${tls[@]}" "${resolve[@]}" --fail --silent --show-error --max-time 20 \
+            -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Authorization: Bearer invalid-smoke-token' \
+            --output "$RUNNER_TEMP/rejected.js" "$TELEMETRY_ORIGIN/assets/stream"
+          cmp "$RUNNER_TEMP/resource.js" "$RUNNER_TEMP/rejected.js"
+          if grep -Eiq 'honeyforge|honeypot|agent_unauthenticated|Invalid agent credentials' "$RUNNER_TEMP/resource.js"; then
+            echo '::error::Resource response discloses the telemetry channel'; exit 1
+          fi

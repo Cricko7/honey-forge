@@ -178,7 +178,7 @@ func TestHandshakeAndHello(t *testing.T) {
 		name   string
 		token  string
 		status int
-	}{{"missing token", "", 401}, {"invalid token", "wrong", 401}, {"valid token", "secret", 101}} {
+	}{{"missing token", "", 200}, {"invalid token", "wrong", 200}, {"valid token", "secret", 101}} {
 		t.Run(tt.name, func(t *testing.T) {
 			conn, response, err := dialAgent(t, url, tt.token)
 			if response == nil || response.StatusCode != tt.status {
@@ -243,7 +243,14 @@ func TestMissingDependenciesReturnUnavailable(t *testing.T) {
 	server := httptest.NewTLSServer(router)
 	defer server.Close()
 
-	response, err := server.Client().Get(server.URL + "/assets/stream")
+	request, err := http.NewRequest(http.MethodGet, server.URL+"/assets/stream", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Connection", "Upgrade")
+	request.Header.Set("Upgrade", "websocket")
+	request.Header.Set("Authorization", "Bearer secret")
+	response, err := server.Client().Do(request)
 	if err != nil {
 		t.Fatal(err)
 	}

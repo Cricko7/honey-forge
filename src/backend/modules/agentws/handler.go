@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 
 	"honey-forge/internal/contract"
 	"honey-forge/internal/stream"
@@ -30,27 +31,36 @@ func NewHandler(gateway Gateway, commands CommandService) *Handler {
 
 func (h *Handler) Register(router *gin.Engine) {
 	router.GET(stream.AgentPath, h.Serve)
+	router.HEAD(stream.AgentPath, stream.Resource)
 }
 
 func (h *Handler) Serve(c *gin.Context) {
+	if !websocket.IsWebSocketUpgrade(c.Request) {
+		stream.Resource(c)
+		return
+	}
+	values := c.Request.Header.Values("Authorization")
+	if len(values) != 1 || !strings.HasPrefix(values[0], "Bearer ") || strings.TrimPrefix(values[0], "Bearer ") == "" {
+		stream.Resource(c)
+		return
+	}
 	if h.gateway == nil || h.commands == nil {
 		contract.Fail(c, contract.NewError("service_unavailable"))
 		return
 	}
 
-	values := c.Request.Header.Values("Authorization")
-	if len(values) != 1 || !strings.HasPrefix(values[0], "Bearer ") || strings.TrimPrefix(values[0], "Bearer ") == "" {
-		contract.Fail(c, contract.NewError("agent_unauthenticated"))
-		return
-	}
 	token := strings.TrimPrefix(values[0], "Bearer ")
 	identity, err := h.gateway.Authenticate(c.Request.Context(), token)
 	if err != nil {
-		contract.Fail(c, authError(err))
+		if failure := authError(err); failure.Code == "agent_unauthenticated" {
+			stream.Resource(c)
+		} else {
+			contract.Fail(c, failure)
+		}
 		return
 	}
 	if !validIdentity(identity) {
-		contract.Fail(c, contract.NewError("agent_unauthenticated"))
+		stream.Resource(c)
 		return
 	}
 

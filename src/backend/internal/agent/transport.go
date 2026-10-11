@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"mime"
 	"net/http"
 	"time"
 
@@ -26,8 +27,11 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 		response.Body.Close()
 	}
 	if err != nil {
-		if response != nil && response.StatusCode == http.StatusUnauthorized {
-			return ErrRevoked
+		if response != nil {
+			mediaType, _, _ := mime.ParseMediaType(response.Header.Get("Content-Type"))
+			if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusOK && mediaType == "application/javascript" {
+				return ErrRevoked
+			}
 		}
 		return fmt.Errorf("connect backend: %w", err)
 	}

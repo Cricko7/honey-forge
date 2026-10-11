@@ -11,7 +11,9 @@
 
 `GET wss://<management-origin>/assets/stream`, `Authorization: Bearer <agent-token>`, `Sec-WebSocket-Protocol: resource-stream.v1`. Cookie не используется. Токен привязывает соединение к Trap и организации; клиент не назначает organization_id/trap_id сообщением. Credentials не передаются в query, payload или subprotocol. Управляющий канал отдельный от сервисов-приманок и WSS фронтенда.
 
-Успех `101 Switching Protocols`. До upgrade: 401 agent_unauthenticated, 400 invalid_ws_protocol (`Invalid WebSocket subprotocol`), 503 database_unavailable/service_unavailable; тела ErrorResponse. На этом origin cookie operator не даёт доступ; браузерный Origin при agent handshake запрещён — 403 origin_not_allowed. Агент — небраузерный клиент с заголовком Authorization.
+Успех `101 Switching Protocols`. Обычный GET/HEAD и WebSocket-запрос без действительного Bearer token получают один и тот же JavaScript-ресурс: `200`, `Content-Type: application/javascript; charset=utf-8`, без ошибок аутентификации. HEAD не содержит тела. Телеметрия при этом не принимается. Авторизованный handshake по-прежнему проверяет TLS, query, Origin и subprotocol: 400 invalid_ws_protocol (`Invalid WebSocket subprotocol`), 403 origin_not_allowed, 503 database_unavailable/service_unavailable; тела ErrorResponse. Cookie operator не даёт доступ. Агент — небраузерный клиент с заголовком Authorization.
+
+`AGENT_WS_URL` и `API_PUBLIC_ORIGIN` обязательны. Хост ресурса должен отличаться от хоста API и каждого `BROWSER_ORIGINS`; различие только портов не подходит. На хосте ресурса `/` отдаёт страницу Resource Library, `/assets/stream` — ресурс/авторизованный WSS, остальные пути — обычный 404 без JSON API. На операторском хосте `/assets/stream` возвращает 404. Прокси передаёт проверенный Host и сохраняет TLS-проверку upstream. Профиль не меняет адрес и TLS.
 
 Все frames — UTF-8 JSON text, compression отключена, максимум 256 KiB. Binary — close 1003; превышение — close 1009. Ограничение касается каждого frame и итогового сообщения при fragmentation. Envelope: `message_id: ID`, `type: string` (1..64), `reply_to?: ID|null` (на запросах отсутствует/null), `payload: object`. Серверные ответы содержат reply_to ID клиентского запроса, unsolicited-сообщения reply_to=null. message_id нужен для корреляции; долговременная дедупликация — event_id/command_id/batch_id. Неизвестные поля Envelope/схем запросов отвергаются; неизвестный type — Error.
 
@@ -82,7 +84,7 @@ event_id и исходный AgentEvent сохраняются при любом
 
 Положительный локальный commit означает восстановимость после рестарта Redis/агента; без персистентности Redis на стороне агента реализация этому контракту не соответствует. Потеря самого диска/всех копий не объявляется покрытой гарантией. Если события не удалось зафиксировать локально, агент не продолжает обычную работу, будто сбор исправен.
 
-Reconnect: задержка с jitter 1..30 секунд, верхняя граница 30; 4401 останавливает попытки с отозванным token до выдачи нового. После нового welcome отправляются buffered события с прежними версиями и результаты команд по актуальному lease. Отключение браузера никак не влияет на буфер/команды/сбор.
+Reconnect: задержка с jitter 1..30 секунд, верхняя граница 30; 4401 и ответ JavaScript-ресурса 200 на авторизованный upgrade останавливают попытки с недействительным token до выдачи нового, сохраняя буфер. Ошибки TLS, 503 и ответ посторонней HTML-страницы остаются временными сбоями подключения. После нового welcome отправляются buffered события с прежними версиями и результаты команд по актуальному lease. Отключение браузера никак не влияет на буфер/команды/сбор.
 
 ## Ошибки WSS агента
 

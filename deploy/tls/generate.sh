@@ -38,6 +38,7 @@ issue() {
 }
 
 issue localhost 'DNS:localhost,DNS:api,IP:127.0.0.1'
+issue resources 'DNS:resources.localhost,DNS:localhost,IP:127.0.0.1'
 issue postgres 'DNS:postgres,DNS:localhost,IP:127.0.0.1'
 issue redis 'DNS:redis,DNS:localhost,IP:127.0.0.1'
 issue kafka 'DNS:kafka,DNS:localhost,IP:127.0.0.1'

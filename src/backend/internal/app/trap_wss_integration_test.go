@@ -31,7 +31,7 @@ func TestTrapCredentialWSSRevocation(t *testing.T) {
 	dialer := websocket.Dialer{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, Subprotocols: []string{"resource-stream.v1"}}
 	connect := func(token string) *websocket.Conn {
 		t.Helper()
-		header := http.Header{"Authorization": []string{"Bearer " + token}}
+		header := http.Header{"Host": []string{"resources.example"}, "Authorization": []string{"Bearer " + token}}
 		socket, response, err := dialer.Dial(endpoint, header)
 		if err != nil {
 			t.Fatalf("dial %v response %v", err, response)
@@ -74,13 +74,13 @@ func TestTrapCredentialWSSRevocation(t *testing.T) {
 	if !errors.As(err, &closeError) || closeError.Code != 4401 {
 		t.Fatalf("delete close: %v", err)
 	}
-	header := http.Header{"Authorization": []string{"Bearer " + second.Token}}
+	header := http.Header{"Host": []string{"resources.example"}, "Authorization": []string{"Bearer " + second.Token}}
 	failed, handshake, err := dialer.Dial(endpoint, header)
 	if failed != nil {
 		failed.Close()
 		t.Fatal("tombstone connected")
 	}
-	if err == nil || handshake == nil || handshake.StatusCode != 401 {
+	if err == nil || handshake == nil || handshake.StatusCode != 200 {
 		t.Fatalf("tombstone handshake: %v %v", handshake, err)
 	}
 	if handshake.Body != nil {

@@ -21,7 +21,7 @@ func connectCommandWSS(t *testing.T, endpoint, token string, trap traps.Trap, ru
 	t.Helper()
 	// TLS verification is disabled only for httptest's self-signed certificate.
 	dialer := websocket.Dialer{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, Subprotocols: []string{"resource-stream.v1"}}
-	socket, response, err := dialer.Dial(endpoint, http.Header{"Authorization": []string{"Bearer " + token}})
+	socket, response, err := dialer.Dial(endpoint, http.Header{"Host": []string{"resources.example"}, "Authorization": []string{"Bearer " + token}})
 	if err != nil {
 		t.Fatalf("agent handshake: %v (%v)", err, response)
 	}
