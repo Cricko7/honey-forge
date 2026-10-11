@@ -1,4 +1,4 @@
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
   Play,
@@ -30,8 +30,10 @@ import {
 } from '@/api/hooks'
 import { ApiError } from '@/api/client'
 import { formatDateTime, timeAgo } from '@/lib/utils'
+import { commandControls } from '@/lib/command-controls'
 
 export function TrapDetailPage() {
+  const navigate = useNavigate()
   const { id = '' } = useParams()
   const { data: trap, isLoading } = useTrap(id)
   const { data: commands } = useCommands(id)
@@ -43,7 +45,9 @@ export function TrapDetailPage() {
   if (isLoading) return <div className="p-6"><Spinner /></div>
   if (!trap) return <div className="p-6"><EmptyState title="Ловушка не найдена" /></div>
 
-  const busy = sendCommand.isPending || !!trap.active_command_id
+  const controls = commandControls(trap, commands?.items ?? [], sendCommand.isPending)
+  const busy = controls.disabled || deleteTrap.isPending
+  const activeCommand = commands?.items.find((c) => c.id === trap.active_command_id)
   // apply_config валидируется под дескриптор действия: нужна точная ревизия профиля.
   const profileRevision =
     profiles?.items.find((p) => p.id === trap.profile_id)?.revision ??
@@ -105,8 +109,15 @@ export function TrapDetailPage() {
           </button>
           <button
             className="btn-danger"
+            aria-label="Удалить ловушку"
+            title={deleteTrap.isPending ? 'Удаление…' : 'Удалить ловушку'}
+            disabled={deleteTrap.isPending}
             onClick={() => {
-              if (confirm('Удалить ловушку?')) deleteTrap.mutate({ id, revision: trap.revision })
+              if (deleteTrap.isPending) return
+              if (confirm('Удалить ловушку?')) deleteTrap.mutate(
+                { id, revision: trap.revision },
+                { onSuccess: () => navigate('/app/traps', { replace: true }) },
+              )
             }}
           >
             <Trash2 size={15} />
@@ -114,12 +125,18 @@ export function TrapDetailPage() {
         </div>
       </div>
 
-      {busy && (
-        <div className="chip bg-brand/15 text-brand-soft animate-pulseGlow">
-          <Activity size={12} /> выполняется команда…
+      {deleteTrap.error && (
+        <div role="alert" className="chip bg-danger/10 text-danger">
+          Не удалось удалить ловушку: {deleteTrap.error.message}
         </div>
       )}
-      {cmdError && !busy && (
+      {controls.message && !deleteTrap.isPending && (
+        <div role="status" className="chip bg-brand/15 text-brand-soft">
+          <Activity size={12} /> {controls.message}
+          {activeCommand?.status === 'queued' && ` Срок ожидания: до ${formatDateTime(activeCommand.expires_at)}.`}
+        </div>
+      )}
+      {cmdError && !sendCommand.isPending && (
         <div className="chip bg-danger/10 text-danger">
           Команда отклонена: {cmdError.code === 'configuration_not_applied'
             ? 'сначала примените конфиг (apply_config)'

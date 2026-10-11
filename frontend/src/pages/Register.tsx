@@ -4,9 +4,12 @@ import { Shield, ArrowRight } from 'lucide-react'
 import { api, USE_MOCK } from '@/api/client'
 import { ApiError } from '@/api/client'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { useQueryClient } from '@tanstack/react-query'
+import { replaceSessionCache } from '@/api/cache'
 
 export function RegisterPage() {
   const navigate = useNavigate()
+  const qc = useQueryClient()
   const [email, setEmail] = useState('admin@perimetr.ru')
   const [password, setPassword] = useState('demo-password-2026')
   const [org, setOrg] = useState('ООО «Периметр»')
@@ -18,7 +21,8 @@ export function RegisterPage() {
     setLoading(true)
     setError(null)
     try {
-      await api.register(email, password, org)
+      const session = await api.register(email, password, org)
+      await replaceSessionCache(qc, session)
       navigate('/app')
     } catch (err) {
       if (err instanceof ApiError && err.code === 'email_in_use') setError('Email уже зарегистрирован')

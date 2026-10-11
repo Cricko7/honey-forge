@@ -253,7 +253,7 @@ export function NetworkBuilderPage() {
         onCreate={async (name, entry, port) => {
           const config = defaultConfig(entry.type_id, port)
           const profile = await createProfile.mutateAsync({
-            name: `${name} · ${entry.type_id}`,
+            name,
             type_id: entry.type_id,
             type_version: entry.type_version,
             config,

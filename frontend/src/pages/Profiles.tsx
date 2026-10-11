@@ -5,6 +5,7 @@ import { Modal } from '@/components/Modal'
 import { useProfiles, useCatalog, useCreateProfile } from '@/api/hooks'
 import { ApiError } from '@/api/client'
 import type { CatalogEntry } from '@/types'
+import { parseProfileConfig } from '@/lib/profile-config'
 
 // Шаблоны config под типы каталога — стартовая заготовка для редактора.
 function configTemplate(typeId: string): Record<string, unknown> {
@@ -131,9 +132,9 @@ function CreateProfileModal({ open, onClose }: { open: boolean; onClose: () => v
     }
     let config: Record<string, unknown>
     try {
-      config = JSON.parse(configText)
-    } catch {
-      setError('config не является корректным JSON')
+      config = parseProfileConfig(configText)
+    } catch (err) {
+      setError((err as Error).message)
       return
     }
     try {

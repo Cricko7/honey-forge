@@ -14,6 +14,10 @@ import { useSession, useLiveStream } from '@/api/hooks'
 import { USE_MOCK, api } from '@/api/client'
 import { cn } from '@/lib/utils'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
+import { replaceSessionCache } from '@/api/cache'
+import { ApiError } from '@/api/client'
 
 const nav = [
   { to: '/app', end: true, icon: LayoutDashboard, label: 'Дашборд' },
@@ -25,14 +29,30 @@ const nav = [
 ]
 
 export function Layout() {
+  const qc = useQueryClient()
+  const [logoutError, setLogoutError] = useState('')
+  const [loggingOut, setLoggingOut] = useState(false)
   const { data: session, isLoading, isError } = useSession()
   const navigate = useNavigate()
   // Глобальная подписка на live-стрим: держит кэш свежим на всех экранах.
   useLiveStream()
 
   async function logout() {
-    await api.logout().catch(() => {})
-    navigate('/login')
+    setLoggingOut(true)
+    setLogoutError('')
+    try {
+      try {
+        await api.logout()
+      } catch (err) {
+        if (!(err instanceof ApiError && err.status === 401)) throw err
+      }
+      await replaceSessionCache(qc)
+      navigate('/login')
+    } catch {
+      setLogoutError('Не удалось выйти. Попробуйте ещё раз.')
+    } finally {
+      setLoggingOut(false)
+    }
   }
 
   // Auth-гард: без активной сессии (401) уводим на вход вместо «сломанной» оболочки.
@@ -93,7 +113,8 @@ export function Layout() {
                 </div>
               </div>
             </div>
-            <button onClick={logout} className="btn-ghost w-full">
+            {logoutError && <p className="text-xs text-danger mb-2">{logoutError}</p>}
+            <button onClick={logout} disabled={loggingOut} className="btn-ghost w-full">
               <LogOut size={16} /> Выйти
             </button>
           </div>
