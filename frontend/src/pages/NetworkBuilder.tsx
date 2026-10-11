@@ -15,7 +15,7 @@ import ReactFlow, {
   MarkerType,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
-import { Plus, Bug, Database, Server, Zap, KeyRound, TerminalSquare } from 'lucide-react'
+import { Plus, Bug, Database, Server, Zap, KeyRound, TerminalSquare, RotateCcw } from 'lucide-react'
 import { TrapNode, type TrapNodeData } from './network/TrapNode'
 import { useCanManage, useTraps, useCatalog, useCreateProfile, useCreateTrap, useLiveStream } from '@/api/hooks'
 import { Modal } from '@/components/Modal'
@@ -98,6 +98,7 @@ export function NetworkBuilderPage() {
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
   const [attackPulse, setAttackPulse] = useState<Record<string, number>>({})
   const [addOpen, setAddOpen] = useState(false)
+  const [layoutRevision, setLayoutRevision] = useState(0)
   const savedLayout = useRef(loadLayout())
 
   // Live: подсветка узла при событии атаки
@@ -165,7 +166,7 @@ export function NetworkBuilderPage() {
       return [...autoEdges, ...userEdges]
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [traps, attackPulse, c, canManage])
+  }, [traps, attackPulse, c, canManage, layoutRevision])
 
   const onConnect = useCallback(
     (c: Connection) => setEdges((eds) => addEdge({ ...c, markerEnd: { type: MarkerType.ArrowClosed } }, eds)),
@@ -179,6 +180,12 @@ export function NetworkBuilderPage() {
     nodes.forEach((n) => (layout[n.id] = n.position))
     localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout))
     savedLayout.current = layout
+  }
+
+  function resetLayout() {
+    localStorage.removeItem(LAYOUT_KEY)
+    savedLayout.current = {}
+    setLayoutRevision((revision) => revision + 1)
   }
 
   function onNodeClick(_: unknown, node: Node) {
@@ -202,6 +209,9 @@ export function NetworkBuilderPage() {
               <Zap size={12} /> {attackCount} под атакой
             </span>
           )}
+          <button className="btn-ghost" onClick={resetLayout}>
+            <RotateCcw size={16} /> Сбросить расположение
+          </button>
           {canManage && <button className="btn-primary" onClick={() => setAddOpen(true)}>
             <Plus size={16} /> Добавить ловушку
           </button>}
