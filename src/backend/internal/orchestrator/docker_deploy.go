@@ -3,6 +3,8 @@ package orchestrator
 import (
 	"context"
 	"fmt"
+	"net/netip"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -29,6 +31,18 @@ func (d DockerCLI) Deploy(ctx context.Context, target Target, token string, gene
 
 	if image == "" || d.Network == "" || d.ManagementNetwork == "" || d.Network == d.ManagementNetwork || d.WSURL == "" || d.RedisURL == "" || token == "" {
 		return fmt.Errorf("incomplete trap deployment configuration")
+	}
+	var wsHost string
+	if d.WSHostIP != "" {
+		ip, err := netip.ParseAddr(d.WSHostIP)
+		if err != nil || !ip.Is4() || ip.IsLoopback() || ip.IsUnspecified() || ip.IsMulticast() {
+			return fmt.Errorf("AGENT_WS_HOST_IP must be a non-loopback unicast IPv4 address reachable by agents")
+		}
+		endpoint, err := url.Parse(d.WSURL)
+		if err != nil || endpoint.Scheme != "wss" || endpoint.Hostname() == "" {
+			return fmt.Errorf("AGENT_WS_URL must specify a WSS hostname")
+		}
+		wsHost = endpoint.Hostname() + ":" + ip.String()
 	}
 
 	if err := d.removeSecrets(ctx, target.ID); err != nil {
@@ -76,6 +90,9 @@ func (d DockerCLI) Deploy(ctx context.Context, target Target, token string, gene
 		"--env", "NM_TOKEN_FILE=/run/secrets/nm_token",
 		"--env", "NM_STORE_URL_FILE=/run/secrets/store_url",
 		"--env", "NM_WS_URL=" + d.WSURL}
+	if wsHost != "" {
+		args = append(args, "--host", wsHost)
+	}
 	if target.DeploymentNodeID != "" {
 		args = append(args, "--constraint", "node.id=="+target.DeploymentNodeID, "--constraint", "node.role==worker", "--constraint", "node.labels.honeyforge.organization=="+target.OrganizationID, "--label", "com.nodemetrics.node="+target.DeploymentNodeID)
 	} else {

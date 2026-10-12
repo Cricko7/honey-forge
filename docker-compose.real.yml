@@ -209,6 +209,7 @@ services:
       dockerfile: deploy/decoys/Dockerfile.orchestrator
     environment:
       AGENT_PROXY_SERVICE: web
+      AGENT_WS_HOST_IP: ${AGENT_WS_HOST_IP:-}
       AGENT_CLIENT_CA_FILE: /certs/agents-ca.crt
       AGENT_CLIENT_CA_KEY_FILE: /certs/agents-ca.key
       AGENT_SERVER_PINS_FILE: /certs/server-pins

@@ -44,6 +44,7 @@ func run() error {
 		WorkerBindIP:      os.Getenv("DECOY_BIND_IP"),
 		Network:           os.Getenv("DECOY_NETWORK"),
 		WSURL:             wsURL,
+		WSHostIP:          os.Getenv("AGENT_WS_HOST_IP"),
 		RedisURL:          redisURL,
 		CAFile:            os.Getenv("AGENT_CA_FILE"),
 		RedisCAFile:       os.Getenv("AGENT_REDIS_CA_FILE"),

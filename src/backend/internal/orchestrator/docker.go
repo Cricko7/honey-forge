@@ -18,6 +18,7 @@ type DockerCLI struct {
 	WorkerBindIP      string
 	ProxyService      string
 	WSURL             string
+	WSHostIP          string
 	RedisURL          string
 	CAFile            string
 	RedisCAFile       string

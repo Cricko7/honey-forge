@@ -21,6 +21,10 @@ func (d DockerCLI) trustRevision() (string, error) {
 		}
 	}
 
+	// Rotate immutable agent configuration when a local endpoint mapping changes.
+	if d.WSHostIP != "" {
+		fmt.Fprintf(hash, "\nws-host:%s:%s\n", d.WSURL, d.WSHostIP)
+	}
 	return fmt.Sprintf("%x", hash.Sum(nil)), nil
 }
 
