@@ -29,6 +29,7 @@ var errorsByCode = map[string]struct {
 	message string
 }{
 	"trap_link_exists":          {409, "Trap link already exists"},
+	"trap_port_conflict":        {409, "A deployment port is already used by another managed trap"},
 	"cursor_expired":            {400, "Stream cursor has expired"},
 	"trap_type_unavailable":     {409, "Trap type is unavailable for new traps"},
 	"agent_credentials_changed": {409, "Agent credentials have changed"},

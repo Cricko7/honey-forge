@@ -47,7 +47,8 @@ func (p *Process) workerArgs(ctx context.Context, snapshot profiles.Snapshot) ([
 		"--tmpfs", "/run:rw,nosuid,nodev,noexec,size=1m,mode=0755",
 		// The entrypoint installs an egress firewall, then drops to UID 65532.
 		// SETUID clears capabilities; no-new-privileges prevents regaining them.
-		"--cap-add", "NET_ADMIN", "--cap-add", "SETUID", "--cap-add", "SETGID",
+		// The root init needs KILL to forward shutdown signals across the UID drop.
+		"--cap-add", "NET_ADMIN", "--cap-add", "SETUID", "--cap-add", "SETGID", "--cap-add", "KILL",
 		"--security-opt", "no-new-privileges", "--user", "0:0",
 		"--sysctl", "net.ipv4.ip_unprivileged_port_start=0",
 		"--sysctl", "net.ipv6.conf.all.disable_ipv6=1",

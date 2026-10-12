@@ -16,6 +16,7 @@ import (
 type fakeRunner struct {
 	starts, stops int
 	failAt        int
+	stopErr       error
 }
 
 func (r *fakeRunner) Start(context.Context, profiles.Snapshot) error {
@@ -29,7 +30,46 @@ func (r *fakeRunner) Start(context.Context, profiles.Snapshot) error {
 
 func (r *fakeRunner) Stop() error {
 	r.stops++
-	return nil
+	return r.stopErr
+}
+
+func TestStopErrorDoesNotLeaveStoppedWorkerRunning(t *testing.T) {
+	for _, action := range []string{"stop", "apply_config"} {
+		t.Run(action, func(t *testing.T) {
+			j, err := OpenJournal(filepath.Join(t.TempDir(), "journal"), "trap", 1<<20)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer j.Close()
+
+			runner := &fakeRunner{stopErr: fmt.Errorf("worker exited unsuccessfully")}
+			s := NewService(j, runner)
+			snapshot := demoSnapshot()
+			for _, command := range []commands.Dispatch{configCommand("apply_config", &snapshot), configCommand("start", nil)} {
+				if result, err := s.Execute(t.Context(), command); err != nil || result.Status != commands.Succeeded {
+					t.Fatalf("setup: %+v %v", result, err)
+				}
+			}
+
+			next := demoSnapshot()
+			next.ProfileRevision = 2
+			command := configCommand(action, &next)
+			result, err := s.Execute(t.Context(), command)
+			if err != nil || result.Status != commands.Failed || result.Error == nil || result.Error.Code != "runtime_stop_failed" {
+				t.Fatalf("stop error was lost: %+v %v", result, err)
+			}
+			if result.Runtime.RuntimeState != "stopped" || s.Runtime().RuntimeState != "stopped" || j.LoadState().Running {
+				t.Fatalf("stopped worker still reported running: %+v", result.Runtime)
+			}
+			if *result.Runtime.AppliedProfileRevision != 1 || runner.starts != 1 || runner.stops != 1 {
+				t.Fatalf("configuration changed after stop failure: %+v runner=%+v", result.Runtime, runner)
+			}
+
+			if replay, err := s.Execute(t.Context(), command); err != nil || replay.Runtime.RuntimeState != "stopped" || runner.stops != 1 {
+				t.Fatalf("replay: %+v %v", replay, err)
+			}
+		})
+	}
 }
 
 func TestApplyConfigRollsBackWhenNewListenerCannotStart(t *testing.T) {

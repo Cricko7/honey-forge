@@ -167,8 +167,8 @@ func TestLostAckRecoveryIntegration(t *testing.T) {
 	gateway.mu.Lock()
 	defer gateway.mu.Unlock()
 
-	if len(gateway.observed) < 3 || gateway.observed[len(gateway.observed)-1].AppliedProfileRevision == nil || *gateway.observed[len(gateway.observed)-1].AppliedProfileRevision != revision {
-		t.Fatal("replayed runtime was rolled back")
+	if len(gateway.observed) != 2 || gateway.observed[len(gateway.observed)-1].AppliedProfileRevision == nil || *gateway.observed[len(gateway.observed)-1].AppliedProfileRevision != revision {
+		t.Fatal("result replay changed runtime observed through hello")
 	}
 }
 

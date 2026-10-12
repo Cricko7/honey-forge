@@ -13,6 +13,7 @@ import (
 
 type Runner interface {
 	Start(context.Context, profiles.Snapshot) error
+	// Stop waits until the worker exits, even when shutdown returns an error.
 	Stop() error
 }
 
@@ -68,10 +69,10 @@ func (s *Service) Execute(ctx context.Context, dispatch commands.Dispatch) (comm
 	switch dispatch.Action {
 	case "stop":
 		if s.running {
-			if err := s.runner.Stop(); err != nil {
+			err := s.runner.Stop()
+			s.running = false
+			if err != nil {
 				fail("runtime_stop_failed")
-			} else {
-				s.running = false
 			}
 		}
 	case "apply_config":
@@ -87,12 +88,12 @@ func (s *Service) Execute(ctx context.Context, dispatch commands.Dispatch) (comm
 
 		wasRunning := s.running
 		if wasRunning {
-			if err := s.runner.Stop(); err != nil {
+			err := s.runner.Stop()
+			s.running = false
+			if err != nil {
 				fail("runtime_stop_failed")
 				break
 			}
-
-			s.running = false
 		}
 
 		previous := state.Configuration

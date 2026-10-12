@@ -132,6 +132,12 @@ func (h *Handler) list(c *gin.Context) {
 	values.Set("trap_id", q.TrapID)
 	values.Set("session_id", q.SessionID)
 	values.Set("source_ip", q.SourceIP)
+	for key, at := range map[string]*time.Time{"from": q.From, "to": q.To} {
+		if at != nil {
+			values.Set(key, at.UTC().Format(time.RFC3339Nano))
+		}
+	}
+
 	normalized := values.Encode()
 	p, _ := contract.PrincipalFrom(c.Request.Context())
 	scope := contract.CursorScope{OrganizationID: p.OrganizationID, Collection: "events", Filters: normalized}

@@ -1932,7 +1932,7 @@ paths:
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
         '409':
-          description: 'Conflict: idempotency_conflict, request_already_used, revision_exhausted, trap_type_unavailable, agent_credentials_changed, command_in_progress, trap_offline, trap_not_stopped or trap_buffer_not_empty.'
+          description: 'Conflict: idempotency_conflict, request_already_used, revision_exhausted, trap_type_unavailable, trap_port_conflict, agent_credentials_changed, command_in_progress, trap_offline, trap_not_stopped or trap_buffer_not_empty. Automatic deployment rejects TCP ports used by another live managed trap, including other organizations; manual registrations do not participate.'
           content:
             application/json:
               schema:
@@ -2455,6 +2455,7 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
+          description: Automatic apply_config rejects TCP ports occupied by another live managed trap with trap_port_conflict. Own ports are allowed; rejection creates no command and leaves trap state unchanged.
         "413":
           $ref: "#/components/responses/TooLarge"
         "415":

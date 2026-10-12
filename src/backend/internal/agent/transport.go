@@ -153,6 +153,14 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 	resultMessages := map[contract.ID]string{}
 	acknowledgedResults := map[string]commands.Status{}
 	resultSent := map[string]time.Time{}
+	forgetResult := func(commandID string) {
+		for id, sentCommandID := range resultMessages {
+			if sentCommandID == commandID {
+				delete(resultMessages, id)
+			}
+		}
+		delete(resultSent, commandID)
+	}
 	sendResult := func(result commands.AgentResult) error {
 		id, err := w.send("command.result", result)
 		if err != nil {
@@ -302,6 +310,22 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 					s.Failed("telemetry_invalid")
 				}
 
+				if rejection.Error.Code == "command_expired" && message.ReplyTo != nil {
+					if id, ok := resultMessages[*message.ReplyTo]; ok {
+						for _, result := range s.PendingResults() {
+							if result.CommandID == id {
+								// Retire delivery only; the journal retains the replay outcome.
+								if err := s.AckResult(id, result.Status); err != nil {
+									s.Failed("buffer_unavailable")
+									return err
+								}
+							}
+						}
+						forgetResult(id)
+						continue
+					}
+				}
+
 				if rejection.Error.Code == "stale_command_lease" && message.ReplyTo != nil {
 					if id, ok := resultMessages[*message.ReplyTo]; ok {
 						resultSent[id] = time.Now().Add(24 * time.Hour)
@@ -325,13 +349,7 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 					return err
 				}
 
-				for id, commandID := range resultMessages {
-					if commandID == ack.CommandID {
-						delete(resultMessages, id)
-					}
-				}
-
-				delete(resultSent, ack.CommandID)
+				forgetResult(ack.CommandID)
 				acknowledgedResults[ack.CommandID] = ack.Status
 			case "agent.heartbeat_ack", "command.progress_ack":
 			default:

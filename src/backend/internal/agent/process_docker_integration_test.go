@@ -125,7 +125,7 @@ func TestDockerWorkerMASK3Isolation(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if user := docker("exec", "--user", "65532:65532", p.workerName(), "/bin/sh", "-c", `awk '/^Uid:/ {print $2}' /proc/$(pidof agent)/status`); user != "65532" {
+		if user := docker("exec", "--user", "65532:65532", p.workerName(), "/bin/sh", "-c", `awk '/^Uid:/ {print $2}' /proc/$(pidof node-metrics)/status`); user != "65532" {
 			t.Fatalf("worker retained root: %s", user)
 		}
 
@@ -161,5 +161,50 @@ func TestDockerWorkerMASK3Isolation(t *testing.T) {
 
 	if len(journal.Pending()) < 2 {
 		t.Fatal("Docker worker lost telemetry")
+	}
+}
+
+func TestDockerWorkerInitCanSignalDroppedUser(t *testing.T) {
+	if os.Getenv("TEST_MASK3_DOCKER") != "1" {
+		t.Skip("TEST_MASK3_DOCKER=1 and a built DECOY_TCP_IMAGE required")
+	}
+	p := &Process{WorkerImage: os.Getenv("DECOY_TCP_IMAGE"), WorkerNetwork: "bridge", TrapID: string(contract.NewID())}
+	args, err := p.workerArgs(t.Context(), demoSnapshot())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Keep the container after exit so the actual init exit code can be inspected.
+	fixture := []string{}
+	for _, arg := range args[:len(args)-2] {
+		if arg != "--rm" && arg != "--interactive" {
+			fixture = append(fixture, arg)
+		}
+	}
+	fixture = append(fixture, "--detach", "--entrypoint", "/bin/sh", p.WorkerImage, "-c", "exec su-exec 65532:65532 sleep 60")
+	docker := func(args ...string) string {
+		t.Helper()
+		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+		defer cancel()
+		output, err := exec.CommandContext(ctx, "docker", args...).CombinedOutput()
+		if err != nil {
+			t.Fatalf("Docker %v: %v %s", args, err, output)
+		}
+		return strings.TrimSpace(string(output))
+	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if output, err := exec.CommandContext(ctx, "docker", "rm", "--force", p.workerName()).CombinedOutput(); err != nil {
+			t.Errorf("cleanup worker: %v %s", err, output)
+		}
+	})
+	docker(fixture...)
+	state := docker("exec", "--user", "65532:65532", p.workerName(), "/bin/sh", "-c", `awk '/^Uid:/ {print $2} /^CapEff:/ {print $2}' /proc/$(pidof sleep)/status`)
+	if state != "65532\n0000000000000000" {
+		t.Fatalf("child retained privileges: %s", state)
+	}
+	docker("stop", "--time", "3", p.workerName())
+	if code := docker("inspect", "--format", "{{.State.ExitCode}}", p.workerName()); code != "143" {
+		t.Fatalf("init did not forward SIGTERM: exit=%s logs=%s", code, docker("logs", p.workerName()))
 	}
 }

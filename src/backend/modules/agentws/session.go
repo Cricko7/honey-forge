@@ -289,19 +289,6 @@ func (h *Handler) handleMessage(entry *sessionEntry, session *agentSession, mess
 		err := h.withActive(entry, session, func(ctx context.Context) error {
 			var err error
 			recordedAt, err = h.commands.RecordResult(ctx, session.identity.OrganizationID, session.identity.TrapID, input)
-			if err != nil {
-				return err
-			}
-
-			// A replayed terminal result updates the current runtime without
-			// refreshing last_seen_at; the immutable outcome stays unchanged.
-			if reporter, ok := h.gateway.(interface {
-				Report(context.Context, Identity, string, commands.AgentRuntime) (State, error)
-			}); ok {
-				_, err = reporter.Report(ctx, session.identity, session.connectionID, body.Runtime)
-			} else {
-				_, err = h.gateway.Observe(ctx, session.identity, session.connectionID, body.Runtime)
-			}
 
 			return err
 		})

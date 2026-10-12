@@ -30,6 +30,11 @@ func (r *Repository) Create(ctx context.Context, org string, req CreateRequest, 
 		if err := check(ctx, p); err != nil {
 			return mutation.Outcome{}, err
 		}
+		if req.AutoDeploy {
+			if err := checkManagedPorts(ctx, tx, p.Config, ""); err != nil {
+				return mutation.Outcome{}, err
+			}
+		}
 
 		now := time.Now().UTC().Truncate(time.Microsecond)
 		created = Record{OrganizationID: org, Trap: Trap{

@@ -342,7 +342,8 @@ func TestCommandAndTelemetry(t *testing.T) {
 	cmd.mu.Lock()
 	defer cmd.mu.Unlock()
 
-	if len(gateway.batches) != 1 || len(gateway.observed) != 3 || cmd.result.CommandID != dispatch.CommandID {
+	// hello and heartbeat report runtime; command completion owns its transaction.
+	if len(gateway.batches) != 1 || len(gateway.observed) != 2 || cmd.result.CommandID != dispatch.CommandID {
 		t.Fatalf("batches=%d observed=%d", len(gateway.batches), len(gateway.observed))
 	}
 }

@@ -91,14 +91,20 @@ func TestTrapCommandsWSSLifecycle(t *testing.T) {
 		t.Fatal("command completion changed the wrong trap fields")
 	}
 
+	// Current heartbeat state must survive replay of a previously accepted result.
+	currentRuntime := runtime
+	currentRuntime.BufferedEvents, currentRuntime.BufferBytes = 1, 100
+	heartbeatID := sendCommandWSS(t, socket, "agent.heartbeat", map[string]any{"runtime": currentRuntime})
+	readCommandWSS(t, socket, "agent.heartbeat_ack", heartbeatID)
+	current := readTrap()
 	replayID := sendCommandWSS(t, socket, "command.result", result)
 	replayedAck := readCommandWSS(t, socket, "command.ack", replayID)
 	if string(ack["recorded_at"]) != string(replayedAck["recorded_at"]) {
 		t.Fatalf("replayed recorded_at changed: first=%s replay=%s", ack["recorded_at"], replayedAck["recorded_at"])
 	}
 
-	if readTrap().StateVersion != applied.StateVersion {
-		t.Fatal("replayed result changed trap state_version")
+	if got := readTrap(); got.StateVersion != current.StateVersion || got.Agent.BufferedEvents != 1 || got.Agent.BufferBytes != 100 {
+		t.Fatal("replayed result overwrote current trap state")
 	}
 
 	// Reconnect must receive the installed revision, not the edited Profile.

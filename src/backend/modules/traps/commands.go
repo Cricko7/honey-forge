@@ -11,6 +11,7 @@ import (
 	"honey-forge/internal/contract"
 	"honey-forge/modules/agentws"
 	"honey-forge/modules/commands"
+	"honey-forge/modules/profiles"
 )
 
 // All command lifecycle operations use the same trap row lock as DELETE.
@@ -44,6 +45,22 @@ func (r *Repository) Activate(ctx context.Context, tx pgx.Tx, trap commands.Trap
 	current, err := lockRecord(ctx, tx, trap.OrganizationID, trap.ID)
 	if err != nil {
 		return 0, err
+	}
+
+	if current.AutoDeploy && command.Action == "apply_config" {
+		var raw []byte
+		if err := tx.QueryRow(ctx, `SELECT configuration FROM commands WHERE id=$1`, command.ID).Scan(&raw); err != nil {
+			return 0, fmt.Errorf("read requested snapshot: %w", err)
+		}
+
+		var snapshot profiles.Snapshot
+		if err := json.Unmarshal(raw, &snapshot); err != nil {
+			return 0, fmt.Errorf("decode requested snapshot: %w", err)
+		}
+
+		if err := checkManagedPorts(ctx, tx, snapshot.Config, current.ID); err != nil {
+			return 0, err
+		}
 	}
 
 	version, err := nextVersion(current.StateVersion)
