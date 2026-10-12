@@ -297,7 +297,7 @@ jobs:
             done
             test "$ready" -eq 1
             . "$INCOMING/release.env"
-            for service in $(docker service ls --filter label=honeyforge.trap --format '{{.ID}}'); do
+            for service in $(docker service ls --filter label=com.nodemetrics.instance --format '{{.ID}}'); do
               old_image=$(docker service inspect --format '{{.Spec.TaskTemplate.ContainerSpec.Image}}' "$service")
               case "$old_image" in
                 honeyforge/tcp-decoy:*) image="$DECOY_TCP_IMAGE";;
@@ -305,7 +305,14 @@ jobs:
                 honeyforge/honeytoken-decoy:*) image="$DECOY_HONEYTOKEN_IMAGE";;
                 *) echo "Unchanged service $service: $old_image"; continue;;
               esac
-              docker service update --detach=false --no-resolve-image --image "$image" --env-add "TRAP_WORKER_IMAGE=$image" --update-order stop-first --update-parallelism 1 --update-failure-action rollback "$service"
+              if docker service update --detach=false --no-resolve-image --image "$image" --env-add "NM_WORKER_IMAGE=$image" --update-order stop-first --update-parallelism 1 --update-failure-action rollback "$service"; then
+                :
+              else
+                update_status=$?
+                docker service ps --no-trunc "$service" || true
+                docker service logs --tail=60 "$service" || true
+                exit "$update_status"
+              fi
               state=$(docker service inspect --format '{{if .UpdateStatus}}{{.UpdateStatus.State}}{{end}}' "$service")
               test "$state" = completed
             done
