@@ -6,11 +6,10 @@ import (
 	"errors"
 	"fmt"
 
-	profilecore "honey-forge/modules/profiles"
-
 	"github.com/jackc/pgx/v5"
 
 	"honey-forge/modules/auth"
+	profilecore "honey-forge/modules/profiles"
 )
 
 func (r *Repository) Create(ctx context.Context, a auth.AuthContext, key string, hash [32]byte, build func() (profilecore.Profile, error)) (profilecore.CreateResult, error) {
@@ -19,6 +18,7 @@ func (r *Repository) Create(ctx context.Context, a auth.AuthContext, key string,
 		if err := lockStream(ctx, tx, a.OrganizationID); err != nil {
 			return err
 		}
+
 		// This also fences first-page boundaries against uncommitted creations.
 		var org string
 		if err := tx.QueryRow(ctx, `SELECT id::text FROM organizations WHERE id=$1 FOR UPDATE`, a.OrganizationID).Scan(&org); err != nil {
@@ -45,6 +45,7 @@ func (r *Repository) Create(ctx context.Context, a auth.AuthContext, key string,
 			}
 
 			result = profilecore.CreateResult{Profile: p, Replayed: true, Current: revision == 1}
+
 			return nil
 		}
 
@@ -75,8 +76,10 @@ func (r *Repository) Create(ctx context.Context, a auth.AuthContext, key string,
 		}
 
 		result = profilecore.CreateResult{Profile: p, Current: true}
+
 		return nil
 	})
+
 	return result, databaseError("creating profile transaction", err)
 }
 
@@ -86,6 +89,7 @@ func (r *Repository) Update(ctx context.Context, a auth.AuthContext, id string, 
 		if err := lockStream(ctx, tx, a.OrganizationID); err != nil {
 			return err
 		}
+
 		p, err := lockedProfile(ctx, tx, a.OrganizationID, id)
 		if err != nil {
 			return err
@@ -111,6 +115,7 @@ func (r *Repository) Update(ctx context.Context, a auth.AuthContext, id string, 
 
 		return r.recordMutation(ctx, tx, a, "profile.updated", p, fields)
 	})
+
 	return result, databaseError("updating profile transaction", err)
 }
 
@@ -119,6 +124,7 @@ func (r *Repository) Delete(ctx context.Context, a auth.AuthContext, id string, 
 		if err := lockStream(ctx, tx, a.OrganizationID); err != nil {
 			return err
 		}
+
 		p, err := lockedProfile(ctx, tx, a.OrganizationID, id)
 		if err != nil {
 			return err
@@ -144,9 +150,11 @@ func lockStream(ctx context.Context, tx pgx.Tx, org string) error {
 	if _, err := tx.Exec(ctx, `INSERT INTO organization_changes(organization_id) VALUES($1) ON CONFLICT DO NOTHING`, org); err != nil {
 		return fmt.Errorf("initialize profile stream: %w", err)
 	}
+
 	var sequence int64
 	if err := tx.QueryRow(ctx, `SELECT sequence FROM organization_changes WHERE organization_id=$1 FOR UPDATE`, org).Scan(&sequence); err != nil {
 		return fmt.Errorf("lock profile stream: %w", err)
 	}
+
 	return nil
 }

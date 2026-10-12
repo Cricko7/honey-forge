@@ -12,12 +12,14 @@ func TestFrontendCursor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	org := contract.NewID()
 	now := time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC)
 	token, err := EncodeCursor(codec, org, 42, now)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	for _, tt := range []struct {
 		name  string
 		org   contract.ID
@@ -36,8 +38,10 @@ func TestFrontendCursor(t *testing.T) {
 				if err != nil || seq != 42 {
 					t.Fatalf("sequence %d, error %v", seq, err)
 				}
+
 				return
 			}
+
 			e, ok := err.(*contract.Error)
 			if !ok || e.Code != tt.code {
 				t.Fatalf("error %v, want %s", err, tt.code)

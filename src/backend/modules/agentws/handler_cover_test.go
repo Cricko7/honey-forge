@@ -19,6 +19,7 @@ func TestAnonymousResource(t *testing.T) {
 	NewHandler(gateway, &fakeCommands{}).Register(router)
 	server := httptest.NewTLSServer(router)
 	defer server.Close()
+
 	var resource string
 	for _, tt := range []struct {
 		name, token string
@@ -35,36 +36,45 @@ func TestAnonymousResource(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			if tt.token != "" {
 				req.Header.Set("Authorization", tt.token)
 				if !strings.HasPrefix(tt.token, "Basic") {
 					req.Header.Set("Authorization", "Bearer "+tt.token)
 				}
 			}
+
 			if tt.upgrade {
 				req.Header.Set("Connection", "Upgrade")
 				req.Header.Set("Upgrade", "websocket")
 			}
+
 			response, err := server.Client().Do(req)
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			defer response.Body.Close()
+
 			body, err := io.ReadAll(response.Body)
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			if response.StatusCode != 200 || response.Header.Get("Content-Type") != "application/javascript; charset=utf-8" {
 				t.Fatalf("unexpected resource: %d %s", response.StatusCode, body)
 			}
+
 			if resource == "" {
 				resource = string(body)
 			}
+
 			if string(body) != resource || strings.Contains(string(body), "agent") || strings.Contains(string(body), "secret") {
 				t.Fatalf("distinguishable resource: %s", body)
 			}
 		})
 	}
+
 	if len(gateway.observed) != 0 || len(gateway.batches) != 0 {
 		t.Fatal("resource requests caused agent side effects")
 	}

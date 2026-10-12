@@ -45,6 +45,7 @@ func (m *Store) Register(_ context.Context, user authcore.User, org authcore.Org
 	if m.Err != nil {
 		return authcore.Organization{}, m.Err
 	}
+
 	if _, exists := m.users[user.Email]; exists {
 		return authcore.Organization{}, authcore.ErrEmailTaken
 	}
@@ -57,6 +58,7 @@ func (m *Store) Register(_ context.Context, user authcore.User, org authcore.Org
 				break
 			}
 		}
+
 		if !found {
 			return authcore.Organization{}, authcore.ErrInvalidJoinCode
 		}
@@ -79,6 +81,7 @@ func (m *Store) Credentials(_ context.Context, email string) (authcore.User, aut
 	if m.Err != nil {
 		return authcore.User{}, authcore.Organization{}, "", m.Err
 	}
+
 	record, ok := m.users[email]
 	if !ok {
 		return authcore.User{}, authcore.Organization{}, "", authcore.ErrNotFound
@@ -108,6 +111,7 @@ func (m *Store) ResolveSession(_ context.Context, hash []byte) (authcore.Resolve
 	if m.Err != nil {
 		return authcore.ResolvedSession{}, m.Err
 	}
+
 	sess, ok := m.Sessions[hex.EncodeToString(hash)]
 	if !ok || !sess.ExpiresAt.After(time.Now()) {
 		return authcore.ResolvedSession{}, authcore.ErrNotFound
@@ -116,8 +120,9 @@ func (m *Store) ResolveSession(_ context.Context, hash []byte) (authcore.Resolve
 	for _, record := range m.users {
 		if record.user.ID == sess.UserID {
 			return authcore.ResolvedSession{
-				ID: sess.ID, CSRFHash: sess.CSRFHash,
-				View: authcore.SessionView{User: record.user, Organization: record.org, ExpiresAt: sess.ExpiresAt},
+				ID:       sess.ID,
+				CSRFHash: sess.CSRFHash,
+				View:     authcore.SessionView{User: record.user, Organization: record.org, ExpiresAt: sess.ExpiresAt},
 			}, nil
 		}
 	}
@@ -164,6 +169,7 @@ func (m *Store) RotateJoinCode(_ context.Context, actor authcore.AuthContext, ex
 	if record.code.Revision != expected {
 		return authcore.JoinCode{}, authcore.ErrJoinCodeChanged
 	}
+
 	if expected == math.MaxInt32 {
 		return authcore.JoinCode{}, authcore.ErrRevisionExhausted
 	}

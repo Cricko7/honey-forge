@@ -15,9 +15,11 @@ func readAccess(ctx context.Context, organizationID contract.ID) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+
 	if err := contract.AuthorizeCapability(ctx, contract.ReadResources); err != nil {
 		return err
 	}
+
 	return contract.RequireOrganization(ctx, organizationID)
 }
 
@@ -27,27 +29,34 @@ func (s *Store) Snapshot(ctx context.Context, organizationID contract.ID, read f
 	if err := readAccess(ctx, organizationID); err != nil {
 		return 0, err
 	}
+
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return 0, fmt.Errorf("begin snapshot: %w", err)
 	}
+
 	defer func() {
 		rollback, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
+
 		if e := tx.Rollback(rollback); e != nil && !errors.Is(e, pgx.ErrTxClosed) {
 			err = errors.Join(err, fmt.Errorf("rollback snapshot: %w", e))
 		}
 	}()
+
 	err = tx.QueryRow(ctx, "SELECT sequence FROM organization_changes WHERE organization_id=$1", string(organizationID)).Scan(&sequence)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return 0, fmt.Errorf("read snapshot boundary: %w", err)
 	}
+
 	if err := read(ctx, tx); err != nil {
 		return 0, err
 	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return 0, fmt.Errorf("commit snapshot: %w", err)
 	}
+
 	return sequence, nil
 }
 
@@ -55,14 +64,18 @@ func (s *Store) Changes(ctx context.Context, organizationID contract.ID, after, 
 	if err := readAccess(ctx, organizationID); err != nil {
 		return nil, err
 	}
+
 	if after < 0 || boundary < after || limit < 1 || limit > 100 {
 		return nil, contract.NewError("invalid_query")
 	}
+
 	rows, err := s.pool.Query(ctx, `SELECT sequence,type,resource_id::text,metadata,created_at FROM mutation_changes WHERE organization_id=$1 AND sequence>$2 AND sequence<=$3 ORDER BY sequence LIMIT $4`, string(organizationID), after, boundary, limit)
 	if err != nil {
 		return nil, fmt.Errorf("read change journal: %w", err)
 	}
+
 	defer rows.Close()
+
 	changes := []RecordedChange{}
 	for rows.Next() {
 		var change RecordedChange
@@ -70,12 +83,15 @@ func (s *Store) Changes(ctx context.Context, organizationID contract.ID, after, 
 		if err := rows.Scan(&change.Sequence, &change.Type, &change.ResourceID, &change.Metadata, &created); err != nil {
 			return nil, fmt.Errorf("decode change: %w", err)
 		}
+
 		change.CreatedAt = contract.Timestamp(created)
 		changes = append(changes, change)
 	}
+
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate changes: %w", err)
 	}
+
 	return changes, nil
 }
 
@@ -87,13 +103,16 @@ func (s *Store) UpdateRevision(ctx context.Context, organizationID contract.ID, 
 		if err != nil {
 			return Outcome{}, err
 		}
+
 		if current != expected {
 			return Outcome{}, contract.NewError("revision_mismatch")
 		}
+
 		next, err := contract.NextRevision(current)
 		if err != nil {
 			return Outcome{}, err
 		}
+
 		return write(ctx, tx, next)
 	})
 }

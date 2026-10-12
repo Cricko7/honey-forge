@@ -38,13 +38,16 @@ func TestSupportedTypesAreStableAndDetached(t *testing.T) {
 		if entry.TypeVersion != 1 || !reflect.DeepEqual(entry.Actions, []string{"start", "stop", "apply_config"}) {
 			t.Fatalf("changed agent capabilities: %+v", entry)
 		}
+
 		if _, err := Select(profiles.Snapshot{TypeID: entry.TypeID, TypeVersion: int32(entry.TypeVersion)}); err != nil {
 			t.Fatal(err)
 		}
 	}
+
 	if !reflect.DeepEqual(ids, []string{"tcp-banner", "redis-emulator", "honeytoken-http", "ssh-high-interaction"}) {
 		t.Fatal("capability ordering changed", ids)
 	}
+
 	types[0].Actions[0] = "changed"
 	if SupportedTypes()[0].Actions[0] != "start" || types[1].Actions[0] != "start" {
 		t.Fatal("capability snapshots share mutable actions")

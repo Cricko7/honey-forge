@@ -23,6 +23,7 @@ func TestParseConfigRequiresVerifyFullWithoutPlaintextFallback(t *testing.T) {
 			if (err == nil) != tt.valid {
 				t.Fatalf("parseConfig() error=%v, want valid=%v", err, tt.valid)
 			}
+
 			if tt.valid && (config.ConnConfig.TLSConfig.InsecureSkipVerify || config.ConnConfig.TLSConfig.MinVersion < tls.VersionTLS12 || len(config.ConnConfig.Fallbacks) != 0) {
 				t.Fatal("database TLS validation or fallback policy is unsafe")
 			}

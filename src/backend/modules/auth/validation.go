@@ -36,7 +36,9 @@ func RegisterValidationRules() error {
 			},
 			"operatoremail": func(fl validator.FieldLevel) bool {
 				value := strings.TrimSpace(fl.Field().String())
-				if len(value) > 254 || strings.ContainsFunc(value, func(r rune) bool { return r > 127 }) {
+				if len(value) > 254 || strings.ContainsFunc(value, func(r rune) bool {
+					return r > 127
+				}) {
 					return false
 				}
 

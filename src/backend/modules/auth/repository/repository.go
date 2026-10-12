@@ -6,13 +6,12 @@ import (
 	"fmt"
 	"strings"
 
-	authcore "honey-forge/modules/auth"
-
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"honey-forge/internal/postgres"
+	authcore "honey-forge/modules/auth"
 )
 
 type Repository struct {
@@ -34,6 +33,7 @@ func (r *Repository) Register(ctx context.Context, user authcore.User, org authc
 			if errors.Is(err, pgx.ErrNoRows) {
 				return authcore.ErrInvalidJoinCode
 			}
+
 			if err != nil {
 				return fmt.Errorf("locking join organization: %w", err)
 			}
@@ -66,6 +66,7 @@ func (r *Repository) Register(ctx context.Context, user authcore.User, org authc
 		if input.Mode == "join" {
 			action = "organization.viewer_joined"
 		}
+
 		if err := appendAudit(ctx, tx, user.ID, action, "organization", org.ID); err != nil {
 			return err
 		}
@@ -96,6 +97,7 @@ func databaseError(operation string, err error) error {
 	if err == nil {
 		return nil
 	}
+
 	if errors.Is(err, pgx.ErrNoRows) {
 		return authcore.ErrNotFound
 	}
@@ -108,6 +110,7 @@ func databaseError(operation string, err error) error {
 			pgErr.Code == "53300" || pgErr.Code == "57014" ||
 			pgErr.Code == "57P01" || pgErr.Code == "57P02" || pgErr.Code == "57P03"
 	}
+
 	if unavailable {
 		return fmt.Errorf("%s: %w", operation, errors.Join(authcore.ErrUnavailable, err))
 	}

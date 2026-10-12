@@ -18,23 +18,28 @@ func readBody(c *gin.Context) ([]byte, bool) {
 		} else {
 			Fail(c, NewError("invalid_json"))
 		}
+
 		return nil, false
 	}
+
 	if len(b) > MaxBodyBytes {
 		Fail(c, NewError("body_too_large"))
 		return nil, false
 	}
+
 	if len(b) > 0 {
 		values := c.Request.Header.Values("Content-Type")
 		if len(values) != 1 {
 			Fail(c, NewError("unsupported_media_type"))
 			return nil, false
 		}
+
 		media, _, err := mime.ParseMediaType(values[0])
 		if err != nil || media != "application/json" {
 			Fail(c, NewError("unsupported_media_type"))
 			return nil, false
 		}
 	}
+
 	return b, true
 }

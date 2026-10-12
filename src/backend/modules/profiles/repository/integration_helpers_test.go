@@ -31,6 +31,7 @@ func mustJSON(value any) string {
 	if err != nil {
 		panic(err)
 	}
+
 	return string(raw)
 }
 
@@ -55,9 +56,11 @@ func integrationService(repo *Repository) *profileservice.Service {
 			if err := ctx.Err(); err != nil {
 				return profilecore.Type{}, err
 			}
+
 			if id != "demo" || version != 1 {
 				return profilecore.Type{}, profilecore.ErrUnknownType
 			}
+
 			return profilecore.Type{
 				InteractionLevel:        "low",
 				AvailableForNewProfiles: true,
@@ -71,9 +74,11 @@ func integrationService(repo *Repository) *profileservice.Service {
 					if err := ctx.Err(); err != nil {
 						return err
 					}
+
 					if _, ok := value["visible"].(string); !ok {
 						return profilecore.ErrConfigInvalid
 					}
+
 					return nil
 				},
 			}, nil

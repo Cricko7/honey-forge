@@ -21,14 +21,17 @@ func TestSSHConfigurationAndRecording(t *testing.T) {
 			wantCode(t, s.CheckConfig(t.Context(), "ssh-high-interaction", 1, json.RawMessage(tc.raw)), tc.code)
 		})
 	}
+
 	schema, err := s.ConfigSchema(t.Context(), "ssh-high-interaction", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	public, paths, err := schema.PublicConfig(json.RawMessage(sshConfig))
 	if err != nil || strings.Contains(string(public), "bait-password") || len(paths) != 1 {
 		t.Fatalf("secret leaked: %s %v %v", public, paths, err)
 	}
+
 	wantCode(t, s.CheckEvent(t.Context(), "ssh-high-interaction", 1, "service.session_io", json.RawMessage(`{"service":"ssh","channel_id":"11111111-1111-4111-8111-111111111111","stream":"stdin","payload_base64":"aGk=","bytes":2}`)), "")
 	wantCode(t, s.CheckEvent(t.Context(), "ssh-high-interaction", 1, "service.session_io", json.RawMessage(`{"service":"ssh","channel_id":"11111111-1111-4111-8111-111111111111","stream":"stdin","payload_base64":"@@","bytes":2}`)), "telemetry_invalid")
 	wantCode(t, s.CheckEvent(t.Context(), "ssh-high-interaction", 1, "service.session_io", json.RawMessage(`{"service":"ssh","channel_id":"11111111-1111-4111-8111-111111111111","stream":"stdin","payload_base64":"aGk=","bytes":3}`)), "telemetry_invalid")

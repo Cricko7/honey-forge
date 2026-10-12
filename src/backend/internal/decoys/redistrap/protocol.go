@@ -23,27 +23,34 @@ func readFrame(reader *bufio.Reader) ([]string, int, error) {
 	if errors.Is(err, bufio.ErrBufferFull) {
 		return nil, len(line), errFrame
 	}
+
 	if err != nil {
 		return nil, len(line), err
 	}
+
 	count := len(line)
 	if count > 4096 || !strings.HasSuffix(string(line), "\r\n") {
 		return nil, count, errFrame
 	}
+
 	if line[0] != '*' {
 		if !utf8.Valid(line) {
 			return nil, count, errFrame
 		}
+
 		args := strings.Fields(string(line[:len(line)-2]))
 		if len(args) == 0 || len(args) > 16 {
 			return nil, count, errFrame
 		}
+
 		return args, count, nil
 	}
+
 	items, err := strconv.Atoi(string(line[1 : len(line)-2]))
 	if err != nil || items < 1 || items > 16 {
 		return nil, count, errFrame
 	}
+
 	args := make([]string, 0, items)
 	for range items {
 		header, err := reader.ReadSlice('\n')
@@ -51,22 +58,28 @@ func readFrame(reader *bufio.Reader) ([]string, int, error) {
 		if err != nil || len(header) < 4 || header[0] != '$' || !strings.HasSuffix(string(header), "\r\n") {
 			return nil, count, errFrame
 		}
+
 		size, err := strconv.Atoi(string(header[1 : len(header)-2]))
 		if err != nil || size < 0 || size > 4096 || count+size+2 > 8192 {
 			return nil, count, errFrame
 		}
+
 		bulk := make([]byte, size+2)
 		n, err := io.ReadFull(reader, bulk)
 		count += n
 		if err != nil || string(bulk[size:]) != "\r\n" || !utf8.Valid(bulk[:size]) {
 			return nil, count, errFrame
 		}
+
 		args = append(args, string(bulk[:size]))
 	}
+
 	return args, count, nil
 }
 
-func bulk(value string) string { return fmt.Sprintf("$%d\r\n%s\r\n", len(value), value) }
+func bulk(value string) string {
+	return fmt.Sprintf("$%d\r\n%s\r\n", len(value), value)
+}
 
 type database struct {
 	values   map[string]string
@@ -79,6 +92,7 @@ func newDatabase() *database {
 	for key, value := range d.values {
 		d.bytes += len(key) + len(value)
 	}
+
 	return d
 }
 
@@ -91,6 +105,7 @@ type serverIdentity struct {
 func newServerIdentity(port int) serverIdentity {
 	id := strings.ReplaceAll(string(contract.NewID()), "-", "")
 	extra := strings.ReplaceAll(string(contract.NewID()), "-", "")
+
 	return serverIdentity{runID: id + extra[:8], port: port, started: time.Now()}
 }
 
@@ -102,6 +117,7 @@ func (d *database) execute(args []string) (string, bool, bool) {
 		if len(args) == 1 {
 			return "+PONG\r\n", true, false
 		}
+
 		if len(args) == 2 {
 			return bulk(args[1]), true, false
 		}
@@ -114,6 +130,7 @@ func (d *database) execute(args []string) (string, bool, bool) {
 			if value, ok := d.values[args[1]]; ok {
 				return bulk(value), true, false
 			}
+
 			return "$-1\r\n", true, false
 		}
 	case "SET":
@@ -123,12 +140,15 @@ func (d *database) execute(args []string) (string, bool, bool) {
 			if !exists {
 				growth += len(args[1])
 			}
+
 			// Frame limits do not bound data retained across repeated SETs.
 			if !exists && len(d.values) >= 256 || growth > 256*1024-d.bytes {
 				return "-OOM command not allowed when used memory > 'maxmemory'.\r\n", false, false
 			}
+
 			d.bytes += growth
 			d.values[args[1]] = args[2]
+
 			return "+OK\r\n", true, false
 		}
 	case "DEL":
@@ -141,6 +161,7 @@ func (d *database) execute(args []string) (string, bool, bool) {
 					deleted++
 				}
 			}
+
 			return fmt.Sprintf(":%d\r\n", deleted), true, false
 		}
 	case "EXISTS":
@@ -151,6 +172,7 @@ func (d *database) execute(args []string) (string, bool, bool) {
 					found++
 				}
 			}
+
 			return fmt.Sprintf(":%d\r\n", found), true, false
 		}
 	case "DBSIZE":
@@ -165,12 +187,14 @@ func (d *database) execute(args []string) (string, bool, bool) {
 					keys = append(keys, key)
 				}
 			}
+
 			sort.Strings(keys)
 			var result strings.Builder
 			fmt.Fprintf(&result, "*%d\r\n", len(keys))
 			for _, key := range keys {
 				result.WriteString(bulk(key))
 			}
+
 			return result.String(), true, false
 		}
 	case "INFO":
@@ -184,6 +208,7 @@ func (d *database) execute(args []string) (string, bool, bool) {
 			if args[1] == "0" {
 				return "+OK\r\n", true, false
 			}
+
 			return "-ERR DB index is out of range\r\n", false, false
 		}
 	case "QUIT":
@@ -195,5 +220,6 @@ func (d *database) execute(args []string) (string, bool, bool) {
 		quoted := strconv.Quote(args[0])
 		return "-ERR unknown command '" + quoted[1:len(quoted)-1] + "', with args beginning with: \r\n", false, false
 	}
+
 	return wrongArgs, false, false
 }

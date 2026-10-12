@@ -3,10 +3,11 @@ package repository
 import (
 	"context"
 	"fmt"
-	authcore "honey-forge/modules/auth"
 	"math"
 
 	"github.com/jackc/pgx/v5"
+
+	authcore "honey-forge/modules/auth"
 )
 
 func (r *Repository) Organization(ctx context.Context, id string) (authcore.Organization, error) {
@@ -40,9 +41,11 @@ func (r *Repository) RotateJoinCode(ctx context.Context, actor authcore.AuthCont
 		if err != nil {
 			return fmt.Errorf("locking join code: %w", err)
 		}
+
 		if revision != expected {
 			return authcore.ErrJoinCodeChanged
 		}
+
 		if revision == math.MaxInt32 {
 			return authcore.ErrRevisionExhausted
 		}

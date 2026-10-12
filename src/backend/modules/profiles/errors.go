@@ -35,6 +35,10 @@ type ValidationError struct {
 
 type FieldError = validation.FieldError
 
-func (e *ValidationError) Error() string { return e.Cause.Error() }
+func (e *ValidationError) Error() string {
+	return e.Cause.Error()
+}
 
-func (e *ValidationError) Unwrap() error { return e.Cause }
+func (e *ValidationError) Unwrap() error {
+	return e.Cause
+}

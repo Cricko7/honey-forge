@@ -17,6 +17,7 @@ func RESTBody() gin.HandlerFunc {
 		if !ok {
 			return
 		}
+
 		c.Request.Body = io.NopCloser(bytes.NewReader(b))
 		c.Next()
 	}
@@ -28,11 +29,15 @@ func Created(c *gin.Context, location string, body any) {
 		Fail(c, NewError("internal_error"))
 		return
 	}
+
 	c.Header("Location", location)
 	c.JSON(201, body)
 }
 
-func NoContent(c *gin.Context) { c.Status(204) }
+func NoContent(c *gin.Context) {
+	c.Status(204)
+}
+
 func ProfileResponse(c *gin.Context, id ID, revision Revision, status int, body any) {
 	c.Header("ETag", ProfileETag(id, revision))
 	c.JSON(status, body)
@@ -45,6 +50,7 @@ func CatalogResponse(c *gin.Context, etag string, body any) {
 		c.Status(304)
 		return
 	}
+
 	c.JSON(200, body)
 }
 
@@ -55,6 +61,7 @@ func matchesETag(value, etag string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -63,6 +70,7 @@ func CreatedOrReplayed(c *gin.Context, location string, body any, replayed bool)
 		c.JSON(200, body)
 		return
 	}
+
 	Created(c, location, body)
 }
 
@@ -72,10 +80,12 @@ func RequestQuery(c *gin.Context, allowed ...string) (url.Values, bool) {
 		Fail(c, NewError("invalid_query"))
 		return nil, false
 	}
+
 	if e := CheckQuery(v, allowed...); e != nil {
 		Fail(c, e)
 		return nil, false
 	}
+
 	return v, true
 }
 
@@ -84,9 +94,11 @@ func CheckTrapRevision(c *gin.Context, current Revision) bool {
 	if !ok {
 		return false
 	}
+
 	if expected != current {
 		Fail(c, NewError("revision_mismatch"))
 		return false
 	}
+
 	return true
 }

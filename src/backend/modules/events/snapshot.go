@@ -15,10 +15,12 @@ func checkServiceSnapshot(event AgentEvent, snapshot profiles.Snapshot) error {
 	if json.Unmarshal(event.Data, &data) != nil || data.Service == "" {
 		return invalid
 	}
+
 	raw, err := json.Marshal(snapshot.Config)
 	if err != nil {
 		return invalid
 	}
+
 	var config struct {
 		Services []struct {
 			Name string `json:"name"`
@@ -28,10 +30,12 @@ func checkServiceSnapshot(event AgentEvent, snapshot profiles.Snapshot) error {
 	if json.Unmarshal(raw, &config) != nil {
 		return invalid
 	}
+
 	for _, service := range config.Services {
 		if service.Name == data.Service && (service.Port == 0 || event.Destination.Protocol == "tcp" && event.Destination.Port == service.Port) {
 			return nil
 		}
 	}
+
 	return invalid
 }

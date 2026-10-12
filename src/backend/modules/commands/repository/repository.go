@@ -84,10 +84,12 @@ func scan(row pgx.Row) (commands.Command, error) {
 		utc := c.StartedAt.UTC()
 		c.StartedAt = &utc
 	}
+
 	if c.FinishedAt != nil {
 		utc := c.FinishedAt.UTC()
 		c.FinishedAt = &utc
 	}
+
 	return c, nil
 }
 
@@ -107,8 +109,14 @@ func (r *Repository) Create(ctx context.Context, org, trapID, requestID string, 
 	if err := r.ExpireDue(ctx, org, trapID, time.Now()); err != nil {
 		return commands.CreateResult{}, fmt.Errorf("expire pending command: %w", err)
 	}
+
 	var created commands.Command
-	scope := mutation.Scope{OrganizationID: contract.ID(org), Route: "/api/traps/:id/commands", TrapID: contract.ID(trapID), RequestID: contract.ID(requestID)}
+	scope := mutation.Scope{
+		OrganizationID: contract.ID(org),
+		Route:          "/api/traps/:id/commands",
+		TrapID:         contract.ID(trapID),
+		RequestID:      contract.ID(requestID),
+	}
 	result, err := r.mutations.Create(ctx, scope, normalized, func(ctx context.Context, tx pgx.Tx) (mutation.Outcome, error) {
 		trap, err := r.traps.Lock(ctx, tx, org, trapID)
 		if err != nil {
@@ -126,10 +134,15 @@ func (r *Repository) Create(ctx context.Context, org, trapID, requestID string, 
 
 		now := time.Now().UTC().Truncate(time.Microsecond)
 		created = commands.Command{
-			ID: string(contract.NewID()), TrapID: trapID, RequestID: requestID,
-			Action: prepared.Action, Params: prepared.Params, Status: commands.Queued,
+			ID:                    string(contract.NewID()),
+			TrapID:                trapID,
+			RequestID:             requestID,
+			Action:                prepared.Action,
+			Params:                prepared.Params,
+			Status:                commands.Queued,
 			TargetProfileRevision: prepared.TargetProfileRevision,
-			CreatedAt:             now, ExpiresAt: now.Add(24 * time.Hour),
+			CreatedAt:             now,
+			ExpiresAt:             now.Add(24 * time.Hour),
 		}
 
 		var configuration any
@@ -158,6 +171,7 @@ func (r *Repository) Create(ctx context.Context, org, trapID, requestID string, 
 			revision := contract.Revision(*created.TargetProfileRevision)
 			details.ProfileRevision = &revision
 		}
+
 		return mutation.Outcome{
 			ResourceID:   contract.ID(created.ID),
 			Location:     "/api/traps/" + trapID + "/commands/" + created.ID,
@@ -178,6 +192,7 @@ func (r *Repository) Create(ctx context.Context, org, trapID, requestID string, 
 		if err != nil {
 			return commands.CreateResult{}, err
 		}
+
 		// Identity, params, target revision and deadlines are immutable. Rebuild
 		// the initial response rather than exposing later execution progress.
 		created.Status = commands.Queued
@@ -192,9 +207,11 @@ func (r *Repository) Read(ctx context.Context, org, trapID, id string) (commands
 	if r.traps == nil {
 		return commands.Command{}, commands.ErrUnavailable
 	}
+
 	if err := contract.AuthorizeCapability(ctx, contract.ReadResources); err != nil {
 		return commands.Command{}, err
 	}
+
 	if err := contract.RequireOrganization(ctx, contract.ID(org)); err != nil {
 		return commands.Command{}, err
 	}
@@ -215,9 +232,11 @@ func (r *Repository) List(ctx context.Context, org, trapID string, query command
 	if r.traps == nil {
 		return nil, false, commands.ErrUnavailable
 	}
+
 	if err := contract.AuthorizeCapability(ctx, contract.ReadResources); err != nil {
 		return nil, false, err
 	}
+
 	if err := contract.RequireOrganization(ctx, contract.ID(org)); err != nil {
 		return nil, false, err
 	}
@@ -235,6 +254,7 @@ func (r *Repository) List(ctx context.Context, org, trapID string, query command
 	if err != nil {
 		return nil, false, fmt.Errorf("list commands: %w", err)
 	}
+
 	defer rows.Close()
 
 	items := []commands.Command{}

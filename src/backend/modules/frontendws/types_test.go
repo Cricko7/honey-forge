@@ -20,6 +20,7 @@ func TestSubscribe(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			_, err = subscribe(e)
 			if (err == nil) != tt.valid {
 				t.Fatalf("error %v", err)

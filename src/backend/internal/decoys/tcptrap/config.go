@@ -36,35 +36,46 @@ func ParseConfig(ctx context.Context, snapshot profiles.Snapshot) (Config, error
 	if snapshot.TypeID != "tcp-banner" || snapshot.TypeVersion != 1 || snapshot.ProfileRevision < 1 {
 		return config, fmt.Errorf("unsupported trap snapshot")
 	}
+
 	raw, err := json.Marshal(snapshot.Config)
 	if err != nil {
 		return config, fmt.Errorf("encode configuration: %w", err)
 	}
+
 	schema, err := configschema.Compile(catalog.BuiltinDefinitions()[0].Entry.ConfigSchema)
 	if err != nil {
 		return config, fmt.Errorf("compile TCP schema: %w", err)
 	}
+
 	if err := ctx.Err(); err != nil {
 		return config, err
 	}
+
 	if err := schema.Validate(raw, ""); err != nil {
 		return config, fmt.Errorf("validate configuration: %w", err)
 	}
+
 	if err := json.Unmarshal(raw, &config); err != nil {
 		return config, fmt.Errorf("decode configuration: %w", err)
 	}
+
 	names, ports := map[string]bool{}, map[int]bool{}
 	for _, l := range config.Listeners {
 		if names[l.Name] || ports[l.Port] || len(l.Banner) > 4096 {
 			return config, fmt.Errorf("duplicate listener or oversized banner")
 		}
+
 		names[l.Name] = true
 		ports[l.Port] = true
 	}
+
 	if !config.Logging.Capture && config.Logging.MaxBytes != 0 || config.Logging.Capture && config.Logging.MaxBytes < 1 {
 		return config, fmt.Errorf("inconsistent payload capture settings")
 	}
+
 	return config, nil
 }
 
-func fmtPort(port int) string { return strconv.Itoa(port) }
+func fmtPort(port int) string {
+	return strconv.Itoa(port)
+}

@@ -27,13 +27,16 @@ func TestHoneytokenConfiguration(t *testing.T) {
 			wantCode(t, s.CheckConfig(t.Context(), "honeytoken-http", 1, json.RawMessage(tc.raw)), tc.code)
 		})
 	}
+
 	schema, err := s.ConfigSchema(t.Context(), "honeytoken-http", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	public, paths, err := schema.PublicConfig(json.RawMessage(config))
 	if err != nil || strings.Contains(string(public), "fake-key") || len(paths) != 1 {
 		t.Fatalf("unsafe public config: %s %v %v", public, paths, err)
 	}
+
 	wantCode(t, s.CheckEvent(t.Context(), "honeytoken-http", 1, "honeytoken.triggered", json.RawMessage(`{"service":"web","token_id":"backup","kind":"key","method":"GET"}`)), "")
 }

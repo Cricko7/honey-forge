@@ -21,18 +21,22 @@ func TestInterruptedUploadDescribesOnlyCommittedBlocks(t *testing.T) {
 		if e.EventType == "service.file_chunk" && d.Offset == 4096 {
 			return errors.New("journal unavailable")
 		}
+
 		if e.EventType == "service.file_closed" {
 			closedSize = d.Size
 		}
+
 		return nil
 	})
 	u := &upload{file: &memoryFile{}, record: r, id: "file", limit: 8192, release: func() {}, fail: func(error) {}}
 	if _, err := u.WriteAt(make([]byte, 8192), 0); err == nil {
 		t.Fatal("failed commit was accepted")
 	}
+
 	if err := u.Close(); err != nil {
 		t.Fatal(err)
 	}
+
 	if closedSize != 4096 {
 		t.Fatalf("size %d, want only the committed 4096 bytes", closedSize)
 	}

@@ -54,35 +54,43 @@ func (c Controller) Reconcile(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("list managed traps: %w", err)
 	}
+
 	ids := make([]string, len(targets))
 	for i, target := range targets {
 		ids[i] = target.ID
 	}
+
 	states, err := c.Docker.States(ctx, ids)
 	if err != nil {
 		return fmt.Errorf("inspect managed traps: %w", err)
 	}
+
 	portsFor := c.Ports
 	if portsFor == nil {
 		portsFor = decoys.Ports
 	}
+
 	var failures []error
 	for _, target := range targets {
 		if err := ctx.Err(); err != nil {
 			return errors.Join(append(failures, err)...)
 		}
+
 		state := states[target.ID]
 		if target.Deleted {
 			if err := c.Docker.Remove(ctx, target.ID); err != nil {
 				failures = append(failures, fmt.Errorf("remove trap %s: %w", target.ID, err))
 			}
+
 			continue
 		}
+
 		ports, err := portsFor(ctx, target.Snapshot)
 		if err != nil {
 			failures = append(failures, fmt.Errorf("ports for trap %s: %w", target.ID, err))
 			continue
 		}
+
 		slices.Sort(ports)
 		certificateCurrent := state.CertificateExpires.IsZero() || state.CertificateExpires.After(time.Now().Add(24*time.Hour))
 		current := state.Exists && !state.UnsafeNetwork && state.Generation == target.Generation && slices.Equal(state.Ports, ports) && certificateCurrent
@@ -92,20 +100,24 @@ func (c Controller) Reconcile(ctx context.Context) error {
 				continue
 			}
 		}
+
 		if !current {
 			token, generation, err := c.Store.Issue(ctx, target)
 			if err != nil {
 				failures = append(failures, fmt.Errorf("issue trap %s credentials: %w", target.ID, err))
 				continue
 			}
+
 			if err := c.Docker.Deploy(ctx, target, token, generation, ports); err != nil {
 				failures = append(failures, fmt.Errorf("deploy trap %s: %w", target.ID, err))
 				continue
 			}
 		}
+
 		if err := c.Store.Advance(ctx, target); err != nil {
 			failures = append(failures, fmt.Errorf("start trap %s: %w", target.ID, err))
 		}
 	}
+
 	return errors.Join(failures...)
 }

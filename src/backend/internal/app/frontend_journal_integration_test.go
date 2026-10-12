@@ -26,13 +26,23 @@ func TestFrontendReplaySurvivesRuntimeRestart(t *testing.T) {
 	_, trap, _ := createIntegrationTrap(t, r, a)
 	databaseURL := r.pool.Config().ConnString()
 	r.Close()
-	restarted, err := Open(t.Context(), Config{DatabaseURL: databaseURL, CursorKey: []byte("integration-cursor-key-32-bytes!"), BrowserOrigins: []string{integrationOrigin}, PublicOrigin: integrationOrigin, AgentWSURL: integrationAgentURL, MigrationsPath: "../../../../migrations", Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	restarted, err := Open(t.Context(), Config{
+		DatabaseURL:    databaseURL,
+		CursorKey:      []byte("integration-cursor-key-32-bytes!"),
+		BrowserOrigins: []string{integrationOrigin},
+		PublicOrigin:   integrationOrigin,
+		AgentWSURL:     integrationAgentURL,
+		MigrationsPath: "../../../../migrations",
+		Logger:         slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	t.Cleanup(restarted.Close)
 	server := httptest.NewTLSServer(restarted.Router)
 	defer server.Close()
+
 	c := dialFrontend(t, server, a)
 	subscribeFrontend(t, c, page.StreamCursor)
 	readFrontend(t, c, "profile.changed")
@@ -41,6 +51,7 @@ func TestFrontendReplaySurvivesRuntimeRestart(t *testing.T) {
 	if !strings.Contains(string(e.Payload["data"]), trap.ID) {
 		t.Fatal("durable trap change missing")
 	}
+
 	readFrontend(t, c, "stream.ready")
 }
 
@@ -55,6 +66,7 @@ func TestFrontendCommandReplayKeepsStatusSnapshots(t *testing.T) {
 	command := executeIntegrationCommand(t, r, a, ctx, identity, "apply_config", runtime)
 	server := httptest.NewTLSServer(r.Router)
 	defer server.Close()
+
 	c := dialFrontend(t, server, a)
 	subscribeFrontend(t, c, page.StreamCursor)
 	var statuses []commands.Status
@@ -62,16 +74,20 @@ func TestFrontendCommandReplayKeepsStatusSnapshots(t *testing.T) {
 		if err := c.SetReadDeadline(time.Now().Add(3 * time.Second)); err != nil {
 			t.Fatal(err)
 		}
+
 		var e contract.Envelope
 		if err := c.ReadJSON(&e); err != nil {
 			t.Fatal(err)
 		}
+
 		if e.Type == "stream.ready" {
 			break
 		}
+
 		if e.Type != "command.changed" {
 			continue
 		}
+
 		var data struct {
 			TrapID  string           `json:"trap_id"`
 			Command commands.Command `json:"command"`
@@ -79,16 +95,20 @@ func TestFrontendCommandReplayKeepsStatusSnapshots(t *testing.T) {
 		if err := json.Unmarshal(e.Payload["data"], &data); err != nil {
 			t.Fatal(err)
 		}
+
 		if data.TrapID != trap.ID || data.Command.ID != command.ID {
 			t.Fatal("command owner/id")
 		}
+
 		for _, secret := range []string{"configuration", "lease_id", "lease_expires_at", "organization_id"} {
 			if strings.Contains(string(e.Payload["data"]), secret) {
 				t.Fatalf("private field %s", secret)
 			}
 		}
+
 		statuses = append(statuses, data.Command.Status)
 	}
+
 	if !reflect.DeepEqual(statuses, []commands.Status{commands.Queued, commands.Running, commands.Succeeded}) {
 		t.Fatalf("replay statuses %v", statuses)
 	}
@@ -105,14 +125,17 @@ func TestFrontendCatalogInvalidationIsDurableAndIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	repo := catalog.NewRepository(r.pool)
 	for range 2 {
 		if err := repo.Install(t.Context(), updated); err != nil {
 			t.Fatal(err)
 		}
 	}
+
 	server := httptest.NewTLSServer(r.Router)
 	defer server.Close()
+
 	c := dialFrontend(t, server, a)
 	subscribeFrontend(t, c, page.StreamCursor)
 	e := readFrontend(t, c, "catalog.changed")
@@ -122,9 +145,11 @@ func TestFrontendCatalogInvalidationIsDurableAndIdempotent(t *testing.T) {
 	if err := json.Unmarshal(e.Payload["data"], &data); err != nil {
 		t.Fatal(err)
 	}
+
 	if data.ETag == "" {
 		t.Fatal("missing etag")
 	}
+
 	readFrontend(t, c, "stream.ready") // No duplicate invalidation for the same ETag.
 	var count int
 	if err := r.pool.QueryRow(t.Context(), `SELECT count(*) FROM mutation_changes WHERE organization_id=$1 AND type='catalog.changed'`, a.view.Organization.ID).Scan(&count); err != nil || count != 1 {

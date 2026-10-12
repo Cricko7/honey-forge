@@ -9,12 +9,11 @@ import (
 	"sync"
 	"testing"
 
-	profilescore "honey-forge/modules/profiles"
-
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"honey-forge/internal/testpostgres"
+	profilescore "honey-forge/modules/profiles"
 )
 
 func profilePool(t *testing.T) *pgxpool.Pool {
@@ -109,7 +108,10 @@ func TestPostgresProfileConcurrencyAndRollback(t *testing.T) {
 	var wg sync.WaitGroup
 	results := make(chan error, 8)
 	for range 8 {
-		wg.Go(func() { _, e := s.Create(t.Context(), admin, request()); results <- e })
+		wg.Go(func() {
+			_, e := s.Create(t.Context(), admin, request())
+			results <- e
+		})
 	}
 
 	wg.Wait()

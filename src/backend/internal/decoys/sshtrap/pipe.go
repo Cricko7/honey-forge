@@ -31,6 +31,7 @@ func startCommandPipe(cmd *exec.Cmd) (*execPipe, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	// Own the read end: Cmd.Wait closes StdoutPipe before a concurrent SSH
 	// reader has necessarily drained the final buffered packet.
 	out, childOut, err := os.Pipe()
@@ -38,6 +39,7 @@ func startCommandPipe(cmd *exec.Cmd) (*execPipe, error) {
 		in.Close()
 		return nil, err
 	}
+
 	cmd.Stdout = childOut
 	// SSH backend diagnostics belong to the trusted gateway's application log.
 	cmd.Stderr = os.Stderr
@@ -45,16 +47,28 @@ func startCommandPipe(cmd *exec.Cmd) (*execPipe, error) {
 		in.Close()
 		out.Close()
 		childOut.Close()
+
 		return nil, err
 	}
+
 	childOut.Close() // only the child keeps a writer, so its exit produces EOF
 	p := &execPipe{cmd: cmd, in: in, out: out, done: make(chan struct{})}
-	go func() { cmd.Wait(); close(p.done) }()
+	go func() {
+		cmd.Wait()
+		close(p.done)
+	}()
+
 	return p, nil
 }
 
-func (p *execPipe) Read(b []byte) (int, error)  { return p.out.Read(b) }
-func (p *execPipe) Write(b []byte) (int, error) { return p.in.Write(b) }
+func (p *execPipe) Read(b []byte) (int, error) {
+	return p.out.Read(b)
+}
+
+func (p *execPipe) Write(b []byte) (int, error) {
+	return p.in.Write(b)
+}
+
 func (p *execPipe) Close() error {
 	var closeErr error
 	p.once.Do(func() {
@@ -65,29 +79,54 @@ func (p *execPipe) Close() error {
 		if errors.Is(killErr, os.ErrProcessDone) {
 			killErr = nil
 		}
+
 		<-p.done
 		closeErr = errors.Join(inErr, outErr, killErr)
 	})
+
 	return closeErr
 }
 
 type pipeAddr string
 
-func (a pipeAddr) Network() string       { return "docker-exec" }
-func (a pipeAddr) String() string        { return string(a) }
-func (p *execPipe) LocalAddr() net.Addr  { return pipeAddr("gateway") }
-func (p *execPipe) RemoteAddr() net.Addr { return pipeAddr("sandbox") }
+func (a pipeAddr) Network() string {
+	return "docker-exec"
+}
+
+func (a pipeAddr) String() string {
+	return string(a)
+}
+
+func (p *execPipe) LocalAddr() net.Addr {
+	return pipeAddr("gateway")
+}
+
+func (p *execPipe) RemoteAddr() net.Addr {
+	return pipeAddr("sandbox")
+}
+
 func (p *execPipe) SetDeadline(t time.Time) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
 	if p.timer != nil {
 		p.timer.Stop()
 		p.timer = nil
 	}
+
 	if !t.IsZero() {
-		p.timer = time.AfterFunc(time.Until(t), func() { p.Close() })
+		p.timer = time.AfterFunc(time.Until(t), func() {
+			p.Close()
+		})
 	}
+
 	return nil
 }
-func (p *execPipe) SetReadDeadline(t time.Time) error  { return p.SetDeadline(t) }
-func (p *execPipe) SetWriteDeadline(t time.Time) error { return p.SetDeadline(t) }
+
+func (p *execPipe) SetReadDeadline(t time.Time) error {
+	return p.SetDeadline(t)
+}
+
+func (p *execPipe) SetWriteDeadline(t time.Time) error {
+	return p.SetDeadline(t)
+}

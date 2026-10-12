@@ -27,21 +27,27 @@ func TestReadCancellation(t *testing.T) {
 			readDone <- err
 			return
 		}
+
 		defer socket.Close()
+
 		ctx, cancel := context.WithCancel(c.Request.Context())
 		defer cancel()
+
 		cancelReady <- cancel
 		_, err = socket.Read(ctx)
 		readDone <- err
 	})
 	server := httptest.NewTLSServer(r)
 	defer server.Close()
+
 	dialer := websocket.Dialer{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, Subprotocols: []string{"dashboard-stream.v1"}}
 	client, _, err := dialer.Dial("wss"+strings.TrimPrefix(server.URL, "https")+"/api/stream", http.Header{"Origin": []string{server.URL}})
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer client.Close()
+
 	cancel := <-cancelReady
 	cancel()
 	if err := <-readDone; !errors.Is(err, context.Canceled) {

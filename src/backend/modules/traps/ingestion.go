@@ -17,19 +17,24 @@ func agentIdentityAccess(ctx context.Context, identity agentws.Identity) error {
 	if err := contract.RequireAgentTrap(ctx, contract.ID(identity.TrapID)); err != nil {
 		return err
 	}
+
 	return contract.RequireOrganization(ctx, contract.ID(identity.OrganizationID))
 }
+
 func (r *Repository) IngestionTrap(ctx context.Context, tx pgx.Tx, identity agentws.Identity, connection string) (Record, error) {
 	if err := agentIdentityAccess(ctx, identity); err != nil {
 		return Record{}, err
 	}
+
 	current, err := lockRecord(ctx, tx, identity.OrganizationID, identity.TrapID)
 	if err != nil {
 		return Record{}, err
 	}
+
 	if current.Generation != identity.CredentialGeneration || len(current.TokenHash) == 0 || current.ConnectionID == nil || *current.ConnectionID != connection {
 		return Record{}, contract.NewError("agent_unauthenticated")
 	}
+
 	return current, nil
 }
 
@@ -39,21 +44,26 @@ func (r *Repository) BeginIngestion(ctx context.Context, identity agentws.Identi
 	if err := agentIdentityAccess(ctx, identity); err != nil {
 		return err
 	}
+
 	if !contract.ValidID(batchID) {
 		return contract.NewError("validation_failed")
 	}
+
 	return pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
 		current, err := lockRecord(ctx, tx, identity.OrganizationID, identity.TrapID)
 		if err != nil {
 			return err
 		}
+
 		if current.Generation != identity.CredentialGeneration || len(current.TokenHash) == 0 || current.ConnectionID == nil || *current.ConnectionID != connection {
 			return contract.NewError("agent_unauthenticated")
 		}
+
 		_, err = tx.Exec(ctx, `INSERT INTO trap_ingestions(trap_id,batch_id) VALUES($1,$2) ON CONFLICT(trap_id,batch_id) DO NOTHING`, identity.TrapID, batchID)
 		if err != nil {
 			return fmt.Errorf("reserve ingestion: %w", err)
 		}
+
 		return nil
 	})
 }
@@ -64,24 +74,30 @@ func (r *Repository) FinishIngestion(ctx context.Context, identity agentws.Ident
 	if err := agentIdentityAccess(ctx, identity); err != nil {
 		return err
 	}
+
 	return pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
 		if _, err := lockRecord(ctx, tx, identity.OrganizationID, identity.TrapID); err != nil {
 			return err
 		}
+
 		_, err := tx.Exec(ctx, `UPDATE trap_ingestions SET finished=true WHERE trap_id=$1 AND batch_id=$2`, identity.TrapID, batchID)
 		if err != nil {
 			return fmt.Errorf("finish ingestion: %w", err)
 		}
+
 		return nil
 	})
 }
+
 func (g *Gateway) Ingest(ctx context.Context, identity agentws.Identity, connection string, batch agentws.TelemetryBatch) (agentws.TelemetryAck, error) {
 	if g.ingester == nil {
 		return agentws.TelemetryAck{}, contract.NewError("telemetry_unavailable")
 	}
+
 	if err := g.repository.BeginIngestion(ctx, identity, connection, batch.BatchID); err != nil {
 		return agentws.TelemetryAck{}, err
 	}
+
 	ack, err := g.ingester.Ingest(ctx, identity, connection, batch)
 	if err != nil {
 		// Ambiguous errors retain the fence until the persistence reconciler settles
@@ -92,19 +108,24 @@ func (g *Gateway) Ingest(ctx context.Context, identity agentws.Identity, connect
 				return ack, errors.Join(err, finishErr)
 			}
 		}
+
 		return ack, err
 	}
+
 	if ack.BatchID != batch.BatchID || ack.StoredAt.IsZero() || len(ack.AcknowledgedEventIDs) != len(batch.Events) {
 		return ack, contract.NewError("ingestion_pending")
 	}
+
 	for i, event := range batch.Events {
 		if !strings.EqualFold(ack.AcknowledgedEventIDs[i], event.EventID) {
 			return ack, contract.NewError("ingestion_pending")
 		}
 	}
+
 	if err := g.finishIngestion(ctx, identity, batch.BatchID); err != nil {
 		return ack, err
 	}
+
 	return ack, nil
 }
 
@@ -112,5 +133,6 @@ func (g *Gateway) finishIngestion(ctx context.Context, identity agentws.Identity
 	// Definitive rejection/commit must release its fence even if the socket closed.
 	finishCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
+
 	return g.repository.FinishIngestion(finishCtx, identity, batchID)
 }

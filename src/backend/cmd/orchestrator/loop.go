@@ -24,9 +24,11 @@ func runLoop(ctx context.Context, prepare, reconcile, cleanup func(context.Conte
 				cleanedAt = time.Now()
 			}
 		}
+
 		if err == nil {
 			err = reconcile(cycle)
 		}
+
 		cancel()
 		wait := 3 * time.Second
 		if err != nil && ctx.Err() == nil {
@@ -37,6 +39,7 @@ func runLoop(ctx context.Context, prepare, reconcile, cleanup func(context.Conte
 		} else {
 			delay = 3 * time.Second
 		}
+
 		timer := time.NewTimer(wait)
 		select {
 		case <-ctx.Done():
@@ -45,5 +48,6 @@ func runLoop(ctx context.Context, prepare, reconcile, cleanup func(context.Conte
 		case <-timer.C:
 		}
 	}
+
 	return nil
 }

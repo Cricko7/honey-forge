@@ -47,9 +47,11 @@ func TestBinding(t *testing.T) {
 			if w.Code != tt.status {
 				t.Fatalf("status %d: %s", w.Code, w.Body.String())
 			}
+
 			if !ValidID(w.Header().Get("X-Request-ID")) || w.Header().Get("Cache-Control") != "no-store" {
 				t.Fatal("missing common headers")
 			}
+
 			if tt.status >= 400 && !strings.Contains(w.Body.String(), w.Header().Get("X-Request-ID")) {
 				t.Fatal("request ID mismatch")
 			}
@@ -75,6 +77,7 @@ func TestPreconditions(t *testing.T) {
 		if tt.header != "" {
 			req.Header.Set("If-Match", tt.header)
 		}
+
 		r.ServeHTTP(w, req)
 		if w.Code != tt.status {
 			t.Fatalf("%q: %d", tt.header, w.Code)
@@ -93,6 +96,7 @@ func TestAccess(t *testing.T) {
 			if tt.role != "" {
 				SetPrincipal(c, Principal{Role: tt.role})
 			}
+
 			if RequireRole(c, Admin) {
 				c.Status(200)
 			}

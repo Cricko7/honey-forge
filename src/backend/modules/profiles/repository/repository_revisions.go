@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	profilecore "honey-forge/modules/profiles"
 
 	"github.com/jackc/pgx/v5"
+
+	profilecore "honey-forge/modules/profiles"
 )
 
 func insertRevision(ctx context.Context, tx pgx.Tx, p profilecore.Profile) error {
@@ -74,6 +75,7 @@ func ReadProfileForBinding(ctx context.Context, tx pgx.Tx, org, id string) (prof
 	}
 
 	p, err := readRevision(ctx, tx, org, id, revision)
+
 	return p, databaseError("locking profile for binding", err)
 }
 
@@ -94,5 +96,6 @@ func CheckLiveBindings(ctx context.Context, org, id string, tx pgx.Tx) (bool, er
 
 	// Module 05's SQL adapter must preserve these columns or supply its own function.
 	err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM traps WHERE organization_id=$1 AND profile_id=$2 AND deleted_at IS NULL)`, org, id).Scan(&exists)
+
 	return exists, databaseError("checking live profile bindings", err)
 }

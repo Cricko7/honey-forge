@@ -24,20 +24,26 @@ type store interface {
 
 type Service struct{ store store }
 
-func NewService(storage store) *Service { contract.Configure(); return &Service{storage} }
+func NewService(storage store) *Service {
+	contract.Configure()
+	return &Service{storage}
+}
 
 func organization(ctx context.Context, mutate bool) (string, error) {
 	roles := []contract.Role{contract.Admin, contract.Viewer}
 	if mutate {
 		roles = []contract.Role{contract.Admin}
 	}
+
 	if err := contract.Authorize(ctx, roles...); err != nil {
 		return "", err
 	}
+
 	p, _ := contract.PrincipalFrom(ctx)
 	if !contract.ValidID(string(p.OrganizationID)) {
 		return "", contract.NewError("unauthenticated")
 	}
+
 	return string(p.OrganizationID), ctx.Err()
 }
 
@@ -46,6 +52,7 @@ func (s *Service) List(ctx context.Context) ([]Link, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return s.store.List(ctx, org)
 }
 
@@ -54,14 +61,17 @@ func (s *Service) Create(ctx context.Context, link Link) (Link, error) {
 	if err != nil {
 		return Link{}, err
 	}
+
 	link.SourceID = strings.ToLower(link.SourceID)
 	link.TargetID = strings.ToLower(link.TargetID)
 	if err := binding.Validator.ValidateStruct(link); err != nil {
 		return Link{}, contract.NewError("validation_failed")
 	}
+
 	if err := s.store.Create(ctx, org, link); err != nil {
 		return Link{}, err
 	}
+
 	return link, nil
 }
 
@@ -70,10 +80,12 @@ func (s *Service) Delete(ctx context.Context, source, target string) error {
 	if err != nil {
 		return err
 	}
+
 	link := Link{strings.ToLower(source), strings.ToLower(target)}
 	if err := binding.Validator.ValidateStruct(link); err != nil {
 		return contract.NewError("validation_failed")
 	}
+
 	return s.store.Delete(ctx, org, link.SourceID, link.TargetID)
 }
 
@@ -82,8 +94,10 @@ func (s *Service) Targets(ctx context.Context, org, source string) ([]string, er
 	if err := contract.RequireAgentTrap(ctx, contract.ID(source)); err != nil {
 		return nil, err
 	}
+
 	if err := contract.RequireOrganization(ctx, contract.ID(org)); err != nil {
 		return nil, err
 	}
+
 	return s.store.Targets(ctx, org, source)
 }

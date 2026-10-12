@@ -27,6 +27,7 @@ func TestCommonSecretMergeCompatibility(t *testing.T) {
 	if strings.Contains(string(public), "server-secret") || len(fields) != 1 || fields[0] != "/password" {
 		t.Fatalf("secret boundary: %s %v", public, fields)
 	}
+
 	_, err = schema.MergeConfig(previous, json.RawMessage(`{"name":"new","password":"replacement"}`), []string{"/password"})
 	wantCode(t, err, "validation_failed")
 	if !strings.Contains(string(previous), "server-secret") {

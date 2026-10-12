@@ -10,8 +10,12 @@ import (
 
 func TestRouterErrors(t *testing.T) {
 	r := NewRouter()
-	r.GET("/api/resource", func(c *gin.Context) { c.Status(204) })
-	r.GET("/api/panic", func(c *gin.Context) { panic("secret") })
+	r.GET("/api/resource", func(c *gin.Context) {
+		c.Status(204)
+	})
+	r.GET("/api/panic", func(c *gin.Context) {
+		panic("secret")
+	})
 	for _, tt := range []struct {
 		name, method, path, code string
 		status                   int

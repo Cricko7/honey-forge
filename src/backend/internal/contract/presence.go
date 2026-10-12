@@ -13,9 +13,11 @@ func missingPresent(b []byte, t reflect.Type, path string) []FieldError {
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
+
 	if reflect.PointerTo(t).Implements(reflect.TypeFor[json.Unmarshaler]()) {
 		return nil
 	}
+
 	fields := []FieldError{}
 	switch t.Kind() {
 	case reflect.Struct:
@@ -23,18 +25,22 @@ func missingPresent(b []byte, t reflect.Type, path string) []FieldError {
 		if json.Unmarshal(b, &raw) != nil {
 			return nil
 		}
+
 		for i := 0; i < t.NumField(); i++ {
 			f := t.Field(i)
 			if !f.IsExported() {
 				continue
 			}
+
 			name := strings.Split(f.Tag.Get("json"), ",")[0]
 			if name == "-" {
 				continue
 			}
+
 			if name == "" {
 				name = f.Name
 			}
+
 			value, exists := raw[name]
 			childPath := path + "/" + escapePointer(name)
 			if !exists {
@@ -46,6 +52,7 @@ func missingPresent(b []byte, t reflect.Type, path string) []FieldError {
 			} else {
 				fields = append(fields, missingPresent(value, f.Type, childPath)...)
 			}
+
 			if len(fields) >= MaxFieldErrors {
 				return fields[:MaxFieldErrors]
 			}
@@ -55,6 +62,7 @@ func missingPresent(b []byte, t reflect.Type, path string) []FieldError {
 		if json.Unmarshal(b, &array) != nil {
 			return nil
 		}
+
 		for i, v := range array {
 			fields = append(fields, missingPresent(v, t.Elem(), path+"/"+strconv.Itoa(i))...)
 			if len(fields) >= MaxFieldErrors {
@@ -62,5 +70,6 @@ func missingPresent(b []byte, t reflect.Type, path string) []FieldError {
 			}
 		}
 	}
+
 	return fields
 }

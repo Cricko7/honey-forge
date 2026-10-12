@@ -16,6 +16,7 @@ func (s *Service) ConfigSchema(ctx context.Context, id string, version contract.
 	if err != nil {
 		return nil, err
 	}
+
 	return e.config, nil
 }
 
@@ -26,6 +27,7 @@ func (s *Service) CheckRuntimeResult(ctx context.Context, id string, version con
 	if err := s.CheckActionResult(ctx, id, version, action, result); err != nil {
 		return err
 	}
+
 	if (id == "tcp-banner" || id == "redis-emulator" || id == "honeytoken-http" || id == "ssh-high-interaction") && version == 1 && hasConfiguration {
 		var value struct {
 			Revision *schemaInteger `json:"applied_profile_revision"`
@@ -34,6 +36,7 @@ func (s *Service) CheckRuntimeResult(ctx context.Context, id string, version con
 			return contract.NewError("command_result_invalid")
 		}
 	}
+
 	return nil
 }
 
@@ -41,11 +44,13 @@ func validationError(err error, code string) error {
 	if err == nil {
 		return nil
 	}
+
 	result := contract.NewError(code)
 	var source *contract.Error
 	if errors.As(err, &source) {
 		result.Fields = source.Fields
 	}
+
 	return result
 }
 
@@ -54,18 +59,23 @@ func (s *Service) CheckConfig(ctx context.Context, id string, version contract.T
 	if err != nil {
 		return err
 	}
+
 	if err := contract.CheckConfig(config); err != nil {
 		return err
 	}
+
 	if err := e.config.Validate(config, "/config"); err != nil {
 		return validationError(err, "config_invalid")
 	}
+
 	if id == "tcp-banner" && version == 1 {
 		return checkTCPConfig(config)
 	}
+
 	if id == "honeytoken-http" && version == 1 {
 		return checkHoneytokenConfig(config)
 	}
+
 	return nil
 }
 
@@ -74,22 +84,28 @@ func (s *Service) CheckEvent(ctx context.Context, id string, version contract.Ty
 	if err != nil {
 		return err
 	}
+
 	schema := e.events[event]
 	if schema == nil {
 		return contract.NewError("telemetry_invalid")
 	}
+
 	if err := schema.Validate(data, "/data"); err != nil {
 		return validationError(err, "telemetry_invalid")
 	}
+
 	if id == "tcp-banner" && version == 1 && event == "tcp.payload_received" {
 		return checkTCPPayload(data)
 	}
+
 	if event == "service.auth_attempt" || event == "service.action" {
 		return checkStructuredBytes(event, data)
 	}
+
 	if id == "ssh-high-interaction" && (event == "service.session_io" || event == "service.file_chunk") {
 		return checkSSHBytes(data)
 	}
+
 	return nil
 }
 
@@ -98,22 +114,27 @@ func (s *Service) CheckAction(ctx context.Context, id string, version contract.T
 	if err != nil {
 		return ActionDescriptor{}, err
 	}
+
 	schema := e.params[action]
 	if schema == nil {
 		return ActionDescriptor{}, contract.NewError("unsupported_action")
 	}
+
 	if err := schema.Validate(params, "/params"); err != nil {
 		return ActionDescriptor{}, validationError(err, "command_params_invalid")
 	}
+
 	entry, err := cloneEntry(e)
 	if err != nil {
 		return ActionDescriptor{}, err
 	}
+
 	for _, descriptor := range entry.Actions {
 		if string(descriptor.Action) == action {
 			return descriptor, nil
 		}
 	}
+
 	return ActionDescriptor{}, contract.NewError("internal_error")
 }
 
@@ -122,13 +143,16 @@ func (s *Service) CheckActionResult(ctx context.Context, id string, version cont
 	if err != nil {
 		return err
 	}
+
 	schema := e.results[action]
 	if schema == nil {
 		return contract.NewError("unsupported_action")
 	}
+
 	if err := schema.Validate(result, "/result"); err != nil {
 		return validationError(err, "command_result_invalid")
 	}
+
 	if (id == "tcp-banner" || id == "redis-emulator" || id == "honeytoken-http" || id == "ssh-high-interaction") && version == 1 {
 		var value struct {
 			RuntimeState string         `json:"runtime_state"`
@@ -137,9 +161,11 @@ func (s *Service) CheckActionResult(ctx context.Context, id string, version cont
 		if err := json.Unmarshal(result, &value); err != nil {
 			return contract.NewError("command_result_invalid")
 		}
+
 		if value.Revision == nil && (action != "stop" || value.RuntimeState != "stopped") {
 			return contract.NewError("command_result_invalid")
 		}
 	}
+
 	return nil
 }

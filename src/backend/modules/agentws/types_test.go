@@ -10,9 +10,17 @@ import (
 )
 
 func TestValidateHello(t *testing.T) {
-	identity := Identity{OrganizationID: testOrgID, TrapID: testTrapID, TypeID: "tcp-banner", TypeVersion: 1, RequiredActions: []string{"start", "stop"}}
+	identity := Identity{
+		OrganizationID:  testOrgID,
+		TrapID:          testTrapID,
+		TypeID:          "tcp-banner",
+		TypeVersion:     1,
+		RequiredActions: []string{"start", "stop"},
+	}
 	base := AgentHello{
-		BootID: string(contract.NewID()), AgentVersion: "0.1.0", Hostname: "decoy-01",
+		BootID:         string(contract.NewID()),
+		AgentVersion:   "0.1.0",
+		Hostname:       "decoy-01",
 		SupportedTypes: []SupportedType{{TypeID: "tcp-banner", TypeVersion: 1, Actions: []string{"start", "stop"}}},
 		Runtime:        commands.AgentRuntime{RuntimeState: "stopped", BufferState: "ok", BufferCapacityBytes: 1024},
 	}
@@ -23,12 +31,24 @@ func TestValidateHello(t *testing.T) {
 		valid  bool
 	}{
 		{"valid", func(*AgentHello) {}, true},
-		{"unsupported version", func(h *AgentHello) { h.SupportedTypes[0].TypeVersion = 2 }, false},
-		{"duplicate type", func(h *AgentHello) { h.SupportedTypes = append(h.SupportedTypes, h.SupportedTypes[0]) }, false},
-		{"duplicate action", func(h *AgentHello) { h.SupportedTypes[0].Actions = []string{"stop", "stop"} }, false},
-		{"missing required action", func(h *AgentHello) { h.SupportedTypes[0].Actions = []string{"stop"} }, false},
-		{"negative buffer", func(h *AgentHello) { h.Runtime.BufferBytes = -1 }, false},
-		{"error without detail", func(h *AgentHello) { h.Runtime.RuntimeState = "error" }, false},
+		{"unsupported version", func(h *AgentHello) {
+			h.SupportedTypes[0].TypeVersion = 2
+		}, false},
+		{"duplicate type", func(h *AgentHello) {
+			h.SupportedTypes = append(h.SupportedTypes, h.SupportedTypes[0])
+		}, false},
+		{"duplicate action", func(h *AgentHello) {
+			h.SupportedTypes[0].Actions = []string{"stop", "stop"}
+		}, false},
+		{"missing required action", func(h *AgentHello) {
+			h.SupportedTypes[0].Actions = []string{"stop"}
+		}, false},
+		{"negative buffer", func(h *AgentHello) {
+			h.Runtime.BufferBytes = -1
+		}, false},
+		{"error without detail", func(h *AgentHello) {
+			h.Runtime.RuntimeState = "error"
+		}, false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			hello := base
@@ -42,10 +62,17 @@ func TestValidateHello(t *testing.T) {
 }
 
 func TestTelemetryQuarantineRuntime(t *testing.T) {
-	runtime := commands.AgentRuntime{RuntimeState: "stopped", BufferState: "ok", BufferedEvents: 1, BufferCapacityBytes: 1024, LastError: &commands.RuntimeError{Code: "telemetry_invalid", Message: "captured secret"}}
+	runtime := commands.AgentRuntime{
+		RuntimeState:        "stopped",
+		BufferState:         "ok",
+		BufferedEvents:      1,
+		BufferCapacityBytes: 1024,
+		LastError:           &commands.RuntimeError{Code: "telemetry_invalid", Message: "captured secret"},
+	}
 	if err := validateRuntime(runtime); err != nil {
 		t.Fatal(err)
 	}
+
 	if runtime.LastError.Message != "Telemetry event is invalid" {
 		t.Fatal("unsafe runtime error")
 	}

@@ -15,10 +15,12 @@ func TestEndpointDeploymentContract(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			var document map[string]any
 			if err := yaml.Unmarshal(raw, &document); err != nil {
 				t.Fatalf("invalid deployment/contract YAML: %v", err)
 			}
+
 			if name == "docker-compose.real.yml" {
 				var compose struct {
 					Services map[string]struct {
@@ -28,19 +30,23 @@ func TestEndpointDeploymentContract(t *testing.T) {
 				if err := yaml.Unmarshal(raw, &compose); err != nil {
 					t.Fatal(err)
 				}
+
 				api := compose.Services["api"].Environment
 				if _, err := configureAgentEndpoint(api["AGENT_WS_URL"], api["API_PUBLIC_ORIGIN"], []string{api["BROWSER_ORIGINS"]}); err != nil {
 					t.Fatal(err)
 				}
+
 				for _, service := range []string{"agent", "orchestrator"} {
 					variable := "AGENT_WS_URL"
 					if service == "agent" {
 						variable = "NM_WS_URL"
 					}
+
 					if !strings.HasPrefix(compose.Services[service].Environment[variable], "wss://resources.localhost/") {
 						t.Fatalf("%s bypasses the resource proxy", service)
 					}
 				}
+
 				if compose.Services["orchestrator"].Environment["AGENT_PROXY_SERVICE"] != "web" {
 					t.Fatal("resource proxy must be reachable from the management network")
 				}

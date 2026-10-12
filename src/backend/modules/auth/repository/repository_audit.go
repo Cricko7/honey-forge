@@ -3,9 +3,10 @@ package repository
 import (
 	"context"
 	"fmt"
-	authcore "honey-forge/modules/auth"
 
 	"github.com/jackc/pgx/v5"
+
+	authcore "honey-forge/modules/auth"
 )
 
 // Audit and its durable notification commit with the business mutation.

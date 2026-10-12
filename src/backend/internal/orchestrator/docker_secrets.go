@@ -15,10 +15,12 @@ func (d DockerCLI) trustRevision() (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("read agent trust configuration: %w", err)
 		}
+
 		if _, err := hash.Write(raw); err != nil {
 			return "", fmt.Errorf("hash agent trust configuration: %w", err)
 		}
 	}
+
 	return fmt.Sprintf("%x", hash.Sum(nil)), nil
 }
 
@@ -27,20 +29,24 @@ func (d DockerCLI) Remove(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
+
 	if exists {
 		if _, err := d.call(ctx, nil, "service", "rm", serviceName(id)); err != nil {
 			return fmt.Errorf("remove trap service: %w", err)
 		}
 	}
+
 	workers, err := d.call(ctx, nil, "ps", "--all", "--filter", "label=com.nodemetrics.worker="+id, "--format", "{{.ID}}")
 	if err != nil {
 		return fmt.Errorf("list trap workers: %w", err)
 	}
+
 	for _, worker := range strings.Fields(string(workers)) {
 		if _, err := d.call(ctx, nil, "rm", "--force", worker); err != nil {
 			return fmt.Errorf("remove trap worker: %w", err)
 		}
 	}
+
 	return d.removeSecrets(ctx, id)
 }
 
@@ -49,14 +55,17 @@ func (d DockerCLI) removeSecrets(ctx context.Context, id string) error {
 	if err != nil {
 		return fmt.Errorf("list trap secrets: %w", err)
 	}
+
 	for _, name := range strings.Fields(string(output)) {
 		if !strings.HasPrefix(name, "nm-") || !strings.Contains(name, id) {
 			return fmt.Errorf("unexpected secret name for trap %s", id)
 		}
+
 		if _, err := d.call(ctx, nil, "secret", "rm", name); err != nil {
 			return fmt.Errorf("remove trap secret: %w", err)
 		}
 	}
+
 	return nil
 }
 
@@ -64,5 +73,6 @@ func (d DockerCLI) createSecret(ctx context.Context, id, name string, value []by
 	if _, err := d.call(ctx, value, "secret", "create", "--label", "com.nodemetrics.instance="+id, name, "-"); err != nil {
 		return fmt.Errorf("create trap secret %s: %w", name, err)
 	}
+
 	return nil
 }

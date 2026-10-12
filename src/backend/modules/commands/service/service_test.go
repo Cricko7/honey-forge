@@ -66,14 +66,29 @@ func (f *fakeStore) Create(ctx context.Context, org, trapID, requestID string, n
 
 	f.created++
 	f.normalized = append([]byte(nil), normalized...)
-	f.command = commands.Command{ID: "55555555-5555-4555-8555-555555555555", TrapID: trapID, RequestID: requestID, Action: prepared.Action, Params: prepared.Params, Status: commands.Queued, TargetProfileRevision: prepared.TargetProfileRevision}
+	f.command = commands.Command{
+		ID:                    "55555555-5555-4555-8555-555555555555",
+		TrapID:                trapID,
+		RequestID:             requestID,
+		Action:                prepared.Action,
+		Params:                prepared.Params,
+		Status:                commands.Queued,
+		TargetProfileRevision: prepared.TargetProfileRevision,
+	}
+
 	return commands.CreateResult{Command: f.command}, nil
 }
 
 type fakeSnapshot struct{}
 
 func (fakeSnapshot) Current(context.Context, string, string, int32) (profiles.Snapshot, error) {
-	return profiles.Snapshot{ProfileID: "66666666-6666-4666-8666-666666666666", ProfileRevision: 2, TypeID: "tcp-banner", TypeVersion: 1, Config: profiles.Object{"listen_port": 2222}}, nil
+	return profiles.Snapshot{
+		ProfileID:       "66666666-6666-4666-8666-666666666666",
+		ProfileRevision: 2,
+		TypeID:          "tcp-banner",
+		TypeVersion:     1,
+		Config:          profiles.Object{"listen_port": 2222},
+	}, nil
 }
 
 func request(action, params string) commands.CreateRequest {
@@ -95,8 +110,20 @@ func TestCreateRules(t *testing.T) {
 	}{
 		{"stop without config", commands.Trap{ID: trapID, OrganizationID: orgID, TypeID: "tcp-banner", TypeVersion: 1}, request("stop", `{}`), "admin", nil, 1},
 		{"start without config", commands.Trap{ID: trapID, OrganizationID: orgID, TypeID: "tcp-banner", TypeVersion: 1}, request("start", `{}`), "admin", commands.ErrConfigurationNotApplied, 0},
-		{"apply current revision", commands.Trap{ID: trapID, OrganizationID: orgID, ProfileID: "66666666-6666-4666-8666-666666666666", TypeID: "tcp-banner", TypeVersion: 1}, request("apply_config", `{"profile_revision":2}`), "admin", nil, 1},
-		{"apply changed profile", commands.Trap{ID: trapID, OrganizationID: orgID, ProfileID: "66666666-6666-4666-8666-666666666666", TypeID: "tcp-banner", TypeVersion: 1}, request("apply_config", `{"profile_revision":1}`), "admin", commands.ErrProfileChanged, 0},
+		{"apply current revision", commands.Trap{
+			ID:             trapID,
+			OrganizationID: orgID,
+			ProfileID:      "66666666-6666-4666-8666-666666666666",
+			TypeID:         "tcp-banner",
+			TypeVersion:    1,
+		}, request("apply_config", `{"profile_revision":2}`), "admin", nil, 1},
+		{"apply changed profile", commands.Trap{
+			ID:             trapID,
+			OrganizationID: orgID,
+			ProfileID:      "66666666-6666-4666-8666-666666666666",
+			TypeID:         "tcp-banner",
+			TypeVersion:    1,
+		}, request("apply_config", `{"profile_revision":1}`), "admin", commands.ErrProfileChanged, 0},
 		{"unsupported action", commands.Trap{ID: trapID, OrganizationID: orgID, TypeID: "tcp-banner", TypeVersion: 1}, request("restore", `{}`), "admin", commands.ErrUnsupportedAction, 0},
 		{"invalid params", commands.Trap{ID: trapID, OrganizationID: orgID, TypeID: "tcp-banner", TypeVersion: 1}, request("stop", `{"extra":true}`), "admin", commands.ErrInvalidParams, 0},
 		{"viewer", commands.Trap{ID: trapID, OrganizationID: orgID, TypeID: "tcp-banner", TypeVersion: 1}, request("stop", `{}`), "viewer", commands.ErrForbidden, 0},
@@ -137,7 +164,9 @@ func TestCreateRules(t *testing.T) {
 
 func TestReplayBeforeActiveConflict(t *testing.T) {
 	store := &fakeStore{trap: commands.Trap{ID: trapID, OrganizationID: orgID, TypeID: "tcp-banner", TypeVersion: 1}}
-	service := New(store, func(context.Context, string, int32, string, json.RawMessage) error { return nil })
+	service := New(store, func(context.Context, string, int32, string, json.RawMessage) error {
+		return nil
+	})
 
 	first, err := service.Create(t.Context(), admin(), trapID, request("stop", `{}`))
 	if err != nil {

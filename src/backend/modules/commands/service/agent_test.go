@@ -34,6 +34,7 @@ func (f *fakeAgentStore) RecordResult(ctx context.Context, _, _ string, input co
 
 	f.writes++
 	f.recorded = input
+
 	return time.Unix(200, 0), nil
 }
 
@@ -57,9 +58,16 @@ func TestAgentResultValidation(t *testing.T) {
 		want   error
 	}{
 		{"success", func(*commands.AgentResult) {}, nil},
-		{"wrong status", func(v *commands.AgentResult) { v.Status = commands.Queued }, commands.ErrResultInvalid},
-		{"wrong revision", func(v *commands.AgentResult) { bad := int32(3); v.Runtime.AppliedProfileRevision = &bad }, commands.ErrResultInvalid},
-		{"contradictory runtime", func(v *commands.AgentResult) { v.Runtime.RuntimeState = "running" }, commands.ErrResultInvalid},
+		{"wrong status", func(v *commands.AgentResult) {
+			v.Status = commands.Queued
+		}, commands.ErrResultInvalid},
+		{"wrong revision", func(v *commands.AgentResult) {
+			bad := int32(3)
+			v.Runtime.AppliedProfileRevision = &bad
+		}, commands.ErrResultInvalid},
+		{"contradictory runtime", func(v *commands.AgentResult) {
+			v.Runtime.RuntimeState = "running"
+		}, commands.ErrResultInvalid},
 		{"unsafe error code", func(v *commands.AgentResult) {
 			v.Status = commands.Failed
 			v.Result = nil
@@ -70,14 +78,18 @@ func TestAgentResultValidation(t *testing.T) {
 			v.Result = nil
 			v.Error = &commands.RuntimeError{Code: "port_unavailable", Message: `C:\secret`}
 		}, nil},
-		{"bad buffer", func(v *commands.AgentResult) { v.Runtime.BufferCapacityBytes = 0 }, commands.ErrResultInvalid},
+		{"bad buffer", func(v *commands.AgentResult) {
+			v.Runtime.BufferCapacityBytes = 0
+		}, commands.ErrResultInvalid},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			store := &fakeAgentStore{
 				trap:    commands.Trap{ID: trapID, OrganizationID: orgID, TypeID: "tcp-banner", TypeVersion: 1},
 				command: commands.Command{Action: "apply_config", Status: commands.Running, TargetProfileRevision: &revision},
 			}
-			agent := NewAgent(store, func(context.Context, string, int32, string, json.RawMessage, bool) error { return nil })
+			agent := NewAgent(store, func(context.Context, string, int32, string, json.RawMessage, bool) error {
+				return nil
+			})
 			input := base
 			tt.change(&input)
 			_, err := agent.RecordResult(agentContext(), orgID, trapID, input)

@@ -40,6 +40,7 @@ type record struct {
 	State      *State      `json:"state,omitempty"`
 	Checkpoint *checkpoint `json:"checkpoint,omitempty"`
 }
+
 type checkpoint struct {
 	Pending []Batch                  `json:"pending"`
 	Active  map[string]activeSession `json:"active"`
@@ -71,41 +72,53 @@ func (j *Journal) append(rec record) error {
 	if j.broken != nil {
 		return j.broken
 	}
+
 	raw, err := json.Marshal(rec)
 	if err != nil {
 		return fmt.Errorf("encode journal: %w", err)
 	}
+
 	raw = append(raw, '\n')
 	// Detach the stored state from maps/slices owned by the caller.
 	var committed record
 	if err := json.Unmarshal(raw, &committed); err != nil {
 		return fmt.Errorf("decode journal record: %w", err)
 	}
+
 	if j.redis != nil {
 		if err := j.redis.append(raw); err != nil {
 			j.broken = fmt.Errorf("persist Redis journal: %w", err)
 			return j.broken
 		}
+
 		j.apply(committed)
 		if err := j.compactRedis(); err != nil {
 			j.broken = err
 			return err
 		}
+
 		return nil
 	}
+
 	if _, err := j.file.Write(raw); err != nil {
 		j.broken = fmt.Errorf("write journal: %w", err)
 		return j.broken
 	}
+
 	if err := j.file.Sync(); err != nil {
 		j.broken = fmt.Errorf("sync journal: %w", err)
 		return j.broken
 	}
+
 	j.apply(committed)
+
 	return nil
 }
 
-func batchBytes(batch Batch) int64 { raw, _ := json.Marshal(batch); return int64(len(raw)) }
+func batchBytes(batch Batch) int64 {
+	raw, _ := json.Marshal(batch)
+	return int64(len(raw))
+}
 
 func (j *Journal) apply(rec record) {
 	if rec.Checkpoint != nil {
@@ -117,19 +130,23 @@ func (j *Journal) apply(rec record) {
 		for _, b := range j.pending {
 			j.bytes += batchBytes(b)
 		}
+
 		for id := range j.active {
 			j.sessions[id] = true
 		}
 	}
+
 	if rec.State != nil {
 		j.state = *rec.State
 		if j.state.Results == nil {
 			j.state.Results = map[string]commands.AgentResult{}
 		}
+
 		if j.state.Awaiting == nil {
 			j.state.Awaiting = map[string]bool{}
 		}
 	}
+
 	if rec.Batch != nil {
 		j.pending = append(j.pending, *rec.Batch)
 		j.bytes += batchBytes(*rec.Batch)
@@ -139,6 +156,7 @@ func (j *Journal) apply(rec record) {
 				started, _ := time.Parse(time.RFC3339Nano, e.OccurredAt)
 				j.active[e.SessionID] = activeSession{Last: e, Started: started}
 			}
+
 			if e.EventType == "tcp.payload_received" {
 				a := j.active[e.SessionID]
 				a.Last = e
@@ -149,6 +167,7 @@ func (j *Journal) apply(rec record) {
 				a.Bytes += d.Original
 				j.active[e.SessionID] = a
 			}
+
 			if e.EventType == "service.auth_attempt" || e.EventType == "service.action" || e.EventType == "honeytoken.triggered" || (e.TypeID == "ssh-high-interaction" && strings.HasPrefix(e.EventType, "service.") && e.EventType != "service.connection_opened" && e.EventType != "service.connection_closed") {
 				a := j.active[e.SessionID]
 				a.Last = e
@@ -162,14 +181,17 @@ func (j *Journal) apply(rec record) {
 				if e.EventType == "service.file_chunk" || e.EventType == "service.session_io" && (d.Stream == "stdin" || d.Stream == "exec") {
 					a.Bytes += d.Bytes
 				}
+
 				j.active[e.SessionID] = a
 			}
+
 			if e.EventType == "tcp.connection_closed" || e.EventType == "service.connection_closed" {
 				delete(j.sessions, e.SessionID)
 				delete(j.active, e.SessionID)
 			}
 		}
 	}
+
 	if rec.Ack != "" {
 		for i, b := range j.pending {
 			if b.BatchID == rec.Ack {
@@ -184,6 +206,7 @@ func (j *Journal) apply(rec record) {
 func (j *Journal) Enqueue(e events.AgentEvent) (Batch, error) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
+
 	for _, b := range j.pending {
 		for _, old := range b.Events {
 			if old.EventID == e.EventID {
@@ -192,31 +215,38 @@ func (j *Journal) Enqueue(e events.AgentEvent) (Batch, error) {
 				if !bytes.Equal(a, v) {
 					return Batch{}, fmt.Errorf("event identifier conflict")
 				}
+
 				return cloneBatch(b), nil
 			}
 		}
 	}
+
 	b := Batch{BatchID: string(contract.NewID()), Events: []events.AgentEvent{e}}
 	reserve := int64(len(j.sessions)) * sessionReserve
 	if (e.EventType == "tcp.connection_opened" || e.EventType == "service.connection_opened") && !j.sessions[e.SessionID] {
 		reserve += sessionReserve
 	}
+
 	if (e.EventType == "tcp.connection_closed" || e.EventType == "service.connection_closed") && j.sessions[e.SessionID] {
 		reserve -= sessionReserve
 	}
+
 	if j.bytes+batchBytes(b)+reserve > j.capacity {
 		return Batch{}, ErrBufferFull
 	}
+
 	return b, j.append(record{Batch: &b})
 }
 
 func (j *Journal) Pending() []Batch {
 	j.mu.Lock()
 	defer j.mu.Unlock()
+
 	pending := slices.Clone(j.pending)
 	for i := range pending {
 		pending[i] = cloneBatch(pending[i])
 	}
+
 	return pending
 }
 
@@ -226,54 +256,65 @@ func cloneBatch(batch Batch) Batch {
 	for i := range batch.Events {
 		batch.Events[i].Data = slices.Clone(batch.Events[i].Data)
 	}
+
 	return batch
 }
 
 func (j *Journal) Ack(batchID string, ids []string) error {
 	j.mu.Lock()
 	defer j.mu.Unlock()
+
 	for _, b := range j.pending {
 		if b.BatchID == batchID {
 			if len(ids) != len(b.Events) {
 				return fmt.Errorf("incomplete telemetry acknowledgement")
 			}
+
 			for i, e := range b.Events {
 				if ids[i] != e.EventID {
 					return fmt.Errorf("unexpected acknowledged event")
 				}
 			}
+
 			return j.append(record{Ack: batchID})
 		}
 	}
+
 	return fmt.Errorf("unknown batch acknowledgement")
 }
 
 func (j *Journal) LoadState() State {
 	j.mu.Lock()
 	defer j.mu.Unlock()
+
 	raw, _ := json.Marshal(j.state)
 	var state State
 	json.Unmarshal(raw, &state)
+
 	return state
 }
 
 func (j *Journal) SaveState(state State) error {
 	j.mu.Lock()
 	defer j.mu.Unlock()
+
 	return j.append(record{State: &state})
 }
 
 func (j *Journal) Usage() (int64, int64) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
+
 	return int64(len(j.pending)), j.bytes
 }
 
 func (j *Journal) Close() error {
 	j.mu.Lock()
 	defer j.mu.Unlock()
+
 	if j.redis != nil {
 		return j.redis.close()
 	}
+
 	return j.file.Close()
 }

@@ -22,6 +22,7 @@ func (r *Repository) ExpireDue(ctx context.Context, org, trapID string, now time
 	if err != nil {
 		return fmt.Errorf("begin command expiry: %w", err)
 	}
+
 	defer func() {
 		rollback, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()

@@ -22,6 +22,7 @@ func BodyLimit(c *gin.Context) {
 		WriteError(c, 413, "body_too_large", "Request body is too large")
 		return
 	}
+
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, MaxBodySize)
 	c.Next()
 }
@@ -31,12 +32,14 @@ func ReadBody(c *gin.Context) ([]byte, bool) {
 	if err == nil {
 		return raw, true
 	}
+
 	var large *http.MaxBytesError
 	if errors.As(err, &large) {
 		WriteError(c, 413, "body_too_large", "Request body is too large")
 	} else {
 		WriteError(c, 400, "invalid_json", "Invalid JSON body")
 	}
+
 	return nil, false
 }
 
@@ -46,6 +49,7 @@ func EmptyBody(c *gin.Context) bool {
 		WriteError(c, 400, "invalid_json", "Invalid JSON body")
 		return false
 	}
+
 	return ok
 }
 
@@ -55,19 +59,23 @@ func BindJSON(c *gin.Context, dst any, shape func([]byte) bool) bool {
 	if !ok {
 		return false
 	}
+
 	if len(bytes.TrimSpace(raw)) == 0 {
 		WriteError(c, 400, "invalid_json", "Invalid JSON body")
 		return false
 	}
+
 	media, _, err := mime.ParseMediaType(c.GetHeader("Content-Type"))
 	if err != nil || media != "application/json" {
 		WriteError(c, 415, "unsupported_media_type", "Expected application/json")
 		return false
 	}
+
 	if !utf8.Valid(raw) || !StrictObject(raw, reflect.TypeOf(dst).Elem()) || shape != nil && !shape(raw) {
 		WriteError(c, 400, "invalid_json", "Invalid JSON body")
 		return false
 	}
+
 	c.Request.Body = io.NopCloser(bytes.NewReader(raw))
 	if err := c.ShouldBindJSON(dst); err != nil {
 		var fields validator.ValidationErrors
@@ -76,8 +84,10 @@ func BindJSON(c *gin.Context, dst any, shape func([]byte) bool) bool {
 		} else {
 			WriteError(c, 400, "invalid_json", "Invalid JSON body")
 		}
+
 		return false
 	}
+
 	return true
 }
 

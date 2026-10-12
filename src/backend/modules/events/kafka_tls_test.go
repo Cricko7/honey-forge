@@ -27,7 +27,9 @@ func TestKafkaConnectionUsesAuthenticatedTLS(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			defer listener.Close()
+
 			handshake := make(chan error, 1)
 			go func() {
 				conn, err := listener.Accept()
@@ -35,26 +37,35 @@ func TestKafkaConnectionUsesAuthenticatedTLS(t *testing.T) {
 					handshake <- err
 					return
 				}
+
 				defer conn.Close()
+
 				if err := conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
 					handshake <- err
 					return
 				}
+
 				handshake <- conn.(*tls.Conn).Handshake()
 			}()
 			config := template.Client().Transport.(*http.Transport).TLSClientConfig.Clone()
 			if !tt.trusted {
 				config.RootCAs = x509.NewCertPool()
 			}
+
 			publisher, err := NewKafkaPublisher([]string{listener.Addr().String()}, "tls-test", config)
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			defer publisher.Close()
+
 			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
+
 			published := make(chan error, 1)
-			go func() { published <- publisher.Publish(ctx, agentws.Identity{}, "batch", nil) }()
+			go func() {
+				published <- publisher.Publish(ctx, agentws.Identity{}, "batch", nil)
+			}()
 			select {
 			case err := <-handshake:
 				if (err == nil) != tt.trusted {
@@ -63,6 +74,7 @@ func TestKafkaConnectionUsesAuthenticatedTLS(t *testing.T) {
 			case <-ctx.Done():
 				t.Fatal("Kafka did not attempt TLS handshake")
 			}
+
 			cancel()
 			if err := <-published; !errors.Is(err, context.Canceled) {
 				t.Fatalf("unacknowledged publish should respect cancellation: %v", err)

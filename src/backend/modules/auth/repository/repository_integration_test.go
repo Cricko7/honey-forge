@@ -5,9 +5,6 @@ package repository
 import (
 	"context"
 	"errors"
-	authcore "honey-forge/modules/auth"
-	authhttp "honey-forge/modules/auth/http"
-	authservice "honey-forge/modules/auth/service"
 	"io"
 	"log/slog"
 	"net/http/httptest"
@@ -17,8 +14,11 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-
 	"github.com/jackc/pgx/v5"
+
+	authcore "honey-forge/modules/auth"
+	authhttp "honey-forge/modules/auth/http"
+	authservice "honey-forge/modules/auth/service"
 )
 
 func TestPostgresMigrationsUpDownUp(t *testing.T) {
@@ -48,6 +48,7 @@ func TestPostgresRegistrationConcurrencyAndRotation(t *testing.T) {
 			}
 		})
 	}
+
 	wg.Wait()
 
 	if winners.Load() != 1 || sqlCount(t, pool, "organizations") != 1 || sqlCount(t, pool, "users") != 1 ||
@@ -59,10 +60,12 @@ func TestPostgresRegistrationConcurrencyAndRotation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	admin, err := service.ResolveSession(ctx, raw)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	code, err := service.JoinCode(ctx, admin.AuthContext())
 	if err != nil {
 		t.Fatal(err)
@@ -79,6 +82,7 @@ func TestPostgresRegistrationConcurrencyAndRotation(t *testing.T) {
 			}
 		})
 	}
+
 	wg.Wait()
 	if winners.Load() != 1 {
 		t.Fatal("concurrent rotations must have exactly one winner")
@@ -96,6 +100,7 @@ func TestPostgresRegistrationConcurrencyAndRotation(t *testing.T) {
 	if err != nil || viewer.User.Role != authcore.RoleViewer || viewer.User.OrganizationID != view.User.OrganizationID {
 		t.Fatalf("viewer registration: %v %+v", err, viewer)
 	}
+
 	if _, err := service.JoinCode(ctx, authcore.AuthContext{UserID: viewer.User.ID, OrganizationID: viewer.User.OrganizationID, Role: viewer.User.Role}); !errors.Is(err, authcore.ErrForbidden) {
 		t.Fatal("viewer accessed code")
 	}
@@ -103,9 +108,11 @@ func TestPostgresRegistrationConcurrencyAndRotation(t *testing.T) {
 	if err := service.Logout(ctx, raw, view.CSRFToken); err != nil {
 		t.Fatal(err)
 	}
+
 	if _, err := service.ResolveSession(ctx, raw); !errors.Is(err, authcore.ErrUnauthorized) {
 		t.Fatal("logout did not revoke SQL session")
 	}
+
 	if _, err := service.ResolveSession(ctx, viewerRaw); err != nil {
 		t.Fatal("logout revoked another browser session")
 	}
@@ -129,6 +136,7 @@ func TestPostgresJoinWaitsForRotationAndAuditFailureRollsBack(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	admin, _ := service.ResolveSession(ctx, raw)
 	code, _ := service.JoinCode(ctx, admin.AuthContext())
 
@@ -136,6 +144,7 @@ func TestPostgresJoinWaitsForRotationAndAuditFailureRollsBack(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer func() {
 		if err := tx.Rollback(context.Background()); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
 			t.Error(err)
@@ -159,9 +168,11 @@ func TestPostgresJoinWaitsForRotationAndAuditFailureRollsBack(t *testing.T) {
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := <-result; !errors.Is(err, authcore.ErrInvalidJoinCode) {
 		t.Fatalf("join with replaced code: %v", err)
 	}
+
 	if sqlCount(t, pool, "users") != 1 || sqlCount(t, pool, "operator_sessions") != 1 {
 		t.Fatal("rejected join left user/session")
 	}
@@ -170,9 +181,11 @@ func TestPostgresJoinWaitsForRotationAndAuditFailureRollsBack(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if _, _, err := service.Register(ctx, createRequest("rollback@example.com"), ""); err == nil {
 		t.Fatal("audit failure must fail registration")
 	}
+
 	if sqlCount(t, pool, "organizations") != 1 || sqlCount(t, pool, "users") != 1 {
 		t.Fatal("audit failure did not roll back business writes")
 	}
@@ -204,10 +217,12 @@ func TestPostgresHTTPFlow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	first, err := service.ResolveSession(t.Context(), cookie.Value)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	org, err := service.Organization(t.Context(), first.AuthContext())
 	if err != nil || org.ID == second.Organization.ID {
 		t.Fatal("organization isolation failed")

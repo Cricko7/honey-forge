@@ -52,6 +52,7 @@ func TestJournalBeforeMaterialization(t *testing.T) {
 			if db.calls != tc.calls || publisher.calls != 1 || (err == nil) != (tc.err == nil) {
 				t.Fatalf("db=%d broker=%d err=%v", db.calls, publisher.calls, err)
 			}
+
 			if tc.err != nil {
 				var api *contract.Error
 				if !errors.As(err, &api) || api.Code != "telemetry_unavailable" {
@@ -65,6 +66,7 @@ func TestJournalBeforeMaterialization(t *testing.T) {
 func (unavailableStore) Prepare(context.Context, agentws.Identity, string, string, []AgentEvent) error {
 	return nil
 }
+
 func (*memoryIngest) Prepare(context.Context, agentws.Identity, string, string, []AgentEvent) error {
 	return nil
 }

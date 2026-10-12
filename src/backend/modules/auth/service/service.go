@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	authcore "honey-forge/modules/auth"
 	"strings"
 	"time"
+
+	authcore "honey-forge/modules/auth"
 )
 
 type store interface {
@@ -40,7 +41,13 @@ func (s *Service) Register(ctx context.Context, req authcore.RegisterRequest, cu
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	org := authcore.Organization{ID: authcore.NewUUID(), Name: strings.TrimSpace(req.Organization.Name), CreatedAt: now}
-	user := authcore.User{ID: authcore.NewUUID(), OrganizationID: org.ID, Email: normalizeEmail(req.Email), Role: authcore.RoleAdmin, CreatedAt: now}
+	user := authcore.User{
+		ID:             authcore.NewUUID(),
+		OrganizationID: org.ID,
+		Email:          normalizeEmail(req.Email),
+		Role:           authcore.RoleAdmin,
+		CreatedAt:      now,
+	}
 	if req.Organization.Mode == "join" {
 		user.Role = authcore.RoleViewer
 	}
@@ -63,6 +70,7 @@ func (s *Service) CheckRegistrationSession(ctx context.Context, currentCookie st
 		if err == nil {
 			return authcore.ErrAlreadyAuthenticated
 		}
+
 		if !errors.Is(err, authcore.ErrUnauthorized) {
 			return err
 		}
@@ -78,6 +86,7 @@ func (s *Service) Login(ctx context.Context, req authcore.LoginRequest, currentC
 
 		return authcore.SessionView{}, "", authcore.ErrInvalidCredentials
 	}
+
 	if err != nil {
 		return authcore.SessionView{}, "", fmt.Errorf("loading credentials: %w", err)
 	}
@@ -86,6 +95,7 @@ func (s *Service) Login(ctx context.Context, req authcore.LoginRequest, currentC
 	if err != nil {
 		return authcore.SessionView{}, "", fmt.Errorf("checking password: %w", err)
 	}
+
 	if !matches {
 		return authcore.SessionView{}, "", authcore.ErrInvalidCredentials
 	}
@@ -112,6 +122,7 @@ func (s *Service) ResolveSession(ctx context.Context, raw string) (authcore.Reso
 	if errors.Is(err, authcore.ErrNotFound) {
 		return authcore.ResolvedSession{}, authcore.ErrUnauthorized
 	}
+
 	if err != nil {
 		return authcore.ResolvedSession{}, fmt.Errorf("resolving session: %w", err)
 	}
@@ -126,6 +137,7 @@ func (s *Service) Logout(ctx context.Context, raw, csrf string) error {
 	if errors.Is(err, authcore.ErrUnauthorized) {
 		return nil
 	}
+
 	if err != nil {
 		return err
 	}

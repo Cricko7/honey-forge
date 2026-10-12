@@ -27,9 +27,11 @@ func authRequest(router http.Handler, method, path, body, cookie, csrf string) *
 	if cookie != "" {
 		req.AddCookie(&http.Cookie{Name: "__Host-session", Value: cookie})
 	}
+
 	if csrf != "" {
 		req.Header.Set("X-CSRF-Token", csrf)
 	}
+
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, req)
 

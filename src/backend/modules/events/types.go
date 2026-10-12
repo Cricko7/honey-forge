@@ -10,10 +10,12 @@ type Source struct {
 	IP   string `json:"ip" validate:"required"`
 	Port int    `json:"port" validate:"min=1,max=65535"`
 }
+
 type Destination struct {
 	Protocol string `json:"protocol" validate:"min=1,max=32"`
 	Port     int    `json:"port" validate:"min=1,max=65535"`
 }
+
 type AgentEvent struct {
 	EventID         string          `json:"event_id" validate:"required,uuid"`
 	EventType       string          `json:"event_type" validate:"required,type_id"`
@@ -27,10 +29,12 @@ type AgentEvent struct {
 	Destination     Destination     `json:"destination"`
 	Data            json.RawMessage `json:"data,omitempty" validate:"required"`
 }
+
 type Enrichment struct {
 	CountryCode *string `json:"country_code"`
 	ASN         *uint32 `json:"asn"`
 }
+
 type Event struct {
 	AgentEvent
 	TrapID           string      `json:"trap_id"`
@@ -64,6 +68,7 @@ type EventPage struct {
 	NextCursor   *string        `json:"next_cursor"`
 	StreamCursor string         `json:"stream_cursor"`
 }
+
 type Query struct {
 	Limit                                  int
 	TrapID, EventType, SessionID, SourceIP string

@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+
 	"honey-forge/internal/contract"
 	"honey-forge/modules/profiles"
 )
@@ -14,10 +15,12 @@ func (r *Repository) checkPayload(ctx context.Context, tx pgx.Tx, trapID string,
 	if event.TypeID != "tcp-banner" || event.TypeVersion != 1 || event.EventType != "tcp.payload_received" {
 		return nil
 	}
+
 	config, err := json.Marshal(snapshot.Config)
 	if err != nil {
 		return fmt.Errorf("encode payload snapshot: %w", err)
 	}
+
 	var captured int64
 	if cumulative {
 		// The caller holds the trap lock; retries were deduplicated before this sum.
@@ -26,6 +29,8 @@ func (r *Repository) checkPayload(ctx context.Context, tx pgx.Tx, trapID string,
 			return fmt.Errorf("read session capture budget: %w", err)
 		}
 	}
+
 	_, err = r.catalog.CheckPayloadCapture(ctx, event.TypeID, contract.TypeVersion(event.TypeVersion), config, event.Data, captured)
+
 	return err
 }

@@ -49,6 +49,7 @@ func TestSessionTLSAuthentication(t *testing.T) {
 				if r.TLS != nil {
 					version = r.TLS.Version
 				}
+
 				observed <- struct {
 					token   string
 					version uint16
@@ -62,27 +63,35 @@ func TestSessionTLSAuthentication(t *testing.T) {
 			} else {
 				server.StartTLS()
 			}
+
 			defer server.Close()
+
 			roots := x509.NewCertPool()
 			if !tt.untrusted {
 				roots.AddCert(leaf)
 			}
+
 			config := &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12}
 			if tt.wrongName {
 				config.ServerName = "other.example"
 			}
+
 			journal, err := OpenJournal(filepath.Join(t.TempDir(), "journal"), "tls-test", 1<<20)
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			defer journal.Close()
+
 			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
+
 			err = session(ctx, Options{URL: "wss://" + server.Listener.Addr().String() + "/assets/stream", Token: "tls-test-private-token", TLS: config}, journal, NewService(journal, nil), nil, nil)
 			if tt.accepted {
 				if !errors.Is(err, ErrRevoked) {
 					t.Fatalf("trusted TLS must reach the authenticated HTTP boundary: %v", err)
 				}
+
 				select {
 				case request := <-observed:
 					if request.token != "Bearer tls-test-private-token" || request.version != tt.maxVersion {
@@ -91,11 +100,14 @@ func TestSessionTLSAuthentication(t *testing.T) {
 				default:
 					t.Fatal("trusted peer did not receive request")
 				}
+
 				return
 			}
+
 			if err == nil || errors.Is(err, ErrRevoked) || !strings.Contains(err.Error(), "connect backend") {
 				t.Fatalf("unsafe peer must fail before HTTP authentication: %v", err)
 			}
+
 			select {
 			case <-observed:
 				t.Fatal("unsafe peer received an HTTP request with agent credentials")
@@ -111,23 +123,31 @@ func sessionTestCertificate(t *testing.T, expired bool) (tls.Certificate, *x509.
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	now := time.Now()
 	leaf := &x509.Certificate{
-		SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "localhost"},
-		NotBefore: now.Add(-2 * time.Hour), NotAfter: now.Add(time.Hour),
-		IPAddresses: []net.IP{net.ParseIP("127.0.0.1")}, DNSNames: []string{"localhost"},
-		KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "localhost"},
+		NotBefore:    now.Add(-2 * time.Hour),
+		NotAfter:     now.Add(time.Hour),
+		IPAddresses:  []net.IP{net.ParseIP("127.0.0.1")},
+		DNSNames:     []string{"localhost"},
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 	}
 	if expired {
 		leaf.NotAfter = now.Add(-time.Hour)
 	}
+
 	raw, err := x509.CreateCertificate(rand.Reader, leaf, leaf, &key.PublicKey, key)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	parsed, err := x509.ParseCertificate(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	return tls.Certificate{Certificate: [][]byte{raw}, PrivateKey: key}, parsed
 }

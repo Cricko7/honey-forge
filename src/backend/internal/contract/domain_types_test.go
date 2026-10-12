@@ -27,6 +27,7 @@ func TestDomainTypes(t *testing.T) {
 					if in.Name != "trap" {
 						t.Error("name not normalized")
 					}
+
 					c.JSON(200, in)
 				}
 			})

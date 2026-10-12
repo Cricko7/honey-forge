@@ -25,7 +25,13 @@ func BuiltinDefinitions() []Definition {
 		if err := json.Unmarshal(raw, &entry); err != nil {
 			panic("invalid embedded trap descriptor: " + err.Error())
 		}
-		definitions = append(definitions, Definition{Entry: entry, SupportsAuthentication: entry.TypeID == "redis-emulator", SupportsServiceActions: entry.TypeID == "redis-emulator"})
+
+		definitions = append(definitions, Definition{
+			Entry:                  entry,
+			SupportsAuthentication: entry.TypeID == "redis-emulator",
+			SupportsServiceActions: entry.TypeID == "redis-emulator",
+		})
 	}
+
 	return definitions
 }

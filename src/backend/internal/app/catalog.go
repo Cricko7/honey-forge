@@ -1,10 +1,10 @@
 package app
 
 import (
+	"github.com/gin-gonic/gin"
+
 	"honey-forge/internal/contract"
 	"honey-forge/modules/catalog"
-
-	"github.com/gin-gonic/gin"
 )
 
 func RegisterCatalog(router *gin.Engine, browser *contract.BrowserPolicy, authenticate Authenticate, service *catalog.Service) {

@@ -3,8 +3,9 @@ package audit
 import (
 	"context"
 	"errors"
-	"honey-forge/internal/contract"
 	"testing"
+
+	"honey-forge/internal/contract"
 )
 
 type fakeStore struct {
@@ -16,6 +17,7 @@ func (f *fakeStore) Read(context.Context, string, string) (Entry, error) {
 	f.calls++
 	return Entry{Action: "trap.deleted"}, f.err
 }
+
 func (f *fakeStore) List(context.Context, string, Query) ([]Entry, bool, int64, error) {
 	f.calls++
 	return []Entry{}, false, 0, f.err
@@ -37,21 +39,26 @@ func TestReadAuthorizationAndFailures(t *testing.T) {
 			if tc.fail {
 				f.err = contract.NewError("resource_not_found")
 			}
+
 			ctx := t.Context()
 			if tc.role != "" {
 				ctx = contract.WithPrincipal(ctx, contract.Principal{Role: tc.role, OrganizationID: contract.NewID()})
 			}
+
 			got, err := NewService(f).Read(ctx, string(contract.NewID()))
 			if tc.code == "" {
 				if err != nil || got.Action != "trap.deleted" {
 					t.Fatalf("%+v %v", got, err)
 				}
+
 				return
 			}
+
 			var api *contract.Error
 			if !errors.As(err, &api) || api.Code != tc.code {
 				t.Fatalf("%v", err)
 			}
+
 			if (tc.role == "" || tc.role == contract.Agent) && f.calls != 0 {
 				t.Fatal("unauthorized store call")
 			}

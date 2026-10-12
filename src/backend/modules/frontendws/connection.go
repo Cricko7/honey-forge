@@ -23,12 +23,15 @@ func (h *Handler) connected(ctx context.Context, socket *stream.Socket, cookie s
 			} else {
 				h.streamFailure(err, closeConnection)
 			}
+
 			return false
 		}
+
 		if current.OrganizationID != principal.OrganizationID || current.UserID != principal.UserID {
 			closeConnection(4401, "unauthenticated")
 			return false
 		}
+
 		return true
 	}
 	// Only the reader touches read deadlines and pong handlers. An idle connection
@@ -37,12 +40,19 @@ func (h *Handler) connected(ctx context.Context, socket *stream.Socket, cookie s
 		h.log(err)
 		return
 	}
+
 	var pong atomic.Int64
-	socket.SetPongHandler(func() { pong.Store(time.Now().UnixNano()) })
+	socket.SetPongHandler(func() {
+		pong.Store(time.Now().UnixNano())
+	})
 	q := newQueue()
 	var workers sync.WaitGroup
-	fail := func(err error) { h.streamFailure(err, closeConnection) }
-	workers.Go(func() { h.produce(ctx, request, after, boundary, replayed, q, fail) })
+	fail := func(err error) {
+		h.streamFailure(err, closeConnection)
+	}
+	workers.Go(func() {
+		h.produce(ctx, request, after, boundary, replayed, q, fail)
+	})
 	workers.Go(func() {
 		e, err := socket.Read(ctx)
 		if err == nil {
@@ -59,6 +69,7 @@ func (h *Handler) connected(ctx context.Context, socket *stream.Socket, cookie s
 	workers.Go(func() {
 		ticker := time.NewTicker(15 * time.Second)
 		defer ticker.Stop()
+
 		for {
 			select {
 			case <-ctx.Done():
@@ -67,11 +78,13 @@ func (h *Handler) connected(ctx context.Context, socket *stream.Socket, cookie s
 				if !verify() {
 					return
 				}
+
 				sent := time.Now().UnixNano()
 				if err := socket.Ping(time.Now().Add(time.Second)); err != nil {
 					fail(err)
 					return
 				}
+
 				timer := time.NewTimer(10 * time.Second)
 				select {
 				case <-ctx.Done():
@@ -86,7 +99,11 @@ func (h *Handler) connected(ctx context.Context, socket *stream.Socket, cookie s
 			}
 		}
 	})
-	defer func() { closeConnection(1000, "normal"); workers.Wait() }()
+	defer func() {
+		closeConnection(1000, "normal")
+		workers.Wait()
+	}()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -95,6 +112,7 @@ func (h *Handler) connected(ctx context.Context, socket *stream.Socket, cookie s
 			if !verify() {
 				return
 			}
+
 			err := socket.Write(ctx, item.message)
 			q.release(item)
 			if err != nil {

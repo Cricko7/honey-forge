@@ -19,6 +19,7 @@ func EncodeCursor(codec *contract.CursorCodec, org contract.ID, sequence int64, 
 	if sequence < 0 {
 		return "", contract.NewError("invalid_cursor")
 	}
+
 	return codec.Encode(cursorScope(org), contract.CursorPosition{Boundary: strconv.FormatInt(sequence, 10), After: issued.UTC().Format(time.RFC3339Nano)})
 }
 
@@ -27,16 +28,20 @@ func DecodeCursor(codec *contract.CursorCodec, org contract.ID, token string, no
 	if err != nil {
 		return 0, err
 	}
+
 	seq, err := strconv.ParseInt(p.Boundary, 10, 64)
 	if err != nil || seq < 0 {
 		return 0, contract.NewError("invalid_cursor")
 	}
+
 	issued, err := time.Parse(time.RFC3339Nano, p.After)
 	if err != nil || issued.After(now.Add(time.Minute)) {
 		return 0, contract.NewError("invalid_cursor")
 	}
+
 	if now.Sub(issued) > ReplayRetention {
 		return 0, contract.NewError("cursor_expired")
 	}
+
 	return seq, nil
 }

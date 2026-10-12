@@ -42,11 +42,13 @@ func Authorize(ctx context.Context, roles ...Role) error {
 	if !ok {
 		return NewError("unauthenticated")
 	}
+
 	for _, role := range roles {
 		if p.Role == role {
 			return nil
 		}
 	}
+
 	return NewError("forbidden")
 }
 
@@ -55,6 +57,7 @@ func RequireRole(c *gin.Context, roles ...Role) bool {
 		Fail(c, err.(*Error))
 		return false
 	}
+
 	return true
 }
 
@@ -63,9 +66,11 @@ func RequireOrganization(ctx context.Context, organizationID ID) error {
 	if !ok {
 		return NewError("unauthenticated")
 	}
+
 	if p.OrganizationID != organizationID {
 		return NewError("resource_not_found")
 	}
+
 	return nil
 }
 
@@ -73,12 +78,15 @@ func RequireAgentTrap(ctx context.Context, trapID ID) error {
 	if err := AuthorizeCapability(ctx, AgentStream); err != nil {
 		return err
 	}
+
 	principal, _ := PrincipalFrom(ctx)
 	if !ValidID(string(principal.OrganizationID)) || !ValidID(string(principal.TrapID)) {
 		return NewError("agent_unauthenticated")
 	}
+
 	if principal.TrapID != trapID {
 		return NewError("resource_not_found")
 	}
+
 	return nil
 }

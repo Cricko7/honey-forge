@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
+
 	"honey-forge/modules/events"
 	"honey-forge/modules/profiles"
 )
@@ -18,25 +19,40 @@ func startTestGateway(t *testing.T, b *fakeBackend, configure func(*profiles.Sna
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	port := probe.Addr().(*net.TCPAddr).Port
 	probe.Close()
 	snapshot := testSnapshot(port)
 	if configure != nil {
 		configure(&snapshot)
 	}
+
 	if sink == nil {
-		sink = func(context.Context, events.AgentEvent) error { return nil }
+		sink = func(context.Context, events.AgentEvent) error {
+			return nil
+		}
 	}
+
 	r, err := start(t.Context(), snapshot, "127.0.0.1", sink, b)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	t.Cleanup(r.Stop)
-	client, err := ssh.Dial("tcp", r.listener.Addr().String(), &ssh.ClientConfig{User: "root", Auth: []ssh.AuthMethod{ssh.Password("bait")}, HostKeyCallback: ssh.InsecureIgnoreHostKey(), Timeout: 5 * time.Second})
+	client, err := ssh.Dial("tcp", r.listener.Addr().String(), &ssh.ClientConfig{
+		User:            "root",
+		Auth:            []ssh.AuthMethod{ssh.Password("bait")},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         5 * time.Second,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { client.Close() })
+
+	t.Cleanup(func() {
+		client.Close()
+	})
+
 	return r, client
 }
 
@@ -52,7 +68,9 @@ func TestPTYModesAndDimensionsReachSandboxUnchanged(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer s.Close()
+
 	payload := ssh.Marshal(struct {
 		Term                         string
 		Columns, Rows, Width, Height uint32
@@ -65,6 +83,7 @@ func TestPTYModesAndDimensionsReachSandboxUnchanged(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("PTY rejected: %v", err)
 	}
+
 	select {
 	case got := <-requests:
 		if !bytes.Equal(got, payload) {
@@ -82,28 +101,38 @@ func TestGatewayRejectsForwardingAndStopsActiveShell(t *testing.T) {
 		conn.Close()
 		t.Fatal("TCP forwarding accepted")
 	}
+
 	if listener, err := client.Listen("tcp", "127.0.0.1:0"); err == nil {
 		listener.Close()
 		t.Fatal("remote TCP forwarding accepted")
 	}
+
 	s, err := client.NewSession()
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer s.Close()
+
 	if err := s.Shell(); err != nil {
 		t.Fatal(err)
 	}
+
 	done := make(chan struct{})
-	go func() { r.Stop(); close(done) }()
+	go func() {
+		r.Stop()
+		close(done)
+	}()
 	select {
 	case <-done:
 	case <-time.After(5 * time.Second):
 		t.Fatal("shutdown stuck on active shell")
 	}
+
 	if b.opened.Load() != 1 || b.closed.Load() != 1 {
 		t.Fatalf("cleanup count: %d/%d", b.opened.Load(), b.closed.Load())
 	}
+
 	if err := r.Err(); err != nil {
 		t.Fatal(err)
 	}

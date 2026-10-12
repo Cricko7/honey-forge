@@ -49,6 +49,7 @@ func (a *Agent) Claim(ctx context.Context, org, trapID string) (*commands.Dispat
 	if err := agentAccess(ctx, org, trapID); err != nil {
 		return nil, err
 	}
+
 	if a.store == nil {
 		return nil, commands.ErrUnavailable
 	}
@@ -64,6 +65,7 @@ func (a *Agent) ExtendLease(ctx context.Context, org, trapID, commandID, leaseID
 	if !contract.ValidID(commandID) || !contract.ValidID(leaseID) {
 		return time.Time{}, commands.ErrStaleLease
 	}
+
 	if a.store == nil {
 		return time.Time{}, commands.ErrUnavailable
 	}
@@ -79,6 +81,7 @@ func (a *Agent) RecordResult(ctx context.Context, org, trapID string, input comm
 	if !contract.ValidID(input.CommandID) || !contract.ValidID(input.LeaseID) || a.checkResult == nil {
 		return time.Time{}, commands.ErrResultInvalid
 	}
+
 	if a.store == nil {
 		return time.Time{}, commands.ErrUnavailable
 	}
@@ -112,6 +115,7 @@ func (a *Agent) RecordResult(ctx context.Context, org, trapID string, input comm
 			if err := json.Unmarshal(result.Result, &outcome); err != nil || !sameRevision(outcome.Revision, result.Runtime.AppliedProfileRevision) {
 				return commands.ErrResultInvalid
 			}
+
 			if outcome.RuntimeState != nil && *outcome.RuntimeState != result.Runtime.RuntimeState {
 				return commands.ErrResultInvalid
 			}

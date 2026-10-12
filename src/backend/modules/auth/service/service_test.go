@@ -9,15 +9,16 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/crypto/bcrypt"
+
 	authcore "honey-forge/modules/auth"
 	"honey-forge/modules/auth/internal/teststore"
-
-	"golang.org/x/crypto/bcrypt"
 )
 
 func createRequest(email string) authcore.RegisterRequest {
 	return authcore.RegisterRequest{
-		Email: email, Password: "demo-password-2026",
+		Email:        email,
+		Password:     "demo-password-2026",
 		Organization: &authcore.OrganizationInput{Mode: "create", Name: " Demo SOC "},
 	}
 }
@@ -31,9 +32,11 @@ func TestCreateJoinAndSessionLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if admin.User.Role != authcore.RoleAdmin || admin.User.Email != "admin@example.com" || admin.Organization.Name != "Demo SOC" {
 		t.Fatalf("invalid admin: %+v", admin)
 	}
+
 	if delta := time.Until(admin.ExpiresAt); delta < authcore.SessionTTL-time.Minute || delta > authcore.SessionTTL {
 		t.Fatal("session must expire in seven days")
 	}
@@ -42,6 +45,7 @@ func TestCreateJoinAndSessionLifecycle(t *testing.T) {
 	if err != nil || authcore.CheckCSRF(resolved, admin.CSRFToken) != nil {
 		t.Fatalf("session/CSRF resolution: %v", err)
 	}
+
 	if !errors.Is(authcore.CheckCSRF(resolved, ""), authcore.ErrCSRF) {
 		t.Fatal("missing CSRF accepted")
 	}
@@ -49,6 +53,7 @@ func TestCreateJoinAndSessionLifecycle(t *testing.T) {
 	if _, _, err := service.Register(ctx, createRequest("other@example.com"), raw); !errors.Is(err, authcore.ErrAlreadyAuthenticated) {
 		t.Fatalf("authenticated registration: %v", err)
 	}
+
 	if _, _, err := service.Register(ctx, createRequest("ADMIN@example.com"), ""); !errors.Is(err, authcore.ErrEmailTaken) {
 		t.Fatalf("duplicate email: %v", err)
 	}
@@ -64,6 +69,7 @@ func TestCreateJoinAndSessionLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if viewer.User.Role != authcore.RoleViewer || viewer.User.OrganizationID != admin.User.OrganizationID {
 		t.Fatal("join must create a viewer of the selected organization")
 	}
@@ -72,6 +78,7 @@ func TestCreateJoinAndSessionLifecycle(t *testing.T) {
 	if _, err := service.JoinCode(ctx, viewerSession.AuthContext()); !errors.Is(err, authcore.ErrForbidden) {
 		t.Fatalf("viewer read code: %v", err)
 	}
+
 	if _, err := service.RotateJoinCode(ctx, viewerSession.AuthContext(), 1); !errors.Is(err, authcore.ErrForbidden) {
 		t.Fatalf("viewer rotate code: %v", err)
 	}
@@ -80,6 +87,7 @@ func TestCreateJoinAndSessionLifecycle(t *testing.T) {
 	if _, _, err := service.Login(ctx, login, raw); !errors.Is(err, authcore.ErrInvalidCredentials) {
 		t.Fatalf("incorrect password: %v", err)
 	}
+
 	if _, err := service.ResolveSession(ctx, raw); err != nil {
 		t.Fatal("failed login changed the existing session")
 	}
@@ -89,6 +97,7 @@ func TestCreateJoinAndSessionLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if _, err := service.ResolveSession(ctx, raw); !errors.Is(err, authcore.ErrUnauthorized) {
 		t.Fatal("successful login must replace the old browser session")
 	}
@@ -97,18 +106,23 @@ func TestCreateJoinAndSessionLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if err := service.Logout(ctx, newRaw, ""); !errors.Is(err, authcore.ErrCSRF) {
 		t.Fatalf("logout without CSRF: %v", err)
 	}
+
 	if err := service.Logout(ctx, newRaw, newView.CSRFToken); err != nil {
 		t.Fatal(err)
 	}
+
 	if _, err := service.ResolveSession(ctx, newRaw); !errors.Is(err, authcore.ErrUnauthorized) {
 		t.Fatal("logout did not revoke session")
 	}
+
 	if _, err := service.ResolveSession(ctx, otherRaw); err != nil {
 		t.Fatal("logout revoked another browser")
 	}
+
 	if err := service.Logout(ctx, newRaw, ""); err != nil {
 		t.Fatal("logout must be idempotent")
 	}
@@ -121,6 +135,7 @@ func TestCodeRotationConcurrentAndOldCodeRejected(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	sess, _ := service.ResolveSession(t.Context(), raw)
 	old, _ := service.JoinCode(t.Context(), sess.AuthContext())
 
@@ -136,6 +151,7 @@ func TestCodeRotationConcurrentAndOldCodeRejected(t *testing.T) {
 			}
 		})
 	}
+
 	wg.Wait()
 
 	if successes.Load() != 1 {
@@ -183,10 +199,12 @@ func TestPasswordSupportsLongUnicodeAndLegacyHashes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	ok, err := authcore.CheckPassword(hash, password)
 	if err != nil || !ok || strings.Contains(hash, password) {
 		t.Fatal("long Unicode password hash failed")
 	}
+
 	ok, err = authcore.CheckPassword(hash, password+"x")
 	if err != nil || ok {
 		t.Fatal("password suffix must affect verification")
@@ -196,6 +214,7 @@ func TestPasswordSupportsLongUnicodeAndLegacyHashes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	ok, err = authcore.CheckPassword(string(legacy), "demo-password-2026")
 	if err != nil || !ok {
 		t.Fatal("legacy bcrypt hash must remain usable")

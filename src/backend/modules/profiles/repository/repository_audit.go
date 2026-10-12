@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	profilecore "honey-forge/modules/profiles"
 
 	"github.com/jackc/pgx/v5"
+
 	"honey-forge/modules/auth"
+	profilecore "honey-forge/modules/profiles"
 )
 
 type Writers struct {
@@ -70,5 +71,6 @@ func appendChange(ctx context.Context, tx pgx.Tx, org, event string, data profil
 	}
 
 	_, err = tx.Exec(ctx, `INSERT INTO profile_changes(organization_id,type,data) VALUES($1,$2,$3::jsonb)`, org, event, string(raw))
+
 	return err
 }

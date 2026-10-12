@@ -18,6 +18,7 @@ func TestFrontendHandshake(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	for _, tt := range []struct {
 		name, origin, protocol string
 		role                   contract.Role
@@ -43,25 +44,32 @@ func TestFrontendHandshake(t *testing.T) {
 			})
 			server := httptest.NewTLSServer(r)
 			defer server.Close()
+
 			d := websocket.Dialer{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
 			if tt.protocol != "" {
 				d.Subprotocols = []string{tt.protocol}
 			}
+
 			h := http.Header{}
 			if tt.origin != "" {
 				h.Set("Origin", tt.origin)
 			}
+
 			c, res, e := d.Dial("wss"+strings.TrimPrefix(server.URL, "https")+FrontendPath, h)
 			if c != nil {
 				defer c.Close()
 			}
+
 			if res == nil {
 				t.Fatal(e)
 			}
+
 			defer res.Body.Close()
+
 			if res.StatusCode != tt.status {
 				t.Fatalf("status %d want %d", res.StatusCode, tt.status)
 			}
+
 			if tt.status == 101 && c.Subprotocol() != "dashboard-stream.v1" {
 				t.Fatal("subprotocol not negotiated")
 			}

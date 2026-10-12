@@ -30,21 +30,28 @@ import (
 func TestDemoTrapToBackend(t *testing.T) {
 	testDemoTrapToBackend(t, false)
 }
-func TestDemoTrapToBackendAfterLostCommandAck(t *testing.T) { testDemoTrapToBackend(t, true) }
+
+func TestDemoTrapToBackendAfterLostCommandAck(t *testing.T) {
+	testDemoTrapToBackend(t, true)
+}
+
 func testDemoTrapToBackend(t *testing.T, loseAck bool) {
 	t.Helper()
 	executable := filepath.Join(t.TempDir(), "agent")
 	if runtime.GOOS == "windows" {
 		executable += ".exe"
 	}
+
 	build := exec.CommandContext(t.Context(), "go", "build", "-o", executable, "../../cmd/agent")
 	if output, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build agent: %s: %v", output, err)
 	}
+
 	probe, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	port := probe.Addr().(*net.TCPAddr).Port
 	probe.Close()
 	snapshot := demoSnapshot()
@@ -61,21 +68,26 @@ func testDemoTrapToBackend(t *testing.T, loseAck bool) {
 			c.Status(401)
 			return
 		}
+
 		conn, err := (&websocket.Upgrader{Subprotocols: []string{"resource-stream.v1"}}).Upgrade(c.Writer, c.Request, nil)
 		if err != nil {
 			serverErrors <- err
 			return
 		}
+
 		defer conn.Close()
+
 		send := func(kind string, reply *contract.ID, body any) error {
 			raw, err := json.Marshal(body)
 			if err != nil {
 				return err
 			}
+
 			var fields map[string]json.RawMessage
 			if err := json.Unmarshal(raw, &fields); err != nil {
 				return err
 			}
+
 			return conn.WriteJSON(contract.Envelope{MessageID: contract.NewID(), Type: kind, ReplyTo: reply, Payload: fields})
 		}
 		conn.SetReadDeadline(time.Now().Add(20 * time.Second))
@@ -84,21 +96,31 @@ func testDemoTrapToBackend(t *testing.T, loseAck bool) {
 			serverErrors <- err
 			return
 		}
+
 		if err := send("agent.welcome", &hello.MessageID, map[string]any{"trap_id": trapID, "heartbeat_interval_seconds": 5}); err != nil {
 			serverErrors <- err
 			return
 		}
+
 		dispatch := func(action string) error {
-			d := commands.Dispatch{CommandID: string(contract.NewID()), LeaseID: string(contract.NewID()), Action: action, ExpiresAt: time.Now().Add(time.Minute), Params: json.RawMessage(`{}`)}
+			d := commands.Dispatch{
+				CommandID: string(contract.NewID()),
+				LeaseID:   string(contract.NewID()),
+				Action:    action,
+				ExpiresAt: time.Now().Add(time.Minute),
+				Params:    json.RawMessage(`{}`),
+			}
 			if action == "apply_config" {
 				d.Configuration = &snapshot
 			}
+
 			return send("command.dispatch", nil, d)
 		}
 		if err := dispatch("apply_config"); err != nil {
 			serverErrors <- err
 			return
 		}
+
 		configured := false
 		ackDropped := false
 		for {
@@ -106,6 +128,7 @@ func testDemoTrapToBackend(t *testing.T, loseAck bool) {
 			if err := conn.ReadJSON(&m); err != nil {
 				return
 			}
+
 			switch m.Type {
 			case "command.progress":
 				if err := send("command.progress_ack", &m.MessageID, map[string]any{}); err != nil {
@@ -117,17 +140,21 @@ func testDemoTrapToBackend(t *testing.T, loseAck bool) {
 					serverErrors <- err
 					return
 				}
+
 				if result.Status != commands.Succeeded {
 					serverErrors <- fmtResultError(result)
 					return
 				}
+
 				if loseAck && !configured && !ackDropped {
 					ackDropped = true
 					continue
 				}
+
 				if err := send("command.ack", &m.MessageID, map[string]any{"command_id": result.CommandID, "status": result.Status, "recorded_at": time.Now().UTC()}); err != nil {
 					return
 				}
+
 				if !configured {
 					configured = true
 					if err := dispatch("start"); err != nil {
@@ -146,6 +173,7 @@ func testDemoTrapToBackend(t *testing.T, loseAck bool) {
 					serverErrors <- err
 					return
 				}
+
 				captured <- b
 				if err := send("telemetry.ack", &m.MessageID, map[string]any{"batch_id": b.BatchID, "acknowledged_event_ids": []string{b.Events[0].EventID}, "stored_at": time.Now().UTC()}); err != nil {
 					return
@@ -159,12 +187,21 @@ func testDemoTrapToBackend(t *testing.T, loseAck bool) {
 	})
 	server := httptest.NewTLSServer(router)
 	defer server.Close()
+
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
+
 	journal := filepath.Join(t.TempDir(), "journal")
 	finished := make(chan error, 1)
 	go func() {
-		finished <- Run(ctx, Options{URL: "wss" + strings.TrimPrefix(server.URL, "https") + "/assets/stream", Token: "demo-token", TrapID: trapID, JournalPath: journal, Executable: executable, TLS: server.Client().Transport.(*http.Transport).TLSClientConfig})
+		finished <- Run(ctx, Options{
+			URL:         "wss" + strings.TrimPrefix(server.URL, "https") + "/assets/stream",
+			Token:       "demo-token",
+			TrapID:      trapID,
+			JournalPath: journal,
+			Executable:  executable,
+			TLS:         server.Client().Transport.(*http.Transport).TLSClientConfig,
+		})
 	}()
 	defer func() {
 		cancel()
@@ -177,6 +214,7 @@ func testDemoTrapToBackend(t *testing.T, loseAck bool) {
 			t.Error("agent failed to shut down")
 		}
 	}()
+
 	select {
 	case <-commandsReady:
 	case err := <-serverErrors:
@@ -184,18 +222,22 @@ func testDemoTrapToBackend(t *testing.T, loseAck bool) {
 	case <-time.After(20 * time.Second):
 		t.Fatal("trap did not start")
 	}
+
 	conn, err := net.Dial("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	conn.SetDeadline(time.Now().Add(5 * time.Second))
 	banner := make([]byte, 5)
 	if _, err := io.ReadFull(conn, banner); err != nil || string(banner) != "hello" {
 		t.Fatalf("banner %q: %v", banner, err)
 	}
+
 	if _, err := conn.Write([]byte("abcdef")); err != nil {
 		t.Fatal(err)
 	}
+
 	conn.Close()
 	for _, kind := range []string{"tcp.connection_opened", "tcp.payload_received", "tcp.connection_closed"} {
 		select {

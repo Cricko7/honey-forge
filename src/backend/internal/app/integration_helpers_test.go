@@ -21,7 +21,9 @@ import (
 )
 
 const integrationOrigin = "https://operator.example"
+
 const integrationAgentURL = "wss://resources.example/assets/stream"
+
 const integrationPassword = "demo-password-2026"
 
 type operatorSession struct {
@@ -50,6 +52,7 @@ func openIntegrationRuntimeWithOptions(t *testing.T, definitions []catalog.Defin
 	if len(clientCA) > 0 {
 		agentClientCA = clientCA[0]
 	}
+
 	runtime, err := Open(t.Context(), Config{
 		AgentClientCAFile:  agentClientCA,
 		DatabaseURL:        schema.DSN,
@@ -65,6 +68,7 @@ func openIntegrationRuntimeWithOptions(t *testing.T, definitions []catalog.Defin
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	t.Cleanup(runtime.Close)
 
 	return runtime
@@ -79,6 +83,7 @@ func operatorRequest(t *testing.T, method, path, body string, session operatorSe
 	if session.cookie != "" {
 		req.AddCookie(&http.Cookie{Name: "__Host-session", Value: session.cookie})
 	}
+
 	if session.view.CSRFToken != "" {
 		req.Header.Set("X-CSRF-Token", session.view.CSRFToken)
 	}
@@ -89,6 +94,7 @@ func operatorRequest(t *testing.T, method, path, body string, session operatorSe
 func serveOperator(router http.Handler, req *http.Request) *httptest.ResponseRecorder {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
+
 	return w
 }
 
@@ -99,6 +105,7 @@ func sendOperator(t *testing.T, runtime *Runtime, method, path, body string, ses
 	if len(match) > 0 {
 		req.Header.Set("If-Match", match[0])
 	}
+
 	w := serveOperator(runtime.Router, req)
 	if w.Code != want {
 		t.Fatalf("%s %s: status %d, want %d: %s", method, path, w.Code, want, w.Body.String())
@@ -157,6 +164,7 @@ func sessionFromResponse(t *testing.T, w *httptest.ResponseRecorder) operatorSes
 	}
 
 	t.Fatal("session cookie missing")
+
 	return operatorSession{}
 }
 
@@ -165,6 +173,7 @@ func registerOperator(t *testing.T, runtime *Runtime, email string, organization
 
 	body := integrationJSON(t, auth.RegisterRequest{Email: email, Password: integrationPassword, Organization: &organization})
 	w := sendOperator(t, runtime, "POST", "/api/registrations", body, operatorSession{}, 201)
+
 	return sessionFromResponse(t, w)
 }
 
@@ -180,9 +189,11 @@ func catalogProfileRequest(t *testing.T, runtime *Runtime, session operatorSessi
 			break
 		}
 	}
+
 	if entry.TypeID == "" {
 		t.Fatal("tcp-banner/1 missing from built-in catalog")
 	}
+
 	path := fmt.Sprintf("/api/trap-types/%s/versions/%d", entry.TypeID, entry.TypeVersion)
 	detail := sendOperator(t, runtime, "GET", path, "", session, 200)
 	typ := decodeIntegration[catalog.CatalogEntry](t, detail)
@@ -191,9 +202,11 @@ func catalogProfileRequest(t *testing.T, runtime *Runtime, session operatorSessi
 	}
 
 	return profiles.CreateRequest{
-		RequestID: string(contract.NewID()), Name: "TCP demo",
-		TypeID: string(typ.TypeID), TypeVersion: int64(typ.TypeVersion),
-		Config: validIntegrationConfig(),
+		RequestID:   string(contract.NewID()),
+		Name:        "TCP demo",
+		TypeID:      string(typ.TypeID),
+		TypeVersion: int64(typ.TypeVersion),
+		Config:      validIntegrationConfig(),
 	}
 }
 

@@ -15,6 +15,7 @@ func TestBrowserGuard(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	for _, tt := range []struct {
 		name, role, origin, csrf string
 		status                   int
@@ -26,6 +27,7 @@ func TestBrowserGuard(t *testing.T) {
 				if tt.role != "" {
 					SetPrincipal(c, Principal{Role: Role(tt.role)})
 				}
+
 				if policy.Guard(c, "token", WriteResources) {
 					c.Status(204)
 				}
@@ -62,7 +64,9 @@ func TestRESTBodyWithoutBinding(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := gin.New()
 			r.Use(Middleware(), RESTBody())
-			r.POST("/", func(c *gin.Context) { c.Status(204) })
+			r.POST("/", func(c *gin.Context) {
+				c.Status(204)
+			})
 			w := httptest.NewRecorder()
 			req := httptest.NewRequest("POST", "/", strings.NewReader(tt.body))
 			req.Header.Set("Content-Type", tt.media)

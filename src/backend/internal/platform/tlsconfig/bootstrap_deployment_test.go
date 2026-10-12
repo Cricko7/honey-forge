@@ -13,9 +13,11 @@ func TestLocalStackBootstrapsWithoutRequiredEnvironment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if strings.Contains(string(raw), ":?") {
 		t.Fatal("local startup requires manual environment configuration")
 	}
+
 	var document struct {
 		Services map[string]struct {
 			Environment map[string]string `yaml:"environment"`
@@ -30,6 +32,7 @@ func TestLocalStackBootstrapsWithoutRequiredEnvironment(t *testing.T) {
 	if err := yaml.Unmarshal(raw, &root); err != nil {
 		t.Fatal(err)
 	}
+
 	services := root["services"].(map[string]any)
 	delete(services, "web")
 	delete(services, "agent")
@@ -37,22 +40,27 @@ func TestLocalStackBootstrapsWithoutRequiredEnvironment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if err := yaml.Unmarshal(filtered, &document); err != nil {
 		t.Fatal(err)
 	}
+
 	for _, service := range []string{"postgres", "redis", "kafka"} {
 		if document.Services[service].DependsOn["tls-init"].Condition != "service_healthy" {
 			t.Fatalf("%s must wait for generated certificates", service)
 		}
 	}
+
 	for _, service := range []string{"api", "orchestrator", "postgres"} {
 		if document.Services[service].Environment["POSTGRES_PASSWORD_FILE"] != "/certs/postgres-password" {
 			t.Fatalf("%s must read its saved password file", service)
 		}
 	}
+
 	if document.Services["api"].Environment["CURSOR_KEY_FILE"] != "/certs/cursor-key" {
 		t.Fatal("API must load the saved cursor key")
 	}
+
 	for name, service := range document.Services {
 		for _, mount := range service.Volumes {
 			if strings.HasPrefix(mount, "tls_private:") && name != "tls-init" {

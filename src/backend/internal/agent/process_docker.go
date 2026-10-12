@@ -18,23 +18,29 @@ import (
 	"honey-forge/modules/profiles"
 )
 
-func (p *Process) workerName() string { return "nm-worker-" + p.TrapID }
+func (p *Process) workerName() string {
+	return "nm-worker-" + p.TrapID
+}
 
 func (p *Process) workerArgs(ctx context.Context, snapshot profiles.Snapshot) ([]string, error) {
 	if p.WorkerImage == "" || p.WorkerNetwork == "" || p.WorkerNetwork == "host" || p.WorkerNetwork == "none" || !contract.ValidID(p.TrapID) {
 		return nil, fmt.Errorf("isolated worker image, network and trap ID are required")
 	}
+
 	ip := p.WorkerBindIP
 	if ip == "" {
 		ip = "0.0.0.0"
 	}
+
 	if net.ParseIP(ip) == nil {
 		return nil, fmt.Errorf("NM_BIND_IP must be an IP address")
 	}
+
 	ports, err := decoys.Ports(ctx, snapshot)
 	if err != nil {
 		return nil, fmt.Errorf("worker ports: %w", err)
 	}
+
 	args := []string{"run", "--rm", "--interactive", "--init", "--pull=never", "--name", p.workerName(),
 		"--label", "com.nodemetrics.worker=" + p.TrapID,
 		"--network", p.WorkerNetwork, "--read-only", "--cap-drop", "ALL",
@@ -50,6 +56,7 @@ func (p *Process) workerArgs(ctx context.Context, snapshot profiles.Snapshot) ([
 	for _, port := range ports {
 		args = append(args, "--publish", net.JoinHostPort(ip, strconv.Itoa(port))+":"+strconv.Itoa(port)+"/tcp")
 	}
+
 	return append(args, p.WorkerImage, "--worker"), nil
 }
 
@@ -59,11 +66,13 @@ func (p *Process) removeWorker(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("list old trap worker: %w", err)
 	}
+
 	for _, id := range strings.Fields(string(output)) {
 		if _, err := exec.CommandContext(ctx, "docker", "rm", "--force", id).CombinedOutput(); err != nil {
 			return fmt.Errorf("remove old trap worker: %w", err)
 		}
 	}
+
 	return nil
 }
 
@@ -76,7 +85,9 @@ type telemetryBridge struct {
 }
 
 func (b *telemetryBridge) Close() error {
-	b.once.Do(func() { b.closeErr = errors.Join(b.conn.Close(), b.output.Close(), b.input.Close()) })
+	b.once.Do(func() {
+		b.closeErr = errors.Join(b.conn.Close(), b.output.Close(), b.input.Close())
+	})
 	return b.closeErr
 }
 
@@ -85,14 +96,17 @@ func (p *Process) startBridge(ctx context.Context, output io.ReadCloser, input i
 	if err != nil {
 		return fmt.Errorf("local telemetry URL: %w", errors.Join(err, output.Close()))
 	}
+
 	conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", u.Host)
 	if err != nil {
 		return fmt.Errorf("local telemetry socket: %w", errors.Join(err, output.Close()))
 	}
+
 	b := &telemetryBridge{conn: conn, output: output, input: input}
 	p.bridge = b
 	go b.copy(input, conn)
 	go b.copy(conn, output)
+
 	return nil
 }
 
@@ -102,6 +116,7 @@ func (b *telemetryBridge) copy(dst io.Writer, src io.Reader) {
 	if err != nil && !errors.Is(err, net.ErrClosed) && !errors.Is(err, io.ErrClosedPipe) {
 		slog.Debug("worker telemetry pipe interrupted", "error", err)
 	}
+
 	if err := b.Close(); err != nil {
 		slog.Debug("worker telemetry pipe closed", "error", err)
 	}

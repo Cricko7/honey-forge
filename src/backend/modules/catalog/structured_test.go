@@ -2,9 +2,10 @@ package catalog
 
 import (
 	"encoding/json"
-	"honey-forge/internal/contract"
 	"strings"
 	"testing"
+
+	"honey-forge/internal/contract"
 )
 
 func TestStructuredEvents(t *testing.T) {
@@ -15,10 +16,12 @@ func TestStructuredEvents(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	s, err := NewService(defs, codec)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	for _, tc := range []struct {
 		name, event, data string
 		valid             bool
@@ -39,10 +42,12 @@ func TestStructuredEvents(t *testing.T) {
 			}
 		})
 	}
+
 	tcp, err := NewService(BuiltinDefinitions(), codec)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if err := tcp.CheckEvent(t.Context(), "tcp-banner", 1, "service.auth_attempt", json.RawMessage(`{}`)); err == nil {
 		t.Fatal("TCP must not accept auth events")
 	}

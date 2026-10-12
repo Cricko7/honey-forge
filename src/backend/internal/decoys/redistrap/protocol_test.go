@@ -24,6 +24,7 @@ func TestProbeResponses(t *testing.T) {
 			if !strings.Contains(reply, tc.want) {
 				t.Fatalf("reply %q, want %q", reply, tc.want)
 			}
+
 			if tc.name == "info server" && strings.Contains(reply, "# Keyspace") {
 				t.Fatal("INFO server included another section")
 			}
@@ -40,13 +41,16 @@ func TestDatabaseStorageLimits(t *testing.T) {
 				t.Fatalf("SET below limit rejected: %q", reply)
 			}
 		}
+
 		reply, accepted, _ := db.execute([]string{"SET", "overflow", "value"})
 		if accepted || !strings.HasPrefix(reply, "-OOM ") || len(db.values) != 256 {
 			t.Fatalf("unbounded key storage: accepted=%v keys=%d reply=%q", accepted, len(db.values), reply)
 		}
+
 		if _, accepted, _ := db.execute([]string{"SET", "app:mode", "updated"}); !accepted {
 			t.Fatal("overwrite at key limit rejected")
 		}
+
 		db.execute([]string{"DEL", "app:mode"})
 		if _, accepted, _ := db.execute([]string{"SET", "replacement", "value"}); !accepted {
 			t.Fatal("deletion did not release key capacity")
@@ -64,17 +68,21 @@ func TestDatabaseStorageLimits(t *testing.T) {
 				if !strings.HasPrefix(reply, "-OOM ") {
 					t.Fatalf("unexpected limit reply: %q", reply)
 				}
+
 				blocked = true
 				break
 			}
 		}
+
 		if !blocked {
 			t.Fatal("SET did not bound stored bytes")
 		}
+
 		before := db.values["key:0"]
 		if _, accepted, _ := db.execute([]string{"SET", "key:0", strings.Repeat("x", 8192)}); accepted || db.values["key:0"] != before {
 			t.Fatal("over-budget overwrite changed existing value")
 		}
+
 		db.execute([]string{"DEL", "key:0"})
 		if _, accepted, _ := db.execute([]string{"SET", "key:0", value}); !accepted {
 			t.Fatal("deletion did not release byte capacity")

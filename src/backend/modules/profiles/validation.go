@@ -29,8 +29,13 @@ func rules() map[string]validator.Func {
 			n := utf8.RuneCountInString(strings.TrimSpace(fl.Field().String()))
 			return n >= 1 && n <= 100
 		},
-		"profiletype":    func(fl validator.FieldLevel) bool { return typePattern.MatchString(fl.Field().String()) },
-		"profilepointer": func(fl validator.FieldLevel) bool { _, ok := pointerParts(fl.Field().String()); return ok },
+		"profiletype": func(fl validator.FieldLevel) bool {
+			return typePattern.MatchString(fl.Field().String())
+		},
+		"profilepointer": func(fl validator.FieldLevel) bool {
+			_, ok := pointerParts(fl.Field().String())
+			return ok
+		},
 	}
 }
 
@@ -78,6 +83,10 @@ func ValidateRequest(req any) error {
 	return nil
 }
 
-func ValidID(id string) bool { return requestValidator.Var(id, "required,uuid") == nil }
+func ValidID(id string) bool {
+	return requestValidator.Var(id, "required,uuid") == nil
+}
 
-func ValidTypeID(value string) bool { return typePattern.MatchString(value) }
+func ValidTypeID(value string) bool {
+	return typePattern.MatchString(value)
+}

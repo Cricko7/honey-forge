@@ -2,10 +2,11 @@ package events
 
 import (
 	"encoding/json"
-	"honey-forge/modules/profiles"
 	"strings"
 	"testing"
 	"time"
+
+	"honey-forge/modules/profiles"
 )
 
 func TestEventEnvelope(t *testing.T) {
@@ -35,6 +36,7 @@ func TestEventEnvelope(t *testing.T) {
 			if (err == nil) != tt.valid {
 				t.Fatalf("err=%v", err)
 			}
+
 			if tt.valid && event.Source.IP != "2001:db8::1" {
 				t.Fatal("IP not canonical")
 			}
@@ -43,7 +45,12 @@ func TestEventEnvelope(t *testing.T) {
 }
 
 func TestStructuredSnapshot(t *testing.T) {
-	snapshot := profiles.Snapshot{TypeID: "service-demo", TypeVersion: 1, ProfileRevision: 1, Config: profiles.Object{"services": []any{profiles.Object{"name": "ssh"}}}}
+	snapshot := profiles.Snapshot{
+		TypeID:          "service-demo",
+		TypeVersion:     1,
+		ProfileRevision: 1,
+		Config:          profiles.Object{"services": []any{profiles.Object{"name": "ssh"}}},
+	}
 	for _, tc := range []struct {
 		name, service string
 		valid         bool
@@ -51,7 +58,13 @@ func TestStructuredSnapshot(t *testing.T) {
 		{"declared", "ssh", true}, {"foreign service", "http", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			e := AgentEvent{TypeID: "service-demo", TypeVersion: 1, ProfileRevision: 1, EventType: "service.action", Data: json.RawMessage(`{"service":"` + tc.service + `"}`)}
+			e := AgentEvent{
+				TypeID:          "service-demo",
+				TypeVersion:     1,
+				ProfileRevision: 1,
+				EventType:       "service.action",
+				Data:            json.RawMessage(`{"service":"` + tc.service + `"}`),
+			}
 			if err := checkSnapshot(e, snapshot); (err == nil) != tc.valid {
 				t.Fatalf("err=%v", err)
 			}
@@ -60,7 +73,12 @@ func TestStructuredSnapshot(t *testing.T) {
 }
 
 func TestServiceSnapshotPort(t *testing.T) {
-	snapshot := profiles.Snapshot{TypeID: "service-demo", TypeVersion: 1, ProfileRevision: 1, Config: profiles.Object{"services": []any{profiles.Object{"name": "redis", "port": 6380}}}}
+	snapshot := profiles.Snapshot{
+		TypeID:          "service-demo",
+		TypeVersion:     1,
+		ProfileRevision: 1,
+		Config:          profiles.Object{"services": []any{profiles.Object{"name": "redis", "port": 6380}}},
+	}
 	for _, tc := range []struct {
 		name              string
 		port              int
@@ -73,7 +91,14 @@ func TestServiceSnapshotPort(t *testing.T) {
 		{"wrong protocol", 6380, "redis", "udp", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			e := AgentEvent{TypeID: "service-demo", TypeVersion: 1, ProfileRevision: 1, EventType: "service.action", Destination: Destination{Protocol: tc.protocol, Port: tc.port}, Data: json.RawMessage(`{"service":"` + tc.service + `"}`)}
+			e := AgentEvent{
+				TypeID:          "service-demo",
+				TypeVersion:     1,
+				ProfileRevision: 1,
+				EventType:       "service.action",
+				Destination:     Destination{Protocol: tc.protocol, Port: tc.port},
+				Data:            json.RawMessage(`{"service":"` + tc.service + `"}`),
+			}
 			if err := checkSnapshot(e, snapshot); (err == nil) != tc.valid {
 				t.Fatalf("err=%v", err)
 			}

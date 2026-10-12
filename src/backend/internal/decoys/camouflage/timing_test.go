@@ -22,9 +22,11 @@ func TestDelays(t *testing.T) {
 				if !tc.wait(t.Context()) {
 					t.Fatal("unexpected cancellation")
 				}
+
 				if elapsed := time.Since(start); elapsed < tc.min || elapsed > tc.max {
 					t.Fatalf("delay %v outside [%v, %v]", elapsed, tc.min, tc.max)
 				}
+
 				ctx, cancel := context.WithCancel(t.Context())
 				cancel()
 				start = time.Now()
@@ -34,7 +36,9 @@ func TestDelays(t *testing.T) {
 
 				ctx, cancel = context.WithCancel(t.Context())
 				finished := make(chan bool, 1)
-				go func() { finished <- tc.wait(ctx) }()
+				go func() {
+					finished <- tc.wait(ctx)
+				}()
 				synctest.Wait()
 				cancel()
 				if <-finished {

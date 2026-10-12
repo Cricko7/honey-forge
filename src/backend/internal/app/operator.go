@@ -41,6 +41,7 @@ func RegisterServices(
 	}
 
 	router.GET("/healthz", healthCheck)
+
 	return nil
 }
 
@@ -56,6 +57,7 @@ func operatorMiddleware(browser *contract.BrowserPolicy, logger *slog.Logger) gi
 		started := time.Now()
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 		defer cancel()
+
 		c.Request = c.Request.WithContext(ctx)
 		defer func() {
 			logger.InfoContext(ctx, "HTTP request completed",
@@ -91,6 +93,7 @@ func RegisterSessionCatalog(router *gin.Engine, auth *authhttp.Handler, catalogS
 			contract.Fail(c, contract.NewError("unauthenticated"))
 			return
 		}
+
 		contract.SetPrincipal(c, contract.Principal{
 			UserID:         contract.ID(session.UserID),
 			OrganizationID: contract.ID(session.OrganizationID),

@@ -3,8 +3,9 @@ package service
 import (
 	"context"
 	"fmt"
-	authcore "honey-forge/modules/auth"
 	"time"
+
+	authcore "honey-forge/modules/auth"
 )
 
 func (s *Service) Organization(ctx context.Context, actor authcore.AuthContext) (authcore.Organization, error) {
@@ -24,6 +25,7 @@ func (s *Service) JoinCode(ctx context.Context, actor authcore.AuthContext) (aut
 	if actor.UserID == "" || actor.OrganizationID == "" {
 		return authcore.JoinCode{}, authcore.ErrUnauthorized
 	}
+
 	if actor.Role != authcore.RoleAdmin {
 		return authcore.JoinCode{}, authcore.ErrForbidden
 	}
@@ -40,6 +42,7 @@ func (s *Service) RotateJoinCode(ctx context.Context, actor authcore.AuthContext
 	if actor.UserID == "" || actor.OrganizationID == "" {
 		return authcore.JoinCode{}, authcore.ErrUnauthorized
 	}
+
 	if actor.Role != authcore.RoleAdmin {
 		return authcore.JoinCode{}, authcore.ErrForbidden
 	}

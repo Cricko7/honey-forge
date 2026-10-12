@@ -6,9 +6,9 @@ import (
 	"errors"
 	"testing"
 
-	profilescore "honey-forge/modules/profiles"
-
 	"github.com/jackc/pgx/v5"
+
+	profilescore "honey-forge/modules/profiles"
 )
 
 func TestPostgresProfileBindingRace(t *testing.T) {
@@ -39,6 +39,7 @@ func TestPostgresProfileBindingRace(t *testing.T) {
 
 			close(bound)
 			<-commitBinding
+
 			return nil
 		})
 	}()

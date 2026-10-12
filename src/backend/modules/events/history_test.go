@@ -19,12 +19,14 @@ type historyFake struct {
 func (f *historyFake) Read(ctx context.Context, id string) (Event, error) {
 	f.calls++
 	f.ctx, f.id = ctx, id
+
 	return Event{AgentEvent: AgentEvent{EventID: id}}, f.err
 }
 
 func (f *historyFake) List(ctx context.Context, q Query) ([]EventSummary, bool, int64, int64, error) {
 	f.calls++
 	f.ctx, f.query = ctx, q
+
 	return []EventSummary{{EventID: "event"}}, true, 5, 7, f.err
 }
 
@@ -38,15 +40,18 @@ func TestHistoryReadAndList(t *testing.T) {
 			if err != nil || event.EventID != "id" || store.ctx != ctx || store.id != "id" {
 				t.Fatalf("read: %+v %v", event, err)
 			}
+
 			q := Query{Limit: 10, TrapID: "trap", Boundary: 5}
 			items, more, boundary, sequence, err := s.List(ctx, q)
 			if err != nil || len(items) != 1 || !more || boundary != 5 || sequence != 7 || store.ctx != ctx || store.query != q {
 				t.Fatalf("list: %+v %v %d %d %v", items, more, boundary, sequence, err)
 			}
+
 			store.err = errors.New("storage failed")
 			if _, err := s.Read(ctx, "id"); !errors.Is(err, store.err) {
 				t.Fatal("read lost storage cause")
 			}
+
 			if _, _, _, _, err := s.List(ctx, q); !errors.Is(err, store.err) {
 				t.Fatal("list lost storage cause")
 			}
@@ -68,12 +73,15 @@ func TestHistoryRejectsBeforeStorage(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
+
 			if tc.role != "" {
 				ctx = contract.WithPrincipal(ctx, contract.Principal{Role: tc.role})
 			}
+
 			if tc.cancel {
 				cancel()
 			}
+
 			store := &historyFake{}
 			s := NewHistoryService(store)
 			_, readErr := s.Read(ctx, "id")
@@ -90,6 +98,7 @@ func TestHistoryRejectsBeforeStorage(t *testing.T) {
 					}
 				}
 			}
+
 			if store.calls != 0 {
 				t.Fatal("unauthorized or canceled storage read")
 			}

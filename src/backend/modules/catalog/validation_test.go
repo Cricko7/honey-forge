@@ -20,6 +20,7 @@ func TestSchemaIntegerRepresentations(t *testing.T) {
 			wantCode(t, s.CheckConfig(t.Context(), "tcp-banner", 1, json.RawMessage(tt.raw)), tt.code)
 		})
 	}
+
 	wantCode(t, s.CheckEvent(t.Context(), "tcp-banner", 1, "tcp.payload_received", json.RawMessage(`{"listener_name":"main","payload_base64":"YQ==","captured_bytes":1.0,"original_bytes":1e0,"truncated":false}`)), "")
 	wantCode(t, s.CheckActionResult(t.Context(), "tcp-banner", 1, "start", json.RawMessage(`{"runtime_state":"running","applied_profile_revision":1.0}`)), "")
 }
@@ -89,6 +90,7 @@ func TestCheckAction(t *testing.T) {
 			if err == nil {
 				err = s.CheckActionResult(t.Context(), "tcp-banner", 1, tt.action, json.RawMessage(tt.result))
 			}
+
 			wantCode(t, err, tt.code)
 		})
 	}
@@ -102,6 +104,7 @@ func TestCheckPayloadCapture(t *testing.T) {
 	if next != 3 {
 		t.Fatal(next)
 	}
+
 	_, err = s.CheckPayloadCapture(t.Context(), "tcp-banner", 1, json.RawMessage(validConfig), payload, 3)
 	wantCode(t, err, "telemetry_invalid")
 	disabled := strings.Replace(strings.Replace(validConfig, `"capture_payload":true`, `"capture_payload":false`, 1), `"max_payload_bytes":4`, `"max_payload_bytes":0`, 1)
@@ -131,25 +134,30 @@ func TestTCPBoundaries(t *testing.T) {
 			wantCode(t, s.CheckConfig(t.Context(), "tcp-banner", 1, json.RawMessage(raw)), tt.code)
 		})
 	}
+
 	for _, count := range []int{0, 1, 16, 17} {
 		t.Run("listener count "+string(rune('A'+count)), func(t *testing.T) {
 			var config map[string]any
 			if err := json.Unmarshal([]byte(validConfig), &config); err != nil {
 				t.Fatal(err)
 			}
+
 			listeners := []any{}
 			for i := 0; i < count; i++ {
 				listeners = append(listeners, map[string]any{"name": "listener" + string(rune('a'+i)), "port": 10000 + i, "banner": "demo", "close_after_banner": false})
 			}
+
 			config["listeners"] = listeners
 			raw, err := json.Marshal(config)
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			code := ""
 			if count < 1 || count > 16 {
 				code = "config_invalid"
 			}
+
 			wantCode(t, s.CheckConfig(t.Context(), "tcp-banner", 1, raw), code)
 		})
 	}

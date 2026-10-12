@@ -45,7 +45,17 @@ func (s *testStore) Create(ctx context.Context, _, trapID, requestID string, _ j
 		return commands.CreateResult{}, err
 	}
 
-	s.command = commands.Command{ID: httpID, TrapID: trapID, RequestID: requestID, Action: prepared.Action, Params: prepared.Params, Status: commands.Queued, CreatedAt: time.Now().UTC(), ExpiresAt: time.Now().UTC().Add(24 * time.Hour)}
+	s.command = commands.Command{
+		ID:        httpID,
+		TrapID:    trapID,
+		RequestID: requestID,
+		Action:    prepared.Action,
+		Params:    prepared.Params,
+		Status:    commands.Queued,
+		CreatedAt: time.Now().UTC(),
+		ExpiresAt: time.Now().UTC().Add(24 * time.Hour),
+	}
+
 	return commands.CreateResult{Command: s.command}, nil
 }
 
@@ -91,7 +101,10 @@ func testRouter(t *testing.T, store *testStore, role string) *gin.Engine {
 
 		return nil
 	})
-	NewHandler(s, cursors, slog.New(slog.NewTextHandler(io.Discard, nil))).RegisterRoutes(r, func(c *gin.Context) { c.Next() })
+	NewHandler(s, cursors, slog.New(slog.NewTextHandler(io.Discard, nil))).RegisterRoutes(r, func(c *gin.Context) {
+		c.Next()
+	})
+
 	return r
 }
 
@@ -120,6 +133,7 @@ func TestHTTPCreateReadAndReplay(t *testing.T) {
 					t.Fatalf("setup: %d %s", created.Code, created.Body.String())
 				}
 			}
+
 			w := httptest.NewRecorder()
 			req := httptest.NewRequest(tt.method, tt.path, strings.NewReader(tt.body))
 			if tt.body != "" {
@@ -171,6 +185,7 @@ func TestOpenAPICommandResponses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	var document map[string]any
 	if err := yaml.Unmarshal(raw, &document); err != nil {
 		t.Fatal(err)
@@ -193,19 +208,26 @@ func TestOpenAPICommandResponses(t *testing.T) {
 		{"page", "CommandPage", func() string {
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/traps/"+httpTrap+"/commands", nil))
+
 			return w.Body.String()
 		}()},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			root := map[string]any{"$schema": "https://json-schema.org/draft/2020-12/schema", "components": document["components"], "$ref": "#/components/schemas/" + tt.ref}
+			root := map[string]any{
+				"$schema":    "https://json-schema.org/draft/2020-12/schema",
+				"components": document["components"],
+				"$ref":       "#/components/schemas/" + tt.ref,
+			}
 			schemaRaw, err := json.Marshal(root)
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			schema, err := configschema.Compile(schemaRaw)
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			if err := schema.Validate([]byte(tt.body), ""); err != nil {
 				t.Fatalf("response violates OpenAPI: %v", err)
 			}

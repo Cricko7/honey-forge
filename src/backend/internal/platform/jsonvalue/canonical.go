@@ -13,12 +13,14 @@ func Canonical(v any) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	d := json.NewDecoder(bytes.NewReader(raw))
 	d.UseNumber()
 	var value any
 	if err := d.Decode(&value); err != nil {
 		return nil, err
 	}
+
 	return json.Marshal(normalizeNumbers(value))
 }
 
@@ -32,18 +34,22 @@ func normalizeNumbers(v any) any {
 				return x
 			}
 		}
+
 		sign := ""
 		if strings.HasPrefix(mantissa, "-") {
 			sign = "-"
 			mantissa = mantissa[1:]
 		}
+
 		whole, fraction, _ := strings.Cut(mantissa, ".")
 		digits := strings.TrimLeft(whole+fraction, "0")
 		if digits == "" {
 			return json.Number("0")
 		}
+
 		trimmed := strings.TrimRight(digits, "0")
 		e.Add(e, big.NewInt(int64(len(digits)-len(trimmed)-len(fraction))))
+
 		return json.Number(sign + trimmed + "e" + e.String())
 	case map[string]any:
 		for k, value := range x {
@@ -54,5 +60,6 @@ func normalizeNumbers(v any) any {
 			x[i] = normalizeNumbers(value)
 		}
 	}
+
 	return v
 }

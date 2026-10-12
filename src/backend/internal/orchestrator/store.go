@@ -36,7 +36,9 @@ func (s PGStore) List(ctx context.Context) ([]Target, error) {
 	if err != nil {
 		return nil, fmt.Errorf("query managed traps: %w", err)
 	}
+
 	defer rows.Close()
+
 	var targets []Target
 	for rows.Next() {
 		var target Target
@@ -47,6 +49,7 @@ func (s PGStore) List(ctx context.Context) ([]Target, error) {
 		if err := rows.Scan(&target.ID, &target.OrganizationID, &target.ActorID, &target.Generation, &target.Deleted, &profileID, &typeID, &typeVersion, &revision, &config, &applied, &target.AppliedProfileRevision, &target.ActiveCommandID, &target.HasStarted); err != nil {
 			return nil, fmt.Errorf("scan managed trap: %w", err)
 		}
+
 		if !target.Deleted {
 			if applied != nil {
 				if err := json.Unmarshal([]byte(*applied), &target.Snapshot); err != nil {
@@ -56,17 +59,21 @@ func (s PGStore) List(ctx context.Context) ([]Target, error) {
 				if revision == nil || config == nil {
 					return nil, fmt.Errorf("profile missing for trap %s", target.ID)
 				}
+
 				target.Snapshot = profiles.Snapshot{ProfileID: profileID, ProfileRevision: *revision, TypeID: typeID, TypeVersion: typeVersion}
 				if err := json.Unmarshal([]byte(*config), &target.Snapshot.Config); err != nil {
 					return nil, fmt.Errorf("decode trap profile %s: %w", target.ID, err)
 				}
 			}
 		}
+
 		targets = append(targets, target)
 	}
+
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate managed traps: %w", err)
 	}
+
 	return targets, nil
 }
 
@@ -75,12 +82,16 @@ func (s PGStore) Advance(ctx context.Context, target Target) error {
 	if action == "" {
 		return nil
 	}
-	service := commandservice.New(commandrepo.New(s.Pool, traps.NewRepository(s.Pool)), func(context.Context, string, int32, string, json.RawMessage) error { return nil })
+
+	service := commandservice.New(commandrepo.New(s.Pool, traps.NewRepository(s.Pool)), func(context.Context, string, int32, string, json.RawMessage) error {
+		return nil
+	})
 	actor := auth.AuthContext{UserID: target.ActorID, OrganizationID: target.OrganizationID, Role: auth.RoleAdmin}
 	_, err := service.Create(ctx, actor, target.ID, commands.CreateRequest{RequestID: string(contract.NewID()), Action: action, Params: params})
 	if err != nil {
 		return fmt.Errorf("queue %s command: %w", action, err)
 	}
+
 	return nil
 }
 
@@ -88,9 +99,11 @@ func nextCommand(target Target) (string, json.RawMessage) {
 	if target.Deleted || target.ActiveCommandID != nil || target.HasStarted {
 		return "", nil
 	}
+
 	if target.AppliedProfileRevision == nil {
 		return "apply_config", json.RawMessage(fmt.Sprintf(`{"profile_revision":%d}`, target.Snapshot.ProfileRevision))
 	}
+
 	return "start", json.RawMessage(`{}`)
 }
 
@@ -102,6 +115,7 @@ func (s PGStore) Issue(ctx context.Context, target Target) (string, int64, error
 	if err != nil {
 		return "", 0, fmt.Errorf("issue managed credentials: %w", err)
 	}
+
 	return credentials.Token, credentials.Generation, nil
 }
 
@@ -111,20 +125,25 @@ func ReconcileLocked(ctx context.Context, pool *pgxpool.Pool, controller Control
 	if err != nil {
 		return fmt.Errorf("begin orchestration lock: %w", err)
 	}
+
 	defer func() {
 		rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
+
 		if err := tx.Rollback(rollbackCtx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
 			result = errors.Join(result, fmt.Errorf("release orchestration lock: %w", err))
 		}
 	}()
+
 	const lockID int64 = 0x68666f726368
 	var locked bool
 	if err := tx.QueryRow(ctx, `SELECT pg_try_advisory_xact_lock($1)`, lockID).Scan(&locked); err != nil {
 		return fmt.Errorf("acquire orchestration lock: %w", err)
 	}
+
 	if !locked {
 		return nil
 	}
+
 	return controller.Reconcile(ctx)
 }

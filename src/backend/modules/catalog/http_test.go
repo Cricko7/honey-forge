@@ -18,10 +18,12 @@ func TestOpenAPIResponse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	var document map[string]any
 	if err := yaml.Unmarshal(raw, &document); err != nil {
 		t.Fatal(err)
 	}
+
 	root := map[string]any{"$schema": "https://json-schema.org/draft/2020-12/schema", "components": document["components"]}
 	for _, tt := range []struct{ name, path, ref string }{
 		{"entry", "/api/trap-types/tcp-banner/versions/1", "CatalogEntry"},
@@ -33,15 +35,18 @@ func TestOpenAPIResponse(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			schema, err := configschema.Compile(schemaRaw)
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			w := httptest.NewRecorder()
 			testRouter(t).ServeHTTP(w, httptest.NewRequest("GET", tt.path, nil))
 			if w.Code != 200 {
 				t.Fatal(w.Body.String())
 			}
+
 			if err := schema.Validate(w.Body.Bytes(), ""); err != nil {
 				t.Fatalf("response violates OpenAPI: %v", err)
 			}
@@ -60,6 +65,7 @@ func testRouter(t *testing.T, defs ...Definition) *gin.Engine {
 	h := NewHandler(s)
 	r.GET("/api/trap-types", h.List)
 	r.GET("/api/trap-types/:type_id/versions/:type_version", h.Read)
+
 	return r
 }
 
@@ -99,11 +105,13 @@ func TestHandler(t *testing.T) {
 			if w.Code != tt.status {
 				t.Fatalf("%d: %s", w.Code, w.Body.String())
 			}
+
 			if tt.code != "" {
 				var body contract.ErrorResponse
 				if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 					t.Fatal(err)
 				}
+
 				if body.Error.Code != tt.code {
 					t.Fatal(w.Body.String())
 				}
@@ -125,9 +133,11 @@ func TestHandlerConditionalRead(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &page); err != nil {
 		t.Fatal(err)
 	}
+
 	if page.NextCursor == nil || tag == "" {
 		t.Fatal("missing cursor or etag")
 	}
+
 	for _, tt := range []struct {
 		name, path, etag string
 		status           int
@@ -148,9 +158,11 @@ func TestHandlerConditionalRead(t *testing.T) {
 			if out.Code != tt.status {
 				t.Fatalf("%d %s", out.Code, out.Body.String())
 			}
+
 			if out.Header().Get("ETag") != tag || out.Header().Get("Cache-Control") != "private, max-age=0, must-revalidate" {
 				t.Fatal(out.Header())
 			}
+
 			if tt.status == 304 && out.Body.Len() != 0 {
 				t.Fatal("304 has a body")
 			}

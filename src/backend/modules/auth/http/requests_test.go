@@ -7,12 +7,11 @@ import (
 	"strings"
 	"testing"
 
-	authcore "honey-forge/modules/auth"
-	"honey-forge/modules/auth/internal/teststore"
-
 	"github.com/gin-gonic/gin"
 
 	"honey-forge/internal/platform/httpx"
+	authcore "honey-forge/modules/auth"
+	"honey-forge/modules/auth/internal/teststore"
 )
 
 func TestRegistrationValidationBoundaries(t *testing.T) {
@@ -78,11 +77,13 @@ func TestRegistrationValidationBoundaries(t *testing.T) {
 			if response.Code != tc.status {
 				t.Fatalf("status=%d want=%d body=%s", response.Code, tc.status, response.Body.String())
 			}
+
 			if tc.status == 422 {
 				var envelope struct{ Error httpx.Error }
 				if err := json.Unmarshal(response.Body.Bytes(), &envelope); err != nil {
 					t.Fatal(err)
 				}
+
 				if envelope.Error.Code != "validation_failed" || len(envelope.Error.Fields) == 0 || !strings.HasPrefix(envelope.Error.Fields[0].Path, "/") {
 					t.Fatal("validation errors require safe JSON pointers")
 				}

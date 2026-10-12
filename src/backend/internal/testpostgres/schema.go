@@ -30,23 +30,28 @@ func New(t *testing.T) *Schema {
 	if dsn == "" {
 		t.Skip("TEST_DATABASE_URL required for PostgreSQL integration tests")
 	}
+
 	root, err := postgres.Open(t.Context(), dsn)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	t.Cleanup(root.Close)
 	var random [16]byte
 	if _, err := rand.Read(random[:]); err != nil {
 		t.Fatal(err)
 	}
+
 	name := "test_" + hex.EncodeToString(random[:])
 	quoted := pgx.Identifier{name}.Sanitize()
 	if _, err := root.Exec(t.Context(), "CREATE SCHEMA "+quoted); err != nil {
 		t.Fatal(err)
 	}
+
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
+
 		if _, err := root.Exec(ctx, "DROP SCHEMA "+quoted+" CASCADE"); err != nil {
 			t.Errorf("drop integration schema: %v", err)
 		}
@@ -55,11 +60,14 @@ func New(t *testing.T) *Schema {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	pool, err := postgres.Open(t.Context(), schemaDSN)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	t.Cleanup(pool.Close)
+
 	return &Schema{Pool: pool, DSN: schemaDSN}
 }
 
@@ -68,6 +76,7 @@ func (s *Schema) Migrate(t *testing.T, directory string) *pgxpool.Pool {
 	if err := postgres.Migrate(t.Context(), s.Pool, os.DirFS(directory)); err != nil {
 		t.Fatal(err)
 	}
+
 	return s.Pool
 }
 
@@ -77,6 +86,7 @@ func withSearchPath(dsn, name string) (string, error) {
 		if err != nil {
 			return "", err
 		}
+
 		query := u.Query()
 		query.Set("search_path", name)
 		u.RawQuery = query.Encode()
@@ -84,7 +94,9 @@ func withSearchPath(dsn, name string) (string, error) {
 	} else {
 		dsn += " search_path=" + name
 	}
+
 	// Validate both pgx DSN formats before attempting another connection.
 	_, err := pgxpool.ParseConfig(dsn)
+
 	return dsn, err
 }

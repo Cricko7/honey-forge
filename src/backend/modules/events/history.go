@@ -9,12 +9,15 @@ type historyStore interface {
 
 type HistoryService struct{ repository historyStore }
 
-func NewHistoryService(repository historyStore) *HistoryService { return &HistoryService{repository} }
+func NewHistoryService(repository historyStore) *HistoryService {
+	return &HistoryService{repository}
+}
 
 func (s *HistoryService) Read(ctx context.Context, id string) (Event, error) {
 	if _, err := readAccess(ctx); err != nil {
 		return Event{}, err
 	}
+
 	return s.repository.Read(ctx, id)
 }
 
@@ -22,5 +25,6 @@ func (s *HistoryService) List(ctx context.Context, q Query) ([]EventSummary, boo
 	if _, err := readAccess(ctx); err != nil {
 		return nil, false, 0, 0, err
 	}
+
 	return s.repository.List(ctx, q)
 }

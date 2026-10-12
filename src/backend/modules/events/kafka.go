@@ -38,12 +38,15 @@ func (s journalStore) Ingest(ctx context.Context, identity agentws.Identity, con
 	if err := s.store.Prepare(ctx, identity, connection, id, events); err != nil {
 		return agentws.TelemetryAck{}, err
 	}
+
 	if err := s.publisher.Publish(ctx, identity, id, events); err != nil {
 		if ctx.Err() != nil {
 			return agentws.TelemetryAck{}, ctx.Err()
 		}
+
 		return agentws.TelemetryAck{}, fmt.Errorf("publish telemetry: %w", errors.Join(contract.NewError("telemetry_unavailable"), err))
 	}
+
 	return s.store.Ingest(ctx, identity, connection, id, events)
 }
 
@@ -63,23 +66,29 @@ func NewKafkaPublisher(brokers []string, topic string, config *tls.Config) (*Kaf
 	if len(brokers) == 0 || topic == "" {
 		return nil, fmt.Errorf("Kafka brokers and topic are required")
 	}
+
 	for _, broker := range brokers {
 		if strings.TrimSpace(broker) == "" {
 			return nil, fmt.Errorf("Kafka broker must not be empty")
 		}
 	}
+
 	secure, err := tlsconfig.Secure(config)
 	if err != nil {
 		return nil, fmt.Errorf("configure Kafka TLS: %w", err)
 	}
+
 	client, err := kgo.NewClient(kgo.SeedBrokers(brokers...), kgo.DialTLSConfig(secure), kgo.AllowAutoTopicCreation(), kgo.RequiredAcks(kgo.AllISRAcks()), kgo.RecordDeliveryTimeout(8*time.Second), kgo.ProducerBatchMaxBytes(512<<10))
 	if err != nil {
 		return nil, fmt.Errorf("configure Kafka: %w", err)
 	}
+
 	return &KafkaPublisher{client, topic}, nil
 }
 
-func (p *KafkaPublisher) Close() { p.client.Close() }
+func (p *KafkaPublisher) Close() {
+	p.client.Close()
+}
 
 func (p *KafkaPublisher) Publish(ctx context.Context, identity agentws.Identity, batchID string, events []AgentEvent) error {
 	var encoded bytes.Buffer
@@ -96,8 +105,11 @@ func (p *KafkaPublisher) Publish(ctx context.Context, identity agentws.Identity,
 	if err != nil {
 		return fmt.Errorf("encode Kafka batch: %w", err)
 	}
+
 	result := make(chan error, 1)
-	p.client.TryProduce(ctx, &kgo.Record{Topic: p.topic, Key: []byte(identity.TrapID), Value: encoded.Bytes()}, func(_ *kgo.Record, err error) { result <- err })
+	p.client.TryProduce(ctx, &kgo.Record{Topic: p.topic, Key: []byte(identity.TrapID), Value: encoded.Bytes()}, func(_ *kgo.Record, err error) {
+		result <- err
+	})
 	// Idempotent Kafka delivery may continue after cancellation when the broker
 	// outcome is ambiguous. The caller still gets its deadline, and no DB ACK.
 	select {
@@ -108,5 +120,6 @@ func (p *KafkaPublisher) Publish(ctx context.Context, identity agentws.Identity,
 			return fmt.Errorf("journal Kafka batch: %w", err)
 		}
 	}
+
 	return nil
 }

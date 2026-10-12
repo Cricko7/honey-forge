@@ -37,5 +37,6 @@ func resource(c *gin.Context, contentType, body string) {
 	} else {
 		c.Data(http.StatusOK, contentType, []byte(body))
 	}
+
 	c.Abort()
 }

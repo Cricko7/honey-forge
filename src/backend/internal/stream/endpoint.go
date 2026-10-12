@@ -21,15 +21,21 @@ func NewAgentEndpoint(origin, streamPath string) (AgentEndpoint, error) {
 	if !contract.ValidHTTPSOrigin(origin) || err != nil || u.IsAbs() || u.Host != "" || u.RawQuery != "" || u.Fragment != "" || u.Path == "" || u.Path[0] != '/' || path.Clean(u.Path) != u.Path || u.ForceQuery {
 		return AgentEndpoint{}, fmt.Errorf("agent endpoint requires an HTTPS origin and a clean absolute path")
 	}
+
 	return AgentEndpoint{origin, streamPath}, nil
 }
 
-func (e AgentEndpoint) URL() string { return "wss" + e.origin[len("https"):] + e.path }
+func (e AgentEndpoint) URL() string {
+	return "wss" + e.origin[len("https"):] + e.path
+}
+
 func (e AgentEndpoint) SeparateFrom(operatorOrigin string) bool {
 	if !contract.ValidHTTPSOrigin(operatorOrigin) {
 		return false
 	}
+
 	u, _ := url.Parse(operatorOrigin)
+
 	return !e.MatchesHost(u.Host)
 }
 
@@ -39,7 +45,9 @@ func (e AgentEndpoint) MatchesHost(host string) bool {
 	if !contract.ValidHTTPSOrigin("https://" + host) {
 		return false
 	}
+
 	u, _ := url.Parse("https://" + host)
 	origin, _ := url.Parse(e.origin)
+
 	return strings.EqualFold(strings.TrimSuffix(u.Hostname(), "."), strings.TrimSuffix(origin.Hostname(), "."))
 }

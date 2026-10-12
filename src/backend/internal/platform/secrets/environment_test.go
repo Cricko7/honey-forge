@@ -23,11 +23,13 @@ func TestEnvironment(t *testing.T) {
 					if name == "empty file" {
 						value = "\n"
 					}
+
 					if err := os.WriteFile(file, []byte(value), 0600); err != nil {
 						t.Fatal(err)
 					}
 				}
 			}
+
 			value, err := Environment("TEST_SECRET")
 			if (err != nil) != wantError || !wantError && value != want {
 				t.Fatalf("value=%q err=%v", value, err)

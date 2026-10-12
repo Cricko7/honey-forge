@@ -37,12 +37,23 @@ type recording struct {
 func newRecording(ctx context.Context, snapshot profiles.Snapshot, service, peer string, port int, limit int64, sink Sink) *recording {
 	ip, text, _ := net.SplitHostPort(peer)
 	peerPort, _ := strconv.Atoi(text)
-	return &recording{ctx: ctx, snapshot: snapshot, service: service, sessionID: string(contract.NewID()), source: events.Source{IP: ip, Port: peerPort}, port: port, limit: limit, sink: sink}
+
+	return &recording{
+		ctx:       ctx,
+		snapshot:  snapshot,
+		service:   service,
+		sessionID: string(contract.NewID()),
+		source:    events.Source{IP: ip, Port: peerPort},
+		port:      port,
+		limit:     limit,
+		sink:      sink,
+	}
 }
 
 func (r *recording) event(kind string, fields map[string]any) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	return r.emit(kind, fields)
 }
 
@@ -52,44 +63,77 @@ func (r *recording) emit(kind string, fields map[string]any) error {
 		r.reason = "recording_limit"
 		return ErrRecordingLimit
 	}
+
 	fields["service"] = r.service
 	raw, err := json.Marshal(fields)
 	if err != nil {
 		return fmt.Errorf("encode SSH event: %w", err)
 	}
+
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.ctx), 5*time.Second)
 	defer cancel()
-	e := events.AgentEvent{EventID: string(contract.NewID()), EventType: kind, TypeID: r.snapshot.TypeID, TypeVersion: int64(r.snapshot.TypeVersion), ProfileRevision: int64(r.snapshot.ProfileRevision), OccurredAt: time.Now().UTC().Format(time.RFC3339Nano), SessionID: r.sessionID, SessionSequence: r.sequence + 1, Source: r.source, Destination: events.Destination{Protocol: "tcp", Port: r.port}, Data: raw}
+
+	e := events.AgentEvent{
+		EventID:         string(contract.NewID()),
+		EventType:       kind,
+		TypeID:          r.snapshot.TypeID,
+		TypeVersion:     int64(r.snapshot.TypeVersion),
+		ProfileRevision: int64(r.snapshot.ProfileRevision),
+		OccurredAt:      time.Now().UTC().Format(time.RFC3339Nano),
+		SessionID:       r.sessionID,
+		SessionSequence: r.sequence + 1,
+		Source:          r.source,
+		Destination:     events.Destination{Protocol: "tcp", Port: r.port},
+		Data:            raw,
+	}
 	if err := r.sink(ctx, e); err != nil {
 		return fmt.Errorf("commit SSH event: %w", err)
 	}
+
 	r.sequence++
+
 	return nil
 }
 
 func (r *recording) io(channel, stream string, data []byte) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	if int64(len(data)) > r.limit-r.bytes {
 		r.reason = "recording_limit"
 		return ErrRecordingLimit
 	}
+
 	for len(data) > 0 {
 		n := min(len(data), 4096)
 		if err := r.emit("service.session_io", map[string]any{"channel_id": channel, "stream": stream, "payload_base64": base64.StdEncoding.EncodeToString(data[:n]), "bytes": n}); err != nil {
 			return err
 		}
+
 		r.bytes += int64(n)
 		if stream == "stdin" || stream == "exec" {
 			r.received += int64(n)
 		}
+
 		data = data[n:]
 	}
+
 	return nil
 }
 
-func (r *recording) receivedBytes() int64 { r.mu.Lock(); defer r.mu.Unlock(); return r.received }
-func (r *recording) closeReason() string  { r.mu.Lock(); defer r.mu.Unlock(); return r.reason }
+func (r *recording) receivedBytes() int64 {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return r.received
+}
+
+func (r *recording) closeReason() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return r.reason
+}
 
 type recordingWriter struct {
 	recording       *recording
@@ -103,7 +147,9 @@ func (w recordingWriter) Write(data []byte) (int, error) {
 		if w.recording.failure != nil {
 			w.recording.failure(err)
 		}
+
 		return 0, err
 	}
+
 	return w.write(data)
 }

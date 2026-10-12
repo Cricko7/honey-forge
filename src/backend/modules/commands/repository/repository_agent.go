@@ -40,6 +40,7 @@ func (r *Repository) agentTransaction(ctx context.Context, org, trapID string, f
 	if err != nil {
 		return fmt.Errorf("begin agent command transaction: %w", err)
 	}
+
 	defer func() {
 		rollback, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
@@ -126,7 +127,14 @@ func (r *Repository) Claim(ctx context.Context, org, trapID string, now time.Tim
 			return fmt.Errorf("claim command: %w", err)
 		}
 
-		dispatch = &commands.Dispatch{CommandID: command.ID, LeaseID: leaseID, LeaseExpiresAt: leaseEnd.UTC(), Action: command.Action, Params: command.Params, ExpiresAt: command.ExpiresAt}
+		dispatch = &commands.Dispatch{
+			CommandID:      command.ID,
+			LeaseID:        leaseID,
+			LeaseExpiresAt: leaseEnd.UTC(),
+			Action:         command.Action,
+			Params:         command.Params,
+			ExpiresAt:      command.ExpiresAt,
+		}
 		if configuration != nil {
 			var snapshot profiles.Snapshot
 			if err := json.Unmarshal([]byte(*configuration), &snapshot); err != nil {
@@ -163,14 +171,18 @@ func (r *Repository) ExtendLease(ctx context.Context, org, trapID, commandID, le
 			if lookup == nil && (status == commands.Expired || !now.Before(deadline)) {
 				return commands.ErrExpired
 			}
+
 			if lookup != nil && !errors.Is(lookup, pgx.ErrNoRows) {
 				return fmt.Errorf("check command deadline: %w", lookup)
 			}
+
 			return commands.ErrStaleLease
 		}
+
 		if err != nil {
 			return fmt.Errorf("update command lease: %w", err)
 		}
+
 		return nil
 	})
 	if err != nil {

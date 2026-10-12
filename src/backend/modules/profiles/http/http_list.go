@@ -1,15 +1,15 @@
 package http
 
 import (
-	authhttp "honey-forge/modules/auth/http"
-	profilecore "honey-forge/modules/profiles"
 	"net/http"
 	"net/url"
 	"strconv"
 
-	"honey-forge/internal/platform/httpx"
-
 	"github.com/gin-gonic/gin"
+
+	"honey-forge/internal/platform/httpx"
+	authhttp "honey-forge/modules/auth/http"
+	profilecore "honey-forge/modules/profiles"
 )
 
 func (h *Handler) list(c *gin.Context) {

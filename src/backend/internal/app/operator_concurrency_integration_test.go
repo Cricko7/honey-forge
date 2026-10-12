@@ -33,9 +33,11 @@ func TestRealConcurrentProfileRequestsCommitOnce(t *testing.T) {
 			t.Fatalf("concurrent creation: status %d: %s", w.Code, w.Body.String())
 		}
 	}
+
 	if created == nil || replayed == nil || replayed.Header().Get("Idempotency-Replayed") != "true" {
 		t.Fatal("concurrent create must yield one creation and one replay")
 	}
+
 	profile := decodeIntegration[profiles.Profile](t, created)
 	if other := decodeIntegration[profiles.Profile](t, replayed); other.ID != profile.ID || other.Revision != 1 {
 		t.Fatal("concurrent request_id created two profiles")
@@ -50,6 +52,7 @@ func TestRealConcurrentProfileRequestsCommitOnce(t *testing.T) {
 		req.Header.Set("If-Match", etag)
 		requests = append(requests, req)
 	}
+
 	responses = concurrentOperatorRequests(runtime.Router, requests)
 	var winner *httptest.ResponseRecorder
 	conflicts := 0
@@ -64,14 +67,17 @@ func TestRealConcurrentProfileRequestsCommitOnce(t *testing.T) {
 			t.Fatalf("concurrent patch: status %d: %s", w.Code, w.Body.String())
 		}
 	}
+
 	if winner == nil || conflicts != 1 {
 		t.Fatal("concurrent PATCH must yield one update and one revision conflict")
 	}
+
 	current := decodeIntegration[profiles.Profile](t, sendOperator(t, runtime, "GET", path, "", admin, 200))
 	winning := decodeIntegration[profiles.Profile](t, winner)
 	if current.Revision != 2 || !profiles.EqualJSON(current.Config, winning.Config) {
 		t.Fatal("losing PATCH overwrote winning configuration or incremented revision")
 	}
+
 	page := decodeIntegration[profiles.Page](t, sendOperator(t, runtime, "GET", "/api/profiles", "", admin, 200))
 	if len(page.Items) != 1 || page.Items[0].ID != profile.ID {
 		t.Fatal("concurrent creation left duplicate profiles")
@@ -85,6 +91,7 @@ func TestRealConcurrentProfileRequestsCommitOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if revisions != 2 || audits != 2 || changes != 4 {
 		t.Fatalf("duplicate transactional effects: revisions=%d audits=%d changes=%d, want 2/2/4", revisions, audits, changes)
 	}
@@ -99,11 +106,13 @@ func concurrentOperatorRequests(router http.Handler, requests []*http.Request) [
 			results <- serveOperator(router, req)
 		}()
 	}
+
 	close(start)
 
 	responses := make([]*httptest.ResponseRecorder, 0, len(requests))
 	for range requests {
 		responses = append(responses, <-results)
 	}
+
 	return responses
 }

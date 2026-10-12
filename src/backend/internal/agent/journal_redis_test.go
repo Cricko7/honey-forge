@@ -22,6 +22,7 @@ func TestRedisOptionsRequireAuthenticatedTLS(t *testing.T) {
 			if (err == nil) != tt.valid {
 				t.Fatalf("redisOptions()=%+v %v", options, err)
 			}
+
 			if tt.valid && (options.TLSConfig == nil || options.TLSConfig.InsecureSkipVerify || options.TLSConfig.MinVersion < tls.VersionTLS12 || options.TLSConfig.ServerName != "redis.example") {
 				t.Fatal("Redis must verify the configured endpoint over TLS 1.2+")
 			}

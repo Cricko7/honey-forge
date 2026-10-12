@@ -18,6 +18,7 @@ type creationStore struct {
 func (f *creationStore) Create(ctx context.Context, org string, req CreateRequest, check func(context.Context, profiles.Profile) error) (CreateResult, error) {
 	f.called = true
 	f.managed = req.AutoDeploy
+
 	return CreateResult{}, check(ctx, profiles.Profile{ID: req.ProfileID, TypeID: "tcp-banner", TypeVersion: 1})
 }
 
@@ -42,6 +43,7 @@ type unavailableCatalog struct{}
 func (unavailableCatalog) LookupType(context.Context, string, contract.TypeVersion) (catalog.CatalogEntry, error) {
 	return catalog.CatalogEntry{AvailableForNewProfiles: false}, nil
 }
+
 func TestCreateRejectsRetiredType(t *testing.T) {
 	storage := &creationStore{}
 	service := NewService(storage, unavailableCatalog{}, "wss://center.example/assets/stream", nil)

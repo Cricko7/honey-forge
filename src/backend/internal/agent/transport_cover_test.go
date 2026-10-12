@@ -25,11 +25,14 @@ func TestSessionResourceHandshake(t *testing.T) {
 				w.WriteHeader(tt.status)
 			}))
 			defer server.Close()
+
 			journal, err := OpenJournal(filepath.Join(t.TempDir(), "journal"), "cover-test", 1<<20)
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			defer journal.Close()
+
 			config := server.Client().Transport.(*http.Transport).TLSClientConfig
 			err = session(t.Context(), Options{URL: "wss" + strings.TrimPrefix(server.URL, "https") + "/assets/stream", Token: "secret", TLS: config}, journal, NewService(journal, nil), nil, nil)
 			if err == nil || errors.Is(err, ErrRevoked) != tt.revoked {

@@ -68,6 +68,7 @@ func pointerPut(object, template Object, path string, value any) bool {
 	}
 
 	_, ok = putPart(object, template, parts, value)
+
 	return ok
 }
 
@@ -98,6 +99,7 @@ func putPart(node, template any, parts []string, value any) (any, bool) {
 		}
 
 		n[parts[0]] = child
+
 		return n, true
 	case []any:
 		i, ok := arrayIndex(parts[0], len(n))
@@ -120,6 +122,7 @@ func putPart(node, template any, parts []string, value any) (any, bool) {
 		}
 
 		n[i] = child
+
 		return n, true
 	default:
 		return nil, false

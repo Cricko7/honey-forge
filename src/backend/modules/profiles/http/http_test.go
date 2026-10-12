@@ -10,12 +10,11 @@ import (
 	"strings"
 	"testing"
 
-	"honey-forge/modules/profiles/internal/teststore"
-
 	"github.com/gin-gonic/gin"
 
 	"honey-forge/modules/auth"
 	profilecore "honey-forge/modules/profiles"
+	"honey-forge/modules/profiles/internal/teststore"
 	profileservice "honey-forge/modules/profiles/service"
 )
 
@@ -29,7 +28,10 @@ func httpRouter(t *testing.T, actor auth.AuthContext) (*gin.Engine, *profileserv
 		c.Header("Cache-Control", "no-store")
 	})
 	h := NewHandler(s, slog.New(slog.NewJSONHandler(io.Discard, nil)))
-	if err := h.RegisterRoutes(r, func(c *gin.Context) { c.Set("auth_context", actor); c.Next() }); err != nil {
+	if err := h.RegisterRoutes(r, func(c *gin.Context) {
+		c.Set("auth_context", actor)
+		c.Next()
+	}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -45,6 +47,7 @@ func call(r http.Handler, method, path, body, match string) *httptest.ResponseRe
 
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
+
 	return w
 }
 
@@ -208,12 +211,32 @@ const (
 var admin = auth.AuthContext{UserID: userID, OrganizationID: orgID, Role: auth.RoleAdmin}
 
 func request() profilecore.CreateRequest {
-	return profilecore.CreateRequest{RequestID: requestID, Name: "Demo", TypeID: "demo", TypeVersion: 1, Config: profilecore.Object{"visible": "one", "credentials": profilecore.Object{"password": "private"}}}
+	return profilecore.CreateRequest{
+		RequestID:   requestID,
+		Name:        "Demo",
+		TypeID:      "demo",
+		TypeVersion: 1,
+		Config:      profilecore.Object{"visible": "one", "credentials": profilecore.Object{"password": "private"}},
+	}
 }
+
 func testService() (*profileservice.Service, *teststore.Store) {
 	store := teststore.New()
 	deps := profilecore.Dependencies{LookupType: func(ctx context.Context, id string, version int32) (profilecore.Type, error) {
-		return profilecore.Type{InteractionLevel: "low", AvailableForNewProfiles: true, SecretPaths: func(profilecore.Object) []string { return []string{"/credentials/password"} }, IsSecretPath: func(p string) bool { return p == "/credentials/password" }, CheckConfig: func(ctx context.Context, _ profilecore.Object) error { return ctx.Err() }}, nil
+		return profilecore.Type{
+			InteractionLevel:        "low",
+			AvailableForNewProfiles: true,
+			SecretPaths: func(profilecore.Object) []string {
+				return []string{"/credentials/password"}
+			},
+			IsSecretPath: func(p string) bool {
+				return p == "/credentials/password"
+			},
+			CheckConfig: func(ctx context.Context, _ profilecore.Object) error {
+				return ctx.Err()
+			},
+		}, nil
 	}}
+
 	return profileservice.NewService(store, deps), store
 }

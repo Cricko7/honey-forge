@@ -43,11 +43,13 @@ func (h *Handler) Serve(c *gin.Context) {
 		stream.Resource(c)
 		return
 	}
+
 	values := c.Request.Header.Values("Authorization")
 	if len(values) != 1 || !strings.HasPrefix(values[0], "Bearer ") || strings.TrimPrefix(values[0], "Bearer ") == "" {
 		stream.Resource(c)
 		return
 	}
+
 	if h.gateway == nil || h.commands == nil {
 		contract.Fail(c, contract.NewError("service_unavailable"))
 		return
@@ -61,12 +63,15 @@ func (h *Handler) Serve(c *gin.Context) {
 		} else {
 			contract.Fail(c, failure)
 		}
+
 		return
 	}
+
 	if !validIdentity(identity) {
 		stream.Resource(c)
 		return
 	}
+
 	if h.ClientCAFile != "" {
 		trapID, err := tlsconfig.AgentIdentity(c.Request, h.ClientCAFile)
 		if err != nil || trapID != identity.TrapID {
@@ -80,10 +85,12 @@ func (h *Handler) Serve(c *gin.Context) {
 	if err != nil {
 		return
 	}
+
 	defer socket.Close()
 
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	defer cancel()
+
 	session := &agentSession{identity: identity, token: token, socket: socket, ctx: ctx, cancel: cancel, connectionID: string(contract.NewID())}
 	session.ctx = WithSession(ctx, identity, session.connectionID)
 	if err := h.run(session); err != nil && !errors.Is(err, context.Canceled) {
@@ -121,9 +128,12 @@ func (h *Handler) run(session *agentSession) (runErr error) {
 		if contract.ValidID(string(first.MessageID)) {
 			_ = session.replyError(first, err)
 		}
+
 		_ = session.socket.CloseCode(4400, "invalid_hello")
+
 		return nil
 	}
+
 	if first.Type != "agent.hello" {
 		_ = session.socket.CloseCode(4400, "invalid_hello")
 		return nil
@@ -133,11 +143,14 @@ func (h *Handler) run(session *agentSession) (runErr error) {
 	if err := decodePayload(first.Payload, &hello); err != nil {
 		_ = session.replyError(first, err)
 		_ = session.socket.CloseCode(4400, "invalid_hello")
+
 		return nil
 	}
+
 	if err := validateHello(session.identity, hello); err != nil {
 		_ = session.replyError(first, err)
 		_ = session.socket.CloseCode(4400, "invalid_hello")
+
 		return nil
 	}
 
@@ -156,6 +169,7 @@ func (h *Handler) run(session *agentSession) (runErr error) {
 		_ = entry.current.socket.CloseCode(4409, "session_replaced")
 		entry.current.cancel()
 	}
+
 	entry.current = session
 	session.active.Store(true)
 	var state State
@@ -166,23 +180,32 @@ func (h *Handler) run(session *agentSession) (runErr error) {
 	} else {
 		state, err = h.gateway.Observe(session.ctx, session.identity, session.connectionID, hello.Runtime)
 	}
+
 	entry.mu.Unlock()
 	if err != nil {
 		_ = session.replyError(first, err)
 		return h.disconnect(entry, session)
 	}
+
 	defer func() {
 		runErr = errors.Join(runErr, h.disconnect(entry, session))
 	}()
+
 	session.heartbeatAt.Store(time.Now().UnixNano())
 
 	if err := session.socket.Reply(session.ctx, first, "agent.welcome", map[string]any{
-		"connection_id": session.connectionID, "trap_id": session.identity.TrapID,
-		"traffic_mirroring": h.TrafficTargets != nil && hello.TrafficMirroring,
-		"server_time":       time.Now().UTC(), "heartbeat_interval_seconds": interval(state),
-		"offline_after_seconds": 30, "max_batch_events": 100, "max_message_bytes": contract.MaxBodyBytes,
-		"telemetry_ack_timeout_seconds": 10, "current_configuration": state.CurrentConfiguration,
-		"desired_profile_revision": state.DesiredProfileRevision, "desired_state": desiredState(state),
+		"connection_id":                 session.connectionID,
+		"trap_id":                       session.identity.TrapID,
+		"traffic_mirroring":             h.TrafficTargets != nil && hello.TrafficMirroring,
+		"server_time":                   time.Now().UTC(),
+		"heartbeat_interval_seconds":    interval(state),
+		"offline_after_seconds":         30,
+		"max_batch_events":              100,
+		"max_message_bytes":             contract.MaxBodyBytes,
+		"telemetry_ack_timeout_seconds": 10,
+		"current_configuration":         state.CurrentConfiguration,
+		"desired_profile_revision":      state.DesiredProfileRevision,
+		"desired_state":                 desiredState(state),
 	}); err != nil {
 		return fmt.Errorf("send welcome: %w", err)
 	}
@@ -197,12 +220,14 @@ func (h *Handler) disconnect(entry *sessionEntry, session *agentSession) error {
 	if entry.current != session {
 		return nil
 	}
+
 	entry.current = nil
 	session.active.Store(false)
 	session.cancel()
 
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(session.ctx), 5*time.Second)
 	defer cancel()
+
 	if err := h.gateway.Offline(ctx, session.identity, session.connectionID); err != nil {
 		return fmt.Errorf("mark agent offline: %w", err)
 	}
@@ -268,6 +293,7 @@ func (s *agentSession) replyError(request contract.Envelope, err error) error {
 	if apiError.Code == "ingestion_busy" {
 		payload["retry_after_seconds"] = 1
 	}
+
 	if apiError.Code == "ingestion_pending" {
 		payload["retry_after_seconds"] = 2
 	}

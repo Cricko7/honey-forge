@@ -14,5 +14,8 @@ func handleStdioPipeSignals() func() {
 	// Notify drops excess signals; the write error drives connection shutdown.
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGPIPE)
-	return func() { signal.Stop(signals) }
+
+	return func() {
+		signal.Stop(signals)
+	}
 }

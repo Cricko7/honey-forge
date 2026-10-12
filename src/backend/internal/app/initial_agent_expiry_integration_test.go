@@ -25,6 +25,7 @@ func TestNeverConnectedAgentQueueRecoversAutomatically(t *testing.T) {
 	if err := repo.ExpireAllDue(t.Context(), now.Add(-time.Microsecond)); err != nil {
 		t.Fatal(err)
 	}
+
 	stillQueued := decodeIntegration[commands.Command](t, sendOperator(t, r, "GET", path+"/commands/"+command.ID, "", a, 200))
 	if stillQueued.Status != commands.Queued {
 		t.Fatal("initial connection deadline expired early")
@@ -35,11 +36,13 @@ func TestNeverConnectedAgentQueueRecoversAutomatically(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+
 	expired := decodeIntegration[commands.Command](t, sendOperator(t, r, "GET", path+"/commands/"+command.ID, "", a, 200))
 	after := decodeIntegration[traps.Trap](t, sendOperator(t, r, "GET", path, "", a, 200))
 	if expired.Status != commands.Expired || expired.Error == nil || expired.Error.Code != "agent_not_connected" || expired.FinishedAt == nil || !expired.FinishedAt.Equal(now) {
 		t.Fatalf("command not recovered: %+v", expired)
 	}
+
 	if after.ActiveCommandID != nil || after.StateVersion != before.StateVersion+1 || after.Revision != before.Revision || after.RuntimeState != "unknown" || after.AppliedProfileRevision != nil {
 		t.Fatalf("recovery invented runtime or did not release command: %+v", after)
 	}

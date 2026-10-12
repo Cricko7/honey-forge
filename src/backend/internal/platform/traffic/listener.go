@@ -9,6 +9,7 @@ import (
 )
 
 type Sink func(Frame)
+
 type sinkKey struct{}
 
 func WithSink(ctx context.Context, sink Sink) context.Context {
@@ -21,10 +22,12 @@ func Listen(ctx context.Context, network, address string) (net.Listener, error) 
 	if err != nil {
 		return nil, err
 	}
+
 	sink, _ := ctx.Value(sinkKey{}).(Sink)
 	if sink == nil {
 		return listener, nil
 	}
+
 	return &tappedListener{Listener: listener, sink: sink}, nil
 }
 
@@ -38,6 +41,7 @@ func (l *tappedListener) Accept() (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return wrapConn(conn, l.sink), nil
 }
 
@@ -50,10 +54,20 @@ type tappedConn struct {
 }
 
 func wrapConn(conn net.Conn, sink Sink) *tappedConn {
-	tapped := &tappedConn{Conn: conn, sink: sink, frame: Frame{ConnectionID: string(contract.NewID()), RemoteAddress: conn.RemoteAddr().String(), LocalAddress: conn.LocalAddr().String()}}
+	tapped := &tappedConn{
+		Conn: conn,
+		sink: sink,
+		frame: Frame{
+			ConnectionID:  string(contract.NewID()),
+			RemoteAddress: conn.RemoteAddr().String(),
+			LocalAddress:  conn.LocalAddr().String(),
+		},
+	}
 	tapped.emit("open", nil)
+
 	return tapped
 }
+
 func (c *tappedConn) emit(kind string, data []byte) {
 	c.frame.Sequence++
 	frame := c.frame
@@ -61,6 +75,7 @@ func (c *tappedConn) emit(kind string, data []byte) {
 	frame.Data = append([]byte(nil), data...)
 	c.sink(frame)
 }
+
 func (c *tappedConn) Read(buffer []byte) (int, error) {
 	n, err := c.Conn.Read(buffer)
 	if n > 0 {
@@ -70,18 +85,23 @@ func (c *tappedConn) Read(buffer []byte) (int, error) {
 				c.emit("data", buffer[offset:min(n, offset+MaxChunkBytes)])
 			}
 		}
+
 		c.mu.Unlock()
 	}
+
 	return n, err
 }
+
 func (c *tappedConn) Close() error {
 	// Closing the underlying connection first interrupts a blocked Read.
 	err := c.Conn.Close()
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	if !c.closed {
 		c.closed = true
 		c.emit("close", nil)
 	}
+
 	return err
 }

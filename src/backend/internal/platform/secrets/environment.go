@@ -12,13 +12,16 @@ func Environment(name string) (string, error) {
 	if file == "" {
 		return os.Getenv(name), nil
 	}
+
 	raw, err := os.ReadFile(file)
 	if err != nil {
 		return "", fmt.Errorf("read %s file: %w", name, err)
 	}
+
 	value := strings.TrimSuffix(string(raw), "\n")
 	if value == "" {
 		return "", fmt.Errorf("%s file is empty", name)
 	}
+
 	return value, nil
 }

@@ -13,8 +13,10 @@ func DecodeObject(raw []byte) (map[string]any, error) {
 	if err := d.Decode(&object); err != nil {
 		return nil, err
 	}
+
 	if _, err := d.Token(); err != io.EOF {
 		return nil, &json.SyntaxError{}
 	}
+
 	return object, nil
 }

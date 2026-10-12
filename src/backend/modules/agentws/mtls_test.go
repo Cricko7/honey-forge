@@ -25,6 +25,7 @@ func TestMTLSRejectsMissingOrMismatchedTrapCertificate(t *testing.T) {
 			if name != "missing" {
 				request.TLS = &tls.ConnectionState{VerifiedChains: [][]*x509.Certificate{{{Subject: pkix.Name{CommonName: name}}}}}
 			}
+
 			recorder := httptest.NewRecorder()
 			router.ServeHTTP(recorder, request)
 			if recorder.Code != 200 || recorder.Header().Get("Content-Type") != "application/javascript; charset=utf-8" {

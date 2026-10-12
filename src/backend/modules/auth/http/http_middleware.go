@@ -1,12 +1,12 @@
 package http
 
 import (
-	authcore "honey-forge/modules/auth"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 
 	"honey-forge/internal/platform/httpx"
+	authcore "honey-forge/modules/auth"
 )
 
 // RequireSession passes a verified identity to other operator feature handlers.
@@ -23,6 +23,7 @@ func (h *Handler) RequireSession() gin.HandlerFunc {
 				h.fail(c, "CSRF rejected", authcore.ErrCSRF)
 				return
 			}
+
 			if err := authcore.CheckCSRF(sess, c.GetHeader("X-CSRF-Token")); err != nil {
 				h.fail(c, "CSRF rejected", err)
 				return

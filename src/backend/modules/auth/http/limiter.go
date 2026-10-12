@@ -53,6 +53,7 @@ func (l *authLimiter) allow(ip string, now time.Time) (bool, int) {
 	for len(times) > 0 && !times[0].After(cutoff) {
 		times = times[1:]
 	}
+
 	if len(times) >= authLimit {
 		retry := math.Ceil(times[0].Add(time.Minute).Sub(now).Seconds())
 
@@ -69,7 +70,9 @@ func (l *authLimiter) middleware(c *gin.Context) {
 	if allowed {
 		select {
 		case l.inflight <- struct{}{}:
-			defer func() { <-l.inflight }()
+			defer func() {
+				<-l.inflight
+			}()
 		default:
 			allowed, retry = false, 1
 		}
@@ -78,6 +81,7 @@ func (l *authLimiter) middleware(c *gin.Context) {
 	if !allowed {
 		c.Header("Retry-After", strconv.Itoa(retry))
 		httpx.WriteError(c, http.StatusTooManyRequests, "rate_limited", "Too many requests")
+
 		return
 	}
 

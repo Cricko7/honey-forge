@@ -7,6 +7,9 @@ import (
 	"os"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"honey-forge/internal/configschema"
 	"honey-forge/internal/contract"
 	"honey-forge/internal/mutation"
@@ -27,9 +30,6 @@ import (
 	profilerepo "honey-forge/modules/profiles/repository"
 	profileservice "honey-forge/modules/profiles/service"
 	"honey-forge/modules/traps"
-
-	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Config struct {
@@ -53,6 +53,7 @@ type Config struct {
 	// keeps the safe default of trusting no proxy (direct peer address).
 	TrustedProxies []string
 }
+
 type Runtime struct {
 	Router    *gin.Engine
 	Mutations *mutation.Store
@@ -73,26 +74,32 @@ func Open(ctx context.Context, config Config) (*Runtime, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	cursors, err := contract.NewCursorCodec(config.CursorKey)
 	if err != nil {
 		return nil, fmt.Errorf("configure cursor: %w", err)
 	}
+
 	browser, err := contract.NewBrowserPolicy(config.BrowserOrigins)
 	if err != nil {
 		return nil, fmt.Errorf("configure browser policy: %w", err)
 	}
+
 	definitions := config.CatalogDefinitions
 	if definitions == nil {
 		definitions = catalog.BuiltinDefinitions()
 	}
+
 	catalogService, err := catalog.NewService(definitions, cursors)
 	if err != nil {
 		return nil, fmt.Errorf("initialize catalog: %w", err)
 	}
+
 	pool, err := postgres.Open(ctx, config.DatabaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("initialize database: %w", err)
 	}
+
 	// Transfer ownership only after the complete application is wired.
 	initialized := false
 	defer func() {
@@ -100,31 +107,38 @@ func Open(ctx context.Context, config Config) (*Runtime, error) {
 			pool.Close()
 		}
 	}()
+
 	directory := config.MigrationsPath
 	if directory == "" {
 		directory = "../../migrations"
 	}
+
 	if err := postgres.Migrate(ctx, pool, os.DirFS(directory)); err != nil {
 		return nil, err
 	}
+
 	if err := catalog.NewRepository(pool).Install(ctx, catalogService); err != nil {
 		return nil, fmt.Errorf("install catalog: %w", err)
 	}
+
 	router := NewRouter(telemetryHost(endpoint), browser.CORSMiddleware())
 	if len(config.TrustedProxies) > 0 {
 		if err := router.SetTrustedProxies(config.TrustedProxies); err != nil {
 			return nil, fmt.Errorf("configure trusted proxies: %w", err)
 		}
 	}
+
 	logger := config.Logger
 	if logger == nil {
 		logger = slog.Default()
 	}
+
 	profileService := profileservice.NewService(profilerepo.NewRepository(pool), profiles.Dependencies{LookupType: ProfileTypeLookup(catalogService)})
 	authService := authservice.NewService(authrepo.NewRepository(pool))
 	if err := RegisterServices(router, browser, authService, profileService, catalogService, logger); err != nil {
 		return nil, err
 	}
+
 	trapRepository := traps.NewRepository(pool)
 	eventRepository := events.NewRepository(pool, trapRepository, catalogService)
 	commandRepository := commandrepo.New(pool, trapRepository)
@@ -135,15 +149,18 @@ func Open(ctx context.Context, config Config) (*Runtime, error) {
 			ingester = events.NewJournalService(eventRepository, catalogService, config.EventPublisher)
 		}
 	}
+
 	agents := traps.NewGateway(trapRepository, catalogService, ingester)
 	gateway := config.AgentGateway
 	if gateway == nil {
 		gateway = agents
 	}
+
 	agentCommands := config.AgentCommands
 	if agentCommands == nil {
 		agentCommands = commandservice.NewAgent(commandRepository, CommandResultCheck(catalogService))
 	}
+
 	agentHandler := agentws.NewHandler(gateway, agentCommands)
 	links := traplinks.NewService(traplinks.NewRepository(pool))
 	agentHandler.TrafficTargets = links.Targets
@@ -162,8 +179,10 @@ func Open(ctx context.Context, config Config) (*Runtime, error) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
+
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
+
 		for {
 			select {
 			case <-background.Done():
@@ -173,14 +192,36 @@ func Open(ctx context.Context, config Config) (*Runtime, error) {
 				if err := agents.ExpireConnections(work, now); err != nil && background.Err() == nil {
 					logger.ErrorContext(work, "expire trap connections failed", "error_type", fmt.Sprintf("%T", err))
 				}
+
 				if err := commandRepository.ExpireAllDue(work, now); err != nil && background.Err() == nil {
 					logger.ErrorContext(work, "expire trap commands failed", "error_type", fmt.Sprintf("%T", err))
 				}
+
 				cancel()
 			}
 		}
 	}()
 	initialized = true
-	return &Runtime{Router: router, Mutations: mutation.NewStore(pool), Schemas: configschema.NewSchemaStore(pool), Cursors: cursors, Browser: browser, Catalog: catalogService, pool: pool, Traps: trapService, Agents: agents, Frontend: frontend, stop: stop, done: done}, nil
+
+	return &Runtime{
+		Router:    router,
+		Mutations: mutation.NewStore(pool),
+		Schemas:   configschema.NewSchemaStore(pool),
+		Cursors:   cursors,
+		Browser:   browser,
+		Catalog:   catalogService,
+		pool:      pool,
+		Traps:     trapService,
+		Agents:    agents,
+		Frontend:  frontend,
+		stop:      stop,
+		done:      done,
+	}, nil
 }
-func (r *Runtime) Close() { r.stop(); r.Frontend.Wait(); <-r.done; r.pool.Close() }
+
+func (r *Runtime) Close() {
+	r.stop()
+	r.Frontend.Wait()
+	<-r.done
+	r.pool.Close()
+}

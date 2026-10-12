@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+
 	"honey-forge/internal/contract"
 	"honey-forge/modules/commands"
 	"honey-forge/modules/profiles"
@@ -25,7 +26,9 @@ func TestReconnectAndRevocationIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer first.Close()
+
 	sendAgent(t, first, "agent.hello", helloPayload())
 	firstWelcome := readAgent(t, first, "agent.welcome")
 
@@ -33,7 +36,9 @@ func TestReconnectAndRevocationIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer second.Close()
+
 	sendAgent(t, second, "agent.hello", helloPayload())
 	secondWelcome := readAgent(t, second, "agent.welcome")
 	if string(firstWelcome["payload"]) == string(secondWelcome["payload"]) {
@@ -67,6 +72,7 @@ func TestInvalidHelloIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer conn.Close()
 
 	hello := helloPayload()
@@ -87,10 +93,24 @@ func TestInvalidHelloIntegration(t *testing.T) {
 func TestLostAckRecoveryIntegration(t *testing.T) {
 	revision := int32(2)
 	gateway := &fakeGateway{token: "secret", state: State{
-		CurrentConfiguration: &profiles.Snapshot{ProfileID: string(contract.NewID()), ProfileRevision: 1, TypeID: "tcp-banner", TypeVersion: 1, Config: profiles.Object{}},
-		DesiredState:         "stopped", HeartbeatIntervalSeconds: 10,
+		CurrentConfiguration: &profiles.Snapshot{
+			ProfileID:       string(contract.NewID()),
+			ProfileRevision: 1,
+			TypeID:          "tcp-banner",
+			TypeVersion:     1,
+			Config:          profiles.Object{},
+		},
+		DesiredState:             "stopped",
+		HeartbeatIntervalSeconds: 10,
 	}}
-	dispatch := &commands.Dispatch{CommandID: string(contract.NewID()), LeaseID: string(contract.NewID()), Action: "apply_config", Params: json.RawMessage(`{"profile_revision":2}`), LeaseExpiresAt: time.Now().Add(time.Minute), ExpiresAt: time.Now().Add(time.Hour)}
+	dispatch := &commands.Dispatch{
+		CommandID:      string(contract.NewID()),
+		LeaseID:        string(contract.NewID()),
+		Action:         "apply_config",
+		Params:         json.RawMessage(`{"profile_revision":2}`),
+		LeaseExpiresAt: time.Now().Add(time.Minute),
+		ExpiresAt:      time.Now().Add(time.Hour),
+	}
 	commandService := &fakeCommands{dispatch: dispatch, recorded: make(chan struct{}, 2)}
 	url, closeServer := startAgentServer(t, gateway, commandService)
 	defer closeServer()
@@ -106,22 +126,30 @@ func TestLostAckRecoveryIntegration(t *testing.T) {
 	readAgent(t, first, "agent.welcome")
 	readAgent(t, first, "command.dispatch")
 
-	result := map[string]any{"command_id": dispatch.CommandID, "lease_id": dispatch.LeaseID,
-		"status": "succeeded", "result": map[string]any{"runtime_state": "stopped", "applied_profile_revision": revision},
-		"error": nil, "runtime": hello["runtime"]}
+	result := map[string]any{
+		"command_id": dispatch.CommandID,
+		"lease_id":   dispatch.LeaseID,
+		"status":     "succeeded",
+		"result":     map[string]any{"runtime_state": "stopped", "applied_profile_revision": revision},
+		"error":      nil,
+		"runtime":    hello["runtime"],
+	}
 	sendAgent(t, first, "command.result", result)
 	select {
 	case <-commandService.recorded:
 	case <-time.After(2 * time.Second):
 		t.Fatal("result not recorded")
 	}
+
 	first.Close() // Simulate losing command.ack after the result was recorded.
 
 	second, _, err := dialAgent(t, url, "secret")
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer second.Close()
+
 	sendAgent(t, second, "agent.hello", hello)
 	welcome := readAgent(t, second, "agent.welcome")
 	if !json.Valid(welcome["payload"]) || !containsRevision(welcome["payload"], 1) {
@@ -138,6 +166,7 @@ func TestLostAckRecoveryIntegration(t *testing.T) {
 
 	gateway.mu.Lock()
 	defer gateway.mu.Unlock()
+
 	if len(gateway.observed) < 3 || gateway.observed[len(gateway.observed)-1].AppliedProfileRevision == nil || *gateway.observed[len(gateway.observed)-1].AppliedProfileRevision != revision {
 		t.Fatal("replayed runtime was rolled back")
 	}

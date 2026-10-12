@@ -28,16 +28,19 @@ func TestTrapCommandLeaseRejectsRevokedSession(t *testing.T) {
 	if err != nil || dispatch == nil {
 		t.Fatalf("claim: %+v %v", dispatch, err)
 	}
+
 	sendOperator(t, r, "POST", path+"/agent-credentials", `{"expected_generation":1}`, a, 200)
 	_, err = agent.ExtendLease(ctx, identity.OrganizationID, trap.ID, dispatch.CommandID, dispatch.LeaseID)
 	var api *contract.Error
 	if !errors.As(err, &api) || api.Code != "agent_unauthenticated" {
 		t.Fatalf("revoked connection extended lease: %v", err)
 	}
+
 	var deadline time.Time
 	if err := r.pool.QueryRow(t.Context(), `SELECT lease_expires_at FROM commands WHERE id=$1`, dispatch.CommandID).Scan(&deadline); err != nil {
 		t.Fatal(err)
 	}
+
 	if !deadline.Equal(dispatch.LeaseExpiresAt) {
 		t.Fatal("rejected progress changed the lease")
 	}
@@ -57,6 +60,7 @@ func TestTrapCommandReplayReturnsInitialResponse(t *testing.T) {
 	if response.Header().Get("Idempotency-Replayed") != "true" || !reflect.DeepEqual(replayed, command) {
 		t.Fatalf("replay must equal the initial queued response: got %+v, want %+v", replayed, command)
 	}
+
 	current := decodeIntegration[commands.Command](t, sendOperator(t, r, "GET", path+"/"+command.ID, "", a, 200))
 	if current.Status != commands.Succeeded || current.FinishedAt == nil {
 		t.Fatal("replay changed persisted outcome")

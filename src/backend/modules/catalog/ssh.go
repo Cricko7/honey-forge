@@ -15,9 +15,11 @@ func checkSSHBytes(raw json.RawMessage) error {
 	if err := json.Unmarshal(raw, &data); err != nil {
 		return contract.NewError("telemetry_invalid")
 	}
+
 	decoded, err := base64.StdEncoding.Strict().DecodeString(data.Payload)
 	if err != nil || len(decoded) != data.Bytes || base64.StdEncoding.EncodeToString(decoded) != data.Payload {
 		return contract.NewError("telemetry_invalid")
 	}
+
 	return nil
 }

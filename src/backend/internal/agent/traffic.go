@@ -11,12 +11,14 @@ func (l *Local) acceptTraffic(frame traffic.Frame) error {
 	if err := traffic.CheckFrame(frame); err != nil {
 		return err
 	}
+
 	frame.Data = append([]byte(nil), frame.Data...)
 	select {
 	case l.Traffic <- frame:
 	default:
 		l.TrafficDropped.Add(1)
 	}
+
 	return nil
 }
 

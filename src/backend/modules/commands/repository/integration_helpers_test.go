@@ -35,12 +35,14 @@ func (t testTraps) Lock(ctx context.Context, tx pgx.Tx, org, id string) (command
 func (t testTraps) Activate(ctx context.Context, tx pgx.Tx, trap commands.Trap, command commands.Command) (int64, error) {
 	var version int64
 	err := tx.QueryRow(ctx, `UPDATE test_traps SET active_command_id=$2,state_version=state_version+1 WHERE id=$1 RETURNING state_version`, trap.ID, command.ID).Scan(&version)
+
 	return version, err
 }
 
 func (t testTraps) Release(ctx context.Context, tx pgx.Tx, trap commands.Trap, _ commands.Command) (int64, error) {
 	var version int64
 	err := tx.QueryRow(ctx, `UPDATE test_traps SET active_command_id=NULL,state_version=state_version+1 WHERE id=$1 RETURNING state_version`, trap.ID).Scan(&version)
+
 	return version, err
 }
 
@@ -51,6 +53,7 @@ func (t testTraps) Complete(ctx context.Context, tx pgx.Tx, trap commands.Trap, 
 func (t testTraps) Visible(ctx context.Context, org, id string) (bool, error) {
 	var visible bool
 	err := t.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM test_traps WHERE organization_id=$1 AND id=$2)`, org, id).Scan(&visible)
+
 	return visible, err
 }
 

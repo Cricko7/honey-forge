@@ -28,5 +28,6 @@ func NormalizeRuntimeError(value *RuntimeError) error {
 	}
 
 	value.Message = message
+
 	return nil
 }

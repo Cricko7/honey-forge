@@ -18,6 +18,7 @@ func RegisterOperator(router *gin.Engine, policy *contract.BrowserPolicy, method
 			contract.Fail(c, contract.NewError("unauthenticated"))
 			return
 		}
+
 		principal, csrf, err := authenticate(c)
 		if err != nil {
 			var apiError *contract.Error
@@ -26,12 +27,15 @@ func RegisterOperator(router *gin.Engine, policy *contract.BrowserPolicy, method
 			} else {
 				contract.Fail(c, contract.NewError("internal_error"))
 			}
+
 			return
 		}
+
 		contract.SetPrincipal(c, principal)
 		if !policy.Guard(c, csrf, capability) {
 			return
 		}
+
 		c.Next()
 	}}
 	handlers = append(handlers, ownership...)

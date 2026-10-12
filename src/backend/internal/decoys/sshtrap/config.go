@@ -31,23 +31,29 @@ func ParseConfig(ctx context.Context, snapshot profiles.Snapshot) (Config, error
 	if snapshot.TypeID != "ssh-high-interaction" || snapshot.TypeVersion != 1 || snapshot.ProfileRevision < 1 {
 		return config, fmt.Errorf("unsupported SSH snapshot")
 	}
+
 	raw, err := json.Marshal(snapshot.Config)
 	if err != nil {
 		return config, fmt.Errorf("encode SSH config: %w", err)
 	}
+
 	codec, err := contract.NewCursorCodec(make([]byte, 32))
 	if err != nil {
 		return config, err
 	}
+
 	service, err := catalog.NewService(catalog.BuiltinDefinitions(), codec)
 	if err != nil {
 		return config, err
 	}
+
 	if err := service.CheckConfig(ctx, snapshot.TypeID, 1, raw); err != nil {
 		return config, fmt.Errorf("validate SSH config: %w", err)
 	}
+
 	if err := json.Unmarshal(raw, &config); err != nil {
 		return config, fmt.Errorf("decode SSH config: %w", err)
 	}
+
 	return config, nil
 }

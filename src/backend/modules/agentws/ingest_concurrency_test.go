@@ -20,6 +20,7 @@ type blockedAckContext struct {
 func (c *blockedAckContext) Err() error {
 	close(c.started)
 	<-c.release
+
 	return context.Canceled
 }
 
@@ -30,6 +31,7 @@ func TestIngestRetainsAdmissionSlotUntilAcknowledgementCompletes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	session := &agentSession{identity: identity, token: "secret", ctx: ctx, socket: &stream.Socket{}}
 	session.active.Store(true)
 	entry := &sessionEntry{current: session}
@@ -38,14 +40,20 @@ func TestIngestRetainsAdmissionSlotUntilAcknowledgementCompletes(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
+
 		NewHandler(gateway, &fakeCommands{}).ingest(entry, session, contract.Envelope{MessageID: contract.NewID()}, TelemetryBatch{BatchID: string(contract.NewID()), Events: []Event{{EventID: string(contract.NewID())}}}, busy)
 	}()
-	defer func() { close(ctx.release); <-done }()
+	defer func() {
+		close(ctx.release)
+		<-done
+	}()
+
 	select {
 	case <-ctx.started:
 	case <-time.After(time.Second):
 		t.Fatal("acknowledgement was not attempted")
 	}
+
 	if busy.CompareAndSwap(false, true) {
 		t.Fatal("a second ingest was admitted before the first acknowledgement completed")
 	}

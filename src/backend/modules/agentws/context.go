@@ -3,6 +3,7 @@ package agentws
 import "context"
 
 type sessionKey struct{}
+
 type sessionIdentity struct {
 	Identity     Identity
 	ConnectionID string

@@ -24,14 +24,20 @@ import (
 func dialFrontend(t *testing.T, server *httptest.Server, a operatorSession) *websocket.Conn {
 	t.Helper()
 	d := websocket.Dialer{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, Subprotocols: []string{"dashboard-stream.v1"}}
-	h := http.Header{"Host": []string{strings.TrimPrefix(integrationOrigin, "https://")}, "Origin": []string{integrationOrigin}, "Cookie": []string{"__Host-session=" + a.cookie}}
+	h := http.Header{
+		"Host":   []string{strings.TrimPrefix(integrationOrigin, "https://")},
+		"Origin": []string{integrationOrigin},
+		"Cookie": []string{"__Host-session=" + a.cookie},
+	}
 	c, res, err := d.Dial("wss"+strings.TrimPrefix(server.URL, "https")+stream.FrontendPath, h)
 	if err != nil {
 		if res != nil {
 			defer res.Body.Close()
 		}
+
 		t.Fatal(err)
 	}
+
 	t.Cleanup(func() {
 		if err := c.Close(); err != nil {
 			t.Log(err)
@@ -40,45 +46,56 @@ func dialFrontend(t *testing.T, server *httptest.Server, a operatorSession) *web
 	if c.Subprotocol() != "dashboard-stream.v1" {
 		t.Fatal("wrong protocol")
 	}
+
 	return c
 }
+
 func subscribeFrontend(t *testing.T, c *websocket.Conn, after any) contract.ID {
 	t.Helper()
 	id := contract.NewID()
 	if err := c.WriteJSON(map[string]any{"message_id": id, "type": "stream.subscribe", "payload": map[string]any{"after": after}}); err != nil {
 		t.Fatal(err)
 	}
+
 	return id
 }
+
 func readFrontend(t *testing.T, c *websocket.Conn, kind string) contract.Envelope {
 	t.Helper()
 	if err := c.SetReadDeadline(time.Now().Add(3 * time.Second)); err != nil {
 		t.Fatal(err)
 	}
+
 	var e contract.Envelope
 	if err := c.ReadJSON(&e); err != nil {
 		t.Fatal(err)
 	}
+
 	for e.Type == "audit.created" && kind != "audit.created" {
 		var data map[string]string
 		if err := json.Unmarshal(e.Payload["data"], &data); err != nil || len(data) != 1 || !contract.ValidID(data["audit_id"]) {
 			t.Fatalf("invalid audit DTO: %s", e.Payload["data"])
 		}
+
 		if err := c.ReadJSON(&e); err != nil {
 			t.Fatal(err)
 		}
 	}
+
 	if e.Type != kind {
 		t.Fatalf("type %s want %s", e.Type, kind)
 	}
+
 	return e
 }
+
 func frontendCursor(t *testing.T, e contract.Envelope) string {
 	t.Helper()
 	var cursor string
 	if err := json.Unmarshal(e.Payload["cursor"], &cursor); err != nil {
 		t.Fatal(err)
 	}
+
 	return cursor
 }
 
@@ -91,6 +108,7 @@ func TestFrontendRESTReplayLiveReconnect(t *testing.T) {
 	patched := decodeIntegration[traps.Trap](t, trapMutation(t, r, a, "PATCH", path, `{"name":"Second state"}`, 1, 200))
 	server := httptest.NewTLSServer(r.Router)
 	defer server.Close()
+
 	c := dialFrontend(t, server, a)
 	requestID := subscribeFrontend(t, c, page.StreamCursor)
 	readFrontend(t, c, "profile.changed")
@@ -103,12 +121,15 @@ func TestFrontendRESTReplayLiveReconnect(t *testing.T) {
 		if err := json.Unmarshal(e.Payload["data"], &data); err != nil {
 			t.Fatal(err)
 		}
+
 		if data.Trap.StateVersion != want.StateVersion || data.Trap.Name != want.Name {
 			t.Fatalf("historical DTO %+v want %+v", data.Trap, want)
 		}
+
 		if e.ReplyTo != nil {
 			t.Fatal("notification has reply_to")
 		}
+
 		raw := string(e.Payload["data"])
 		for _, secret := range []string{"token_hash", "applied_configuration", "connection_id", "generation", "initial_trap"} {
 			if strings.Contains(raw, secret) {
@@ -116,10 +137,12 @@ func TestFrontendRESTReplayLiveReconnect(t *testing.T) {
 			}
 		}
 	}
+
 	ready := readFrontend(t, c, "stream.ready")
 	if ready.ReplyTo == nil || *ready.ReplyTo != requestID || string(ready.Payload["replayed"]) != "true" {
 		t.Fatal("ready correlation/replayed")
 	}
+
 	foreign := registerOperator(t, r, "foreign-stream@example.test", auth.OrganizationInput{Mode: "create", Name: "Foreign"})
 	createIntegrationTrap(t, r, foreign) // These commits must never enter this stream.
 	latest := decodeIntegration[traps.Trap](t, trapMutation(t, r, a, "PATCH", path, `{"name":"Live state"}`, 2, 200))
@@ -130,13 +153,16 @@ func TestFrontendRESTReplayLiveReconnect(t *testing.T) {
 	if err := json.Unmarshal(live.Payload["data"], &payload); err != nil {
 		t.Fatal(err)
 	}
+
 	if payload.Trap.ID != trap.ID || payload.Trap.StateVersion != latest.StateVersion {
 		t.Fatal("live state missing")
 	}
+
 	cursor := frontendCursor(t, live)
 	if err := c.Close(); err != nil {
 		t.Fatal(err)
 	}
+
 	trapMutation(t, r, a, "DELETE", path, "", latest.Revision, 204)
 	// A fresh session in the same organization resumes a previous session's token.
 	login := sessionFromResponse(t, sendOperator(t, r, "POST", "/api/sessions", integrationJSON(t, auth.LoginRequest{Email: a.view.User.Email, Password: integrationPassword}), operatorSession{}, 201))
@@ -146,6 +172,7 @@ func TestFrontendRESTReplayLiveReconnect(t *testing.T) {
 	if !strings.Contains(string(deleted.Payload["data"]), trap.ID) {
 		t.Fatal("tombstone missing")
 	}
+
 	readFrontend(t, resumed, "stream.ready")
 	sendOperator(t, r, "GET", path, "", login, 404)
 }
@@ -159,8 +186,10 @@ func TestFrontendInvalidCursorAndSubscribe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	server := httptest.NewTLSServer(r.Router)
 	defer server.Close()
+
 	for _, tt := range []struct {
 		name    string
 		payload map[string]any
@@ -179,14 +208,17 @@ func TestFrontendInvalidCursorAndSubscribe(t *testing.T) {
 			if err := c.WriteJSON(map[string]any{"message_id": id, "type": "stream.subscribe", "payload": tt.payload}); err != nil {
 				t.Fatal(err)
 			}
+
 			e := readFrontend(t, c, "error")
 			var api contract.Error
 			if err := json.Unmarshal(e.Payload["error"], &api); err != nil {
 				t.Fatal(err)
 			}
+
 			if api.Code != tt.code || e.ReplyTo == nil || *e.ReplyTo != id {
 				t.Fatalf("error %s reply %v", api.Code, e.ReplyTo)
 			}
+
 			_, _, err := c.ReadMessage()
 			var closed *websocket.CloseError
 			if !errors.As(err, &closed) || closed.Code != 4400 || closed.Text != tt.code {
@@ -201,6 +233,7 @@ func TestFrontendRevocationAndShutdown(t *testing.T) {
 	a := registerOperator(t, r, "revocation@example.test", auth.OrganizationInput{Mode: "create", Name: "Revoke"})
 	server := httptest.NewTLSServer(r.Router)
 	defer server.Close()
+
 	c := dialFrontend(t, server, a)
 	subscribeFrontend(t, c, nil)
 	readFrontend(t, c, "stream.ready")
@@ -213,6 +246,7 @@ func TestFrontendRevocationAndShutdown(t *testing.T) {
 	if !errors.As(err, &closed) || closed.Code != 4401 {
 		t.Fatalf("revocation close %v", err)
 	}
+
 	c2 := dialFrontend(t, server, login)
 	subscribeFrontend(t, c2, nil)
 	readFrontend(t, c2, "stream.ready")
@@ -236,8 +270,10 @@ func TestFrontendEventSummaryAfterCommit(t *testing.T) {
 	if _, err := r.Agents.Ingest(ctx, identity, connection, eventBatch(t, event)); err != nil {
 		t.Fatal(err)
 	}
+
 	server := httptest.NewTLSServer(r.Router)
 	defer server.Close()
+
 	c := dialFrontend(t, server, a)
 	subscribeFrontend(t, c, page.StreamCursor)
 	e := readFrontend(t, c, "event.created")
@@ -247,9 +283,11 @@ func TestFrontendEventSummaryAfterCommit(t *testing.T) {
 	if err := json.Unmarshal(e.Payload["data"], &data); err != nil {
 		t.Fatal(err)
 	}
+
 	if data.Event.EventID != event.EventID || strings.Contains(string(e.Payload["data"]), "listener_name") {
 		t.Fatal("summary invalid or event data leaked")
 	}
+
 	readFrontend(t, c, "stream.ready")
 	sendOperator(t, r, "GET", "/api/events/"+event.EventID, "", a, 200)
 }

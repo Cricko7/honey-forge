@@ -15,6 +15,7 @@ func (r *Repository) ExpireAllDue(ctx context.Context, now time.Time) error {
 	if err != nil {
 		return fmt.Errorf("find due commands: %w", err)
 	}
+
 	type due struct{ organization, trap string }
 	var items []due
 	for rows.Next() {
@@ -23,17 +24,21 @@ func (r *Repository) ExpireAllDue(ctx context.Context, now time.Time) error {
 			rows.Close()
 			return fmt.Errorf("scan due command: %w", err)
 		}
+
 		items = append(items, item)
 	}
+
 	err = rows.Err()
 	rows.Close()
 	if err != nil {
 		return fmt.Errorf("iterate due commands: %w", err)
 	}
+
 	for _, item := range items {
 		if err := r.ExpireDue(ctx, item.organization, item.trap, now); err != nil && !errors.Is(err, commands.ErrNotFound) {
 			return err
 		}
 	}
+
 	return nil
 }

@@ -28,14 +28,17 @@ func TestTrapCommandOfflineExpiryReleasesRegistration(t *testing.T) {
 	if err := repo.ExpireAllDue(t.Context(), command.ExpiresAt.Add(time.Second)); err != nil {
 		t.Fatal(err)
 	}
+
 	expired := decodeIntegration[commands.Command](t, sendOperator(t, r, "GET", path+"/commands/"+command.ID, "", a, 200))
 	after := decodeIntegration[traps.Trap](t, sendOperator(t, r, "GET", path, "", a, 200))
 	if expired.Status != commands.Expired || expired.Error == nil || expired.Error.Code != "command_expired" || expired.FinishedAt == nil {
 		t.Fatal("scheduler did not persist expiration")
 	}
+
 	if after.ActiveCommandID != nil || after.StateVersion != before.StateVersion+1 || after.Revision != 1 || after.RuntimeState != "unknown" || after.Connectivity != "offline" {
 		t.Fatal("expiry did not release the command or invented runtime state")
 	}
+
 	trapMutation(t, r, a, "DELETE", path, "", 1, 204)
 	sendOperator(t, r, "GET", path+"/commands/"+command.ID, "", a, 200)
 }
@@ -52,29 +55,41 @@ func TestTrapCommandCompletionRollsBackOnStateExhaustion(t *testing.T) {
 	if err != nil || dispatch == nil {
 		t.Fatalf("claim: %+v %v", dispatch, err)
 	}
+
 	if _, err := r.pool.Exec(t.Context(), `UPDATE traps SET state_version=2147483647 WHERE id=$1`, trap.ID); err != nil {
 		t.Fatal(err)
 	}
+
 	var revision int32 = 1
 	runtime.AppliedProfileRevision = &revision
-	input := commands.AgentResult{CommandID: command.ID, LeaseID: dispatch.LeaseID, Status: commands.Succeeded, Result: json.RawMessage(`{"runtime_state":"stopped","applied_profile_revision":1}`), Runtime: runtime}
+	input := commands.AgentResult{
+		CommandID: command.ID,
+		LeaseID:   dispatch.LeaseID,
+		Status:    commands.Succeeded,
+		Result:    json.RawMessage(`{"runtime_state":"stopped","applied_profile_revision":1}`),
+		Runtime:   runtime,
+	}
 	_, err = agent.RecordResult(ctx, identity.OrganizationID, trap.ID, input)
 	var api *contract.Error
 	if !errors.As(err, &api) || api.Code != "revision_exhausted" {
 		t.Fatalf("exhausted completion: %v", err)
 	}
+
 	stored := decodeIntegration[commands.Command](t, sendOperator(t, r, "GET", path+"/commands/"+command.ID, "", a, 200))
 	current := decodeIntegration[traps.Trap](t, sendOperator(t, r, "GET", path, "", a, 200))
 	if stored.Status != commands.Running || stored.FinishedAt != nil || current.ActiveCommandID == nil || *current.ActiveCommandID != command.ID || current.AppliedProfileRevision != nil {
 		t.Fatal("rejected completion partially changed command/trap")
 	}
+
 	var snapshots, terminalChanges int
 	if err := r.pool.QueryRow(t.Context(), `SELECT count(*) FROM traps WHERE id=$1 AND applied_configuration IS NOT NULL`, trap.ID).Scan(&snapshots); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := r.pool.QueryRow(t.Context(), `SELECT count(*) FROM mutation_changes WHERE resource_id=$1 AND type='command.changed'`, command.ID).Scan(&terminalChanges); err != nil {
 		t.Fatal(err)
 	}
+
 	if snapshots != 0 || terminalChanges != 2 { // create + claim; no terminal notification
 		t.Fatal("rejected completion published changes or installed a snapshot")
 	}

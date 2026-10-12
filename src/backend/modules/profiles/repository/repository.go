@@ -6,13 +6,12 @@ import (
 	"errors"
 	"fmt"
 
-	profilecore "honey-forge/modules/profiles"
-
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"honey-forge/internal/platform/jsonvalue"
 	"honey-forge/internal/postgres"
+	profilecore "honey-forge/modules/profiles"
 )
 
 type Repository struct {
@@ -24,7 +23,9 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{pool: pool, writers: Writers{AppendAudit: appendAudit, AppendChange: appendChange}}
 }
 
-func (r *Repository) WithWriters(w Writers) *Repository { return &Repository{pool: r.pool, writers: w} }
+func (r *Repository) WithWriters(w Writers) *Repository {
+	return &Repository{pool: r.pool, writers: w}
+}
 
 const profileColumns = `p.id::text,p.organization_id::text,p.sequence,p.type_id,p.type_version,p.interaction_level,
 	r.revision,r.name,r.description,r.config::text,r.secret_fields_set,r.updated_at,p.created_at`
@@ -53,6 +54,7 @@ func scanProfile(row pgx.Row) (profilecore.Profile, error) {
 
 	p.CreatedAt = p.CreatedAt.UTC()
 	p.UpdatedAt = p.UpdatedAt.UTC()
+
 	return p, nil
 }
 

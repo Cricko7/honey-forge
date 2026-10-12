@@ -22,23 +22,33 @@ func (f *memoryFile) WriteAt(b []byte, off int64) (int, error) {
 	if f.fail {
 		return 0, errors.New("write failed")
 	}
+
 	return len(b), nil
 }
-func (f *memoryFile) Close() error { return nil }
+
+func (f *memoryFile) Close() error {
+	return nil
+}
 
 func TestUploadCapturesRandomWritesAndHashOutsideSandbox(t *testing.T) {
 	var got []events.AgentEvent
-	r := newRecording(t.Context(), profiles.Snapshot{TypeID: "ssh-high-interaction", TypeVersion: 1, ProfileRevision: 1}, "ssh", "127.0.0.1:12345", 2222, 8192, func(_ context.Context, e events.AgentEvent) error { got = append(got, e); return nil })
+	r := newRecording(t.Context(), profiles.Snapshot{TypeID: "ssh-high-interaction", TypeVersion: 1, ProfileRevision: 1}, "ssh", "127.0.0.1:12345", 2222, 8192, func(_ context.Context, e events.AgentEvent) error {
+		got = append(got, e)
+		return nil
+	})
 	u := &upload{file: &memoryFile{}, record: r, id: "file", limit: 32, release: func() {}, fail: func(error) {}}
 	if _, err := u.WriteAt([]byte("world"), 5); err != nil {
 		t.Fatal(err)
 	}
+
 	if _, err := u.WriteAt([]byte("hello"), 0); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := u.Close(); err != nil {
 		t.Fatal(err)
 	}
+
 	var closed struct {
 		Size     int    `json:"size"`
 		Hash     string `json:"sha256"`
@@ -47,10 +57,12 @@ func TestUploadCapturesRandomWritesAndHashOutsideSandbox(t *testing.T) {
 	if err := json.Unmarshal(got[len(got)-1].Data, &closed); err != nil {
 		t.Fatal(err)
 	}
+
 	sum := sha256.Sum256([]byte("helloworld"))
 	if closed.Size != 10 || closed.Hash != hex.EncodeToString(sum[:]) || !closed.Complete {
 		t.Fatalf("artifact: %+v", closed)
 	}
+
 	if err := u.Close(); err != nil || len(got) != 3 {
 		t.Fatal("duplicate close event")
 	}
@@ -69,12 +81,14 @@ func TestUploadLimitsAndCommitFailurePreventSideEffects(t *testing.T) {
 				if tc.sinkFail {
 					return errors.New("journal unavailable")
 				}
+
 				return nil
 			})
 			u := &upload{file: file, record: r, id: "file", limit: 32, release: func() {}, fail: func(error) {}}
 			if _, err := u.WriteAt(make([]byte, tc.size), tc.offset); err == nil {
 				t.Fatal("invalid upload accepted")
 			}
+
 			if file.writes != 0 {
 				t.Fatal("unrecorded data reached sandbox")
 			}

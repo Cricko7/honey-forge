@@ -17,13 +17,16 @@ func testService(t *testing.T, defs ...Definition) *Service {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if defs == nil {
 		defs = BuiltinDefinitions()
 	}
+
 	s, err := NewService(defs, codec)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	return s
 }
 
@@ -37,8 +40,10 @@ func wantCode(t *testing.T, err error, code string) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		return
 	}
+
 	var e *contract.Error
 	if !errors.As(err, &e) || e.Code != code {
 		t.Fatalf("got %v, want %s", err, code)
@@ -50,18 +55,36 @@ func TestNewService(t *testing.T) {
 		name   string
 		change func(*Definition)
 	}{
-		{"missing base action", func(d *Definition) { d.Entry.Actions = d.Entry.Actions[:2] }},
-		{"duplicate event", func(d *Definition) { d.Entry.EventSchemas = append(d.Entry.EventSchemas, d.Entry.EventSchemas[0]) }},
-		{"duplicate action", func(d *Definition) { d.Entry.Actions = append(d.Entry.Actions, d.Entry.Actions[0]) }},
-		{"schema without draft", func(d *Definition) { d.Entry.ConfigSchema = json.RawMessage(`{"type":"object"}`) }},
+		{"missing base action", func(d *Definition) {
+			d.Entry.Actions = d.Entry.Actions[:2]
+		}},
+		{"duplicate event", func(d *Definition) {
+			d.Entry.EventSchemas = append(d.Entry.EventSchemas, d.Entry.EventSchemas[0])
+		}},
+		{"duplicate action", func(d *Definition) {
+			d.Entry.Actions = append(d.Entry.Actions, d.Entry.Actions[0])
+		}},
+		{"schema without draft", func(d *Definition) {
+			d.Entry.ConfigSchema = json.RawMessage(`{"type":"object"}`)
+		}},
 		{"remote reference", func(d *Definition) {
 			d.Entry.ConfigSchema = json.RawMessage(`{"$schema":"https://json-schema.org/draft/2020-12/schema","$ref":"https://example.com/schema"}`)
 		}},
-		{"auth missing event", func(d *Definition) { d.SupportsAuthentication = true }},
-		{"service action missing event", func(d *Definition) { d.SupportsServiceActions = true }},
-		{"unsafe UI widget", func(d *Definition) { d.Entry.UI.Widgets["/listeners"] = "javascript" }},
-		{"invalid UI pointer", func(d *Definition) { d.Entry.UI.FieldOrder = []string{"listeners"} }},
-		{"empty title", func(d *Definition) { d.Entry.Title = "" }},
+		{"auth missing event", func(d *Definition) {
+			d.SupportsAuthentication = true
+		}},
+		{"service action missing event", func(d *Definition) {
+			d.SupportsServiceActions = true
+		}},
+		{"unsafe UI widget", func(d *Definition) {
+			d.Entry.UI.Widgets["/listeners"] = "javascript"
+		}},
+		{"invalid UI pointer", func(d *Definition) {
+			d.Entry.UI.FieldOrder = []string{"listeners"}
+		}},
+		{"empty title", func(d *Definition) {
+			d.Entry.Title = ""
+		}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			defs := BuiltinDefinitions()
@@ -72,6 +95,7 @@ func TestNewService(t *testing.T) {
 			}
 		})
 	}
+
 	defs := BuiltinDefinitions()
 	defs = append(defs, defs[0])
 	codec, _ := contract.NewCursorCodec(make([]byte, 32))
@@ -87,6 +111,7 @@ func TestLookupType(t *testing.T) {
 	if e.InteractionLevel != "low" || !e.AvailableForNewProfiles || len(e.EventSchemas) != 3 || len(e.Actions) != 3 {
 		t.Fatalf("incomplete entry: %+v", e)
 	}
+
 	e.UI.Widgets["/listeners"] = "password"
 	e.ConfigSchema[0] = '!'
 	e.Actions[0].Title = "changed"
@@ -95,7 +120,11 @@ func TestLookupType(t *testing.T) {
 	if !json.Valid(again.ConfigSchema) || again.Actions[0].Title == "changed" || again.UI.Widgets["/listeners"] == "password" {
 		t.Fatal("caller mutated catalogue")
 	}
-	wantCode(t, func() error { _, err := s.LookupType(t.Context(), "tcp-banner", 2); return err }(), "resource_not_found")
+
+	wantCode(t, func() error {
+		_, err := s.LookupType(t.Context(), "tcp-banner", 2)
+		return err
+	}(), "resource_not_found")
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	_, err = s.LookupType(ctx, "tcp-banner", 1)
@@ -117,11 +146,13 @@ func TestList(t *testing.T) {
 	if len(first.Items) != 1 || first.Items[0].TypeVersion != 1 || first.NextCursor == nil {
 		t.Fatalf("first page: %+v", first)
 	}
+
 	secondPage, tag2, err := s.List(ctx, Query{Limit: 1, Cursor: *first.NextCursor})
 	wantCode(t, err, "")
 	if tag != tag2 || len(secondPage.Items) != 1 || secondPage.Items[0].TypeVersion != 2 || secondPage.NextCursor != nil {
 		t.Fatalf("second page: %+v", secondPage)
 	}
+
 	_, _, err = s.List(operatorContext(contract.Agent), Query{Limit: 1})
 	wantCode(t, err, "forbidden")
 	_, _, err = s.List(context.Background(), Query{Limit: 1})
@@ -137,6 +168,7 @@ func TestList(t *testing.T) {
 	if len(page.Items) != 1 || page.Items[0].TypeVersion != 2 {
 		t.Fatal("availability filter")
 	}
+
 	page, _, err = s.List(ctx, Query{Limit: 50, TypeID: "missing"})
 	wantCode(t, err, "")
 	b, err := json.Marshal(page)
@@ -155,18 +187,22 @@ func TestConcurrentReads(t *testing.T) {
 				if _, _, err := s.List(operatorContext(contract.Admin), Query{Limit: 50}); err != nil {
 					t.Error(err)
 				}
+
 				if err := s.CheckConfig(t.Context(), "tcp-banner", 1, json.RawMessage(validConfig)); err != nil {
 					t.Error(err)
 				}
+
 				entry, err := s.LookupType(t.Context(), "tcp-banner", 1)
 				if err != nil {
 					t.Error(err)
 					return
 				}
+
 				entry.UI.Widgets["/listeners"] = "independent caller"
 			}
 		})
 	}
+
 	wg.Wait()
 }
 
@@ -184,6 +220,7 @@ func TestSnapshotETag(t *testing.T) {
 	if tag != tag2 {
 		t.Fatal("ETag depends on installation order")
 	}
+
 	third := BuiltinDefinitions()[0]
 	third.Entry.TypeVersion = 3
 	c := testService(t, append(append(BuiltinDefinitions(), second), third)...)

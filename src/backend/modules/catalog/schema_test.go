@@ -19,6 +19,7 @@ func TestDynamicSchemas(t *testing.T) {
 	for _, event := range []string{"service.auth_attempt", "service.action"} {
 		def.Entry.EventSchemas = append(def.Entry.EventSchemas, EventDescriptor{EventType: contract.EventType(event), Title: event, DataSchema: schema})
 	}
+
 	def.Entry.Actions = append(def.Entry.Actions, ActionDescriptor{Action: "inspect", Title: "Inspect", ParamsSchema: schema, ResultSchema: schema})
 	s := testService(t, def)
 	good := `{"items":[{"value":1}],"choice":"one","uuid":"11111111-1111-4111-8111-111111111111","ip":"127.0.0.1","time":"2026-10-09T12:00:00Z","email":"test@example.com"}`
@@ -35,6 +36,7 @@ func TestDynamicSchemas(t *testing.T) {
 			wantCode(t, s.CheckConfig(t.Context(), "dynamic-demo", 1, json.RawMessage(tt.raw)), tt.code)
 		})
 	}
+
 	_, err := s.CheckAction(t.Context(), "dynamic-demo", 1, "inspect", json.RawMessage(`{"value":1}`))
 	wantCode(t, err, "")
 	wantCode(t, s.CheckActionResult(t.Context(), "dynamic-demo", 1, "inspect", json.RawMessage(`{"value":0}`)), "command_result_invalid")

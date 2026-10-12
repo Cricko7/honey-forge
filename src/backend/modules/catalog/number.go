@@ -15,6 +15,8 @@ func (n *schemaInteger) UnmarshalJSON(raw []byte) error {
 	if !ok || !value.IsInt() || !value.Num().IsInt64() {
 		return fmt.Errorf("integer outside supported range")
 	}
+
 	*n = schemaInteger(value.Num().Int64())
+
 	return nil
 }

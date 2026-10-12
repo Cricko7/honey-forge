@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
+
 	"honey-forge/internal/contract"
 )
 
@@ -25,6 +26,7 @@ func sandboxArgs(id, image, publicKey string, seconds int) ([]string, error) {
 	if !contract.ValidID(id) || image == "" || seconds < 10 || seconds > 3600 {
 		return nil, fmt.Errorf("invalid sandbox configuration")
 	}
+
 	return []string{"run", "--detach", "--rm", "--init", "--pull=never", "--name", "node-metrics-session-" + id,
 		"--label", "com.nodemetrics.sandbox=true", "--label", "com.nodemetrics.expires=" + strconv.FormatInt(time.Now().Add(time.Duration(seconds)*time.Second).Unix(), 10),
 		"--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
@@ -39,41 +41,50 @@ func dockerCall(ctx context.Context, args ...string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("sandbox docker command: %w: %s", err, strings.TrimSpace(string(output)))
 	}
+
 	return output, nil
 }
 
 func (d dockerBackend) Open(ctx context.Context, id string, seconds int) (*ssh.Client, func() error, error) {
 	startup, cancelStartup := context.WithTimeout(ctx, 10*time.Second)
 	defer cancelStartup()
+
 	_, key, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		return nil, nil, fmt.Errorf("generate sandbox key: %w", err)
 	}
+
 	signer, err := ssh.NewSignerFromKey(key)
 	if err != nil {
 		return nil, nil, err
 	}
+
 	args, err := sandboxArgs(id, d.image, strings.TrimSpace(string(ssh.MarshalAuthorizedKey(signer.PublicKey()))), seconds)
 	if err != nil {
 		return nil, nil, err
 	}
+
 	if _, err := dockerCall(startup, args...); err != nil {
 		return nil, nil, err
 	}
+
 	name := "node-metrics-session-" + id
 	cleanup := func() error {
 		removeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
+
 		output, err := exec.CommandContext(removeCtx, "docker", "rm", "--force", name).CombinedOutput()
 		if err != nil && !strings.Contains(string(output), "No such container") {
 			return fmt.Errorf("remove sandbox: %w", err)
 		}
+
 		return nil
 	}
 	fail := func(err error) (*ssh.Client, func() error, error) {
 		if removeErr := cleanup(); removeErr != nil {
 			return nil, nil, fmt.Errorf("%w; cleanup: %w", err, removeErr)
 		}
+
 		return nil, nil, err
 	}
 	// The image entrypoint creates an ephemeral host key before serving inetd SSH.
@@ -81,6 +92,7 @@ func (d dockerBackend) Open(ctx context.Context, id string, seconds int) (*ssh.C
 		if _, err := dockerCall(startup, "exec", name, "test", "-s", "/home/sandbox/.ssh/ready"); err == nil {
 			break
 		}
+
 		timer := time.NewTimer(100 * time.Millisecond)
 		select {
 		case <-startup.Done():
@@ -89,14 +101,17 @@ func (d dockerBackend) Open(ctx context.Context, id string, seconds int) (*ssh.C
 		case <-timer.C:
 		}
 	}
+
 	pipe, err := startPipe(ctx, "exec", "--interactive", name, "/usr/sbin/sshd", "-i", "-e", "-f", "/etc/ssh/sandbox_config")
 	if err != nil {
 		return fail(err)
 	}
+
 	if err := pipe.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
 		pipe.Close()
 		return fail(err)
 	}
+
 	// security: transport is a Docker exec pipe to the exact container we created,
 	// never a network address supplied by an attacker. No reusable private key
 	// or control-plane credential enters the sandbox.
@@ -105,10 +120,13 @@ func (d dockerBackend) Open(ctx context.Context, id string, seconds int) (*ssh.C
 		pipe.Close()
 		return fail(fmt.Errorf("connect sandbox SSH: %w", err))
 	}
+
 	if err := pipe.SetDeadline(time.Time{}); err != nil {
 		conn.Close()
 		return fail(err)
 	}
+
 	client := ssh.NewClient(conn, channels, requests)
+
 	return client, cleanup, nil
 }

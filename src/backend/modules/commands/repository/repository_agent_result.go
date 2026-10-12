@@ -21,9 +21,11 @@ func (r *Repository) RecordResult(ctx context.Context, org, trapID string, input
 	if validate == nil {
 		return time.Time{}, commands.ErrResultInvalid
 	}
+
 	if err := agentAccess(ctx, org, trapID); err != nil {
 		return time.Time{}, err
 	}
+
 	if err := r.ExpireDue(ctx, org, trapID, now); err != nil {
 		return time.Time{}, fmt.Errorf("expire command before result: %w", err)
 	}
@@ -41,6 +43,7 @@ func (r *Repository) RecordResult(ctx context.Context, org, trapID string, input
 			}
 
 			recordedAt = *command.FinishedAt
+
 			return nil
 		}
 
@@ -103,6 +106,7 @@ func (r *Repository) RecordResult(ctx context.Context, org, trapID string, input
 		}
 
 		recordedAt = now.UTC()
+
 		return nil
 	})
 	if err != nil {
@@ -119,6 +123,7 @@ func sameJSON(a, b json.RawMessage) bool {
 
 	left, leftErr := mutation.Fingerprint(a)
 	right, rightErr := mutation.Fingerprint(b)
+
 	return leftErr == nil && rightErr == nil && left == right
 }
 

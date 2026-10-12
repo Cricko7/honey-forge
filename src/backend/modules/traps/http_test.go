@@ -14,6 +14,7 @@ import (
 )
 
 const testID = "33333333-3333-4333-8333-333333333333"
+
 const testOrg = "11111111-1111-4111-8111-111111111111"
 
 type fakeStore struct {
@@ -25,20 +26,26 @@ func (f *fakeStore) Read(ctx context.Context, org, id string) (Record, error) {
 	if org != f.record.OrganizationID || id != f.record.ID {
 		return Record{}, contract.NewError("resource_not_found")
 	}
+
 	return f.record, nil
 }
+
 func (f *fakeStore) Update(ctx context.Context, org, id string, fn func(*Record) (string, error)) (Record, error) {
 	r, err := f.Read(ctx, org, id)
 	if err != nil {
 		return Record{}, err
 	}
+
 	_, err = fn(&r)
 	if err != nil {
 		return Record{}, err
 	}
+
 	f.record = r
+
 	return r, nil
 }
+
 func TestHTTPBoundaries(t *testing.T) {
 	for _, tt := range []struct {
 		name, method, path, body, revision, role string
@@ -81,17 +88,20 @@ func TestHTTPBoundaries(t *testing.T) {
 			if tt.revision != "" {
 				req.Header.Set("X-Expected-Revision", tt.revision)
 			}
+
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
 			if w.Code != tt.status {
 				t.Fatalf("status %d: %s", w.Code, w.Body.String())
 			}
+
 			if strings.HasSuffix(tt.path, testID) && w.Header().Get("ETag") != "" {
 				t.Fatal("Trap ETag must be absent")
 			}
 		})
 	}
 }
+
 func TestCredentialsLifecycle(t *testing.T) {
 	f := &fakeStore{record: Record{OrganizationID: testOrg, Trap: Trap{ID: testID, Revision: 1, StateVersion: 1, Connectivity: "offline"}}}
 	ctx := contract.WithPrincipal(t.Context(), contract.Principal{UserID: contract.NewID(), OrganizationID: contract.ID(testOrg), Role: contract.Admin})
@@ -101,11 +111,13 @@ func TestCredentialsLifecycle(t *testing.T) {
 	if status.Generation != 0 || status.Active || status.IssuedAt != nil {
 		t.Fatal(status)
 	}
+
 	first, err := s.IssueCredentials(ctx, testID, 0)
 	requireCode(t, err, "")
 	if first.Generation != 1 || len(first.Token) < 32 || f.record.StateVersion != 1 {
 		t.Fatal("bad issuance")
 	}
+
 	_, err = s.IssueCredentials(ctx, testID, 0)
 	requireCode(t, err, "agent_credentials_changed")
 	status, err = s.Credentials(ctx, testID)
@@ -114,19 +126,23 @@ func TestCredentialsLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if strings.Contains(string(raw), first.Token) || strings.Contains(string(raw), "token") {
 		t.Fatal("token leaked")
 	}
+
 	second, err := s.IssueCredentials(ctx, testID, 1)
 	requireCode(t, err, "")
 	if second.Token == first.Token {
 		t.Fatal("token reused")
 	}
+
 	requireCode(t, s.RevokeCredentials(ctx, testID, CredentialsETag(testID, 1)), "agent_credentials_changed")
 	requireCode(t, s.RevokeCredentials(ctx, testID, CredentialsETag(testID, 2)), "")
 	if f.record.Generation != 3 || len(f.record.TokenHash) != 0 {
 		t.Fatal("not revoked")
 	}
+
 	requireCode(t, s.RevokeCredentials(ctx, testID, CredentialsETag(testID, 3)), "")
 	if f.record.Generation != 3 {
 		t.Fatal("no-op bumped generation")
@@ -134,7 +150,11 @@ func TestCredentialsLifecycle(t *testing.T) {
 }
 
 func TestManagedCredentialsCannotBeReplacedByOperator(t *testing.T) {
-	f := &fakeStore{record: Record{OrganizationID: testOrg, AutoDeploy: true, Trap: Trap{ID: testID, Revision: 1, StateVersion: 1, Connectivity: "offline"}}}
+	f := &fakeStore{record: Record{
+		OrganizationID: testOrg,
+		AutoDeploy:     true,
+		Trap:           Trap{ID: testID, Revision: 1, StateVersion: 1, Connectivity: "offline"},
+	}}
 	ctx := contract.WithPrincipal(t.Context(), contract.Principal{UserID: contract.NewID(), OrganizationID: contract.ID(testOrg), Role: contract.Admin})
 	s := NewService(f, nil, "wss://center.example/assets/stream", nil)
 	_, err := s.IssueCredentials(ctx, testID, 0)
@@ -144,5 +164,6 @@ func TestManagedCredentialsCannotBeReplacedByOperator(t *testing.T) {
 	if issued.Generation != 1 {
 		t.Fatalf("generation=%d", issued.Generation)
 	}
+
 	requireCode(t, s.RevokeCredentials(ctx, testID, CredentialsETag(testID, 1)), "agent_credentials_managed")
 }

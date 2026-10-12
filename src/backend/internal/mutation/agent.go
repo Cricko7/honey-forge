@@ -16,24 +16,31 @@ func (s *Store) AgentWrite(ctx context.Context, trapID contract.ID, write func(c
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+
 	if err := contract.RequireAgentTrap(ctx, trapID); err != nil {
 		return err
 	}
+
 	principal, _ := contract.PrincipalFrom(ctx)
+
 	return s.transaction(ctx, principal.OrganizationID, func(tx pgx.Tx) error {
 		changes, err := write(ctx, tx)
 		if err != nil {
 			return err
 		}
+
 		if len(changes) == 0 {
 			return fmt.Errorf("agent changes require notification")
 		}
+
 		for _, change := range changes {
 			if !contract.ValidTypeID(change.Type) || !contract.ValidID(string(change.ResourceID)) {
 				return fmt.Errorf("invalid agent change")
 			}
 		}
+
 		_, err = recordChanges(ctx, tx, principal.OrganizationID, changes)
+
 		return err
 	})
 }

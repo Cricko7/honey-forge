@@ -36,8 +36,10 @@ func (r *Runtime) serveHTTP(w http.ResponseWriter, req *http.Request) {
 				if err != nil {
 					r.fail(err)
 					writeError(w, http.StatusServiceUnavailable)
+
 					return
 				}
+
 				status, body = http.StatusOK, string(raw)
 				w.Header().Set("Content-Type", "application/json")
 				break
@@ -55,6 +57,7 @@ func (r *Runtime) serveHTTP(w http.ResponseWriter, req *http.Request) {
 					w.Header().Set("WWW-Authenticate", `Bearer realm="api"`)
 					break
 				}
+
 				status, body = http.StatusOK, "{\"status\":\"ok\",\"items\":[]}\n"
 				w.Header().Set("Content-Type", "application/json")
 			} else {
@@ -63,6 +66,7 @@ func (r *Runtime) serveHTTP(w http.ResponseWriter, req *http.Request) {
 					w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, path.Base(token.Path)))
 				}
 			}
+
 			triggered = &token
 			break
 		}
@@ -72,6 +76,7 @@ func (r *Runtime) serveHTTP(w http.ResponseWriter, req *http.Request) {
 		r.fail(err)
 		w.Header().Del("Content-Disposition")
 		writeError(w, http.StatusServiceUnavailable)
+
 		return
 	}
 
@@ -105,6 +110,7 @@ func (r *Runtime) record(req *http.Request, token *Token) error {
 	if err != nil {
 		return fmt.Errorf("parse HTTP peer: %w", err)
 	}
+
 	port, err := strconv.Atoi(portText)
 	if err != nil || port < 1 || port > 65535 || net.ParseIP(host) == nil {
 		return fmt.Errorf("invalid HTTP peer")
@@ -124,23 +130,38 @@ func (r *Runtime) record(req *http.Request, token *Token) error {
 		if err != nil {
 			return fmt.Errorf("encode HTTP event: %w", err)
 		}
+
 		sequence++
+
 		return r.sink(ctx, events.AgentEvent{
-			EventID: string(contract.NewID()), EventType: kind, TypeID: r.snapshot.TypeID, TypeVersion: 1,
-			ProfileRevision: int64(r.snapshot.ProfileRevision), OccurredAt: time.Now().UTC().Format(time.RFC3339Nano),
-			SessionID: session, SessionSequence: sequence, Source: events.Source{IP: host, Port: port},
-			Destination: events.Destination{Protocol: "tcp", Port: service.Port}, Data: raw,
+			EventID:         string(contract.NewID()),
+			EventType:       kind,
+			TypeID:          r.snapshot.TypeID,
+			TypeVersion:     1,
+			ProfileRevision: int64(r.snapshot.ProfileRevision),
+			OccurredAt:      time.Now().UTC().Format(time.RFC3339Nano),
+			SessionID:       session,
+			SessionSequence: sequence,
+			Source:          events.Source{IP: host, Port: port},
+			Destination:     events.Destination{Protocol: "tcp", Port: service.Port},
+			Data:            raw,
 		})
 	}
 
 	if err := emit("service.connection_opened", map[string]any{"service": service.Name}); err != nil {
 		return err
 	}
+
 	if token != nil {
 		if err := emit("honeytoken.triggered", map[string]any{"service": service.Name, "token_id": token.ID, "kind": token.Kind, "method": "GET"}); err != nil {
 			return err
 		}
 	}
 
-	return emit("service.connection_closed", map[string]any{"service": service.Name, "duration_ms": time.Since(started).Milliseconds(), "bytes_received": 0, "reason": "peer_closed"})
+	return emit("service.connection_closed", map[string]any{
+		"service":        service.Name,
+		"duration_ms":    time.Since(started).Milliseconds(),
+		"bytes_received": 0,
+		"reason":         "peer_closed",
+	})
 }

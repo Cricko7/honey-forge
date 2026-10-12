@@ -8,27 +8,40 @@ import (
 
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
+
 	"honey-forge/internal/contract"
 )
 
 func (r *Runtime) channel(ctx context.Context, ch ssh.Channel, requests <-chan *ssh.Request, client *ssh.Client, record *recording, config Config, cancel context.CancelFunc) {
 	defer ch.Close()
-	stop := context.AfterFunc(ctx, func() { ch.Close() })
+
+	stop := context.AfterFunc(ctx, func() {
+		ch.Close()
+	})
 	defer stop()
+
 	id := string(contract.NewID())
 	session, err := client.NewSession()
 	if err != nil {
 		return
 	}
+
 	defer session.Close()
+
 	stdin, err := session.StdinPipe()
 	if err != nil {
 		return
 	}
+
 	session.Stdout = recordingWriter{record, id, "stdout", ch.Write}
 	session.Stderr = recordingWriter{record, id, "stderr", ch.Stderr().Write}
 	var pumps sync.WaitGroup
-	defer func() { ch.Close(); session.Close(); pumps.Wait() }()
+	defer func() {
+		ch.Close()
+		session.Close()
+		pumps.Wait()
+	}()
+
 	started := false
 	for req := range requests {
 		ok := false
@@ -62,7 +75,9 @@ func (r *Runtime) channel(ctx context.Context, ch ssh.Channel, requests <-chan *
 						return
 					}
 				}
+
 				r.sftp(ctx, ch, client, record, config.Session.MaxUploadBytes, cancel)
+
 				return
 			}
 		case "shell", "exec":
@@ -76,9 +91,11 @@ func (r *Runtime) channel(ctx context.Context, ch ssh.Channel, requests <-chan *
 							r.recordingFailed(err, cancel)
 							return
 						}
+
 						ok = session.Start(p.Command) == nil
 					}
 				}
+
 				if ok {
 					started = true
 					// A fast command may exit immediately. Acknowledge the start
@@ -87,8 +104,10 @@ func (r *Runtime) channel(ctx context.Context, ch ssh.Channel, requests <-chan *
 						if err := req.Reply(true, nil); err != nil {
 							return
 						}
+
 						replied = true
 					}
+
 					pumps.Go(func() {
 						_, err := io.Copy(recordingWriter{record, id, "stdin", stdin.Write}, ch)
 						stdin.Close()
@@ -105,18 +124,21 @@ func (r *Runtime) channel(ctx context.Context, ch ssh.Channel, requests <-chan *
 								status = uint32(exit.ExitStatus())
 							}
 						}
+
 						ch.SendRequest("exit-status", false, ssh.Marshal(struct{ Status uint32 }{status}))
 						ch.Close() // releases the stdin pump even when the client keeps the SSH connection open
 					})
 				}
 			}
 		}
+
 		if req.WantReply && !replied {
 			if err := req.Reply(ok, nil); err != nil {
 				return
 			}
 		}
 	}
+
 	ch.Close()
 	session.Close()
 }
@@ -125,6 +147,7 @@ func (r *Runtime) recordingFailed(err error, cancel context.CancelFunc) {
 	if !errors.Is(err, ErrRecordingLimit) {
 		r.fail(err)
 	}
+
 	cancel()
 }
 
@@ -133,12 +156,26 @@ func (r *Runtime) sftp(ctx context.Context, ch ssh.Channel, client *ssh.Client, 
 	if err != nil {
 		return
 	}
+
 	defer remote.Close()
-	stop := context.AfterFunc(ctx, func() { remote.Close() })
+
+	stop := context.AfterFunc(ctx, func() {
+		remote.Close()
+	})
 	defer stop()
-	h := &fileHandlers{client: remote, record: record, limit: limit, slots: make(chan struct{}, 16), fail: func(err error) { r.recordingFailed(err, cancel) }}
+
+	h := &fileHandlers{
+		client: remote,
+		record: record,
+		limit:  limit,
+		slots:  make(chan struct{}, 16),
+		fail: func(err error) {
+			r.recordingFailed(err, cancel)
+		},
+	}
 	server := sftp.NewRequestServer(ch, sftp.Handlers{FileGet: h, FilePut: h, FileCmd: h, FileList: h}, sftp.WithStartDirectory("/home/sandbox"))
 	defer server.Close()
+
 	// Disconnects are local session failures, not a reason to stop other sessions.
 	server.Serve()
 }

@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"honey-forge/internal/testpostgres"
-
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"honey-forge/internal/testpostgres"
 )
 
 func integrationPool(t *testing.T) *pgxpool.Pool {
@@ -27,6 +27,7 @@ func applyMigrations(t *testing.T, pool *pgxpool.Pool, direction string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if direction == "Down" {
 		for i, j := 0, len(files)-1; i < j; i, j = i+1, j-1 {
 			files[i], files[j] = files[j], files[i]

@@ -40,9 +40,11 @@ func TestHTTPBoundaries(t *testing.T) {
 			if w.Code != tt.status {
 				t.Fatalf("status=%d, body=%s", w.Code, w.Body.String())
 			}
+
 			if tt.status == 201 && w.Header().Get("Location") != "/api/trap-links/"+sourceID+"/"+targetID {
 				t.Fatal("missing Location")
 			}
+
 			if tt.status == 200 && w.Body.String() != `{"items":[]}` {
 				t.Fatal(w.Body.String())
 			}

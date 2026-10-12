@@ -6,9 +6,8 @@ import (
 	"sort"
 	"sync"
 
-	profilecore "honey-forge/modules/profiles"
-
 	"honey-forge/modules/auth"
+	profilecore "honey-forge/modules/profiles"
 )
 
 type fakeKey struct {
@@ -28,6 +27,7 @@ type Store struct {
 func (f *Store) Create(ctx context.Context, a auth.AuthContext, key string, hash [32]byte, build func() (profilecore.Profile, error)) (profilecore.CreateResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	if err := ctx.Err(); err != nil {
 		return profilecore.CreateResult{}, err
 	}
@@ -57,12 +57,14 @@ func (f *Store) Create(ctx context.Context, a auth.AuthContext, key string, hash
 	f.keys[key] = fakeKey{hash, clone(p)}
 	f.snapshots[profilecore.ETag(p)] = clone(p)
 	f.Writes++
+
 	return profilecore.CreateResult{Profile: clone(p), Current: true}, nil
 }
 
 func (f *Store) ReadProfile(ctx context.Context, org, id string) (profilecore.Profile, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	if e := ctx.Err(); e != nil {
 		return profilecore.Profile{}, e
 	}
@@ -78,6 +80,7 @@ func (f *Store) ReadProfile(ctx context.Context, org, id string) (profilecore.Pr
 func (f *Store) Update(ctx context.Context, a auth.AuthContext, id string, update func(profilecore.Profile) (profilecore.Profile, []string, error)) (profilecore.Profile, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	if e := ctx.Err(); e != nil {
 		return profilecore.Profile{}, e
 	}
@@ -104,6 +107,7 @@ func (f *Store) Update(ctx context.Context, a auth.AuthContext, id string, updat
 func (f *Store) Delete(ctx context.Context, a auth.AuthContext, id string, check func(profilecore.Profile, profilecore.BindingCheck) error) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	if e := ctx.Err(); e != nil {
 		return e
 	}
@@ -119,12 +123,14 @@ func (f *Store) Delete(ctx context.Context, a auth.AuthContext, id string, check
 
 	delete(f.Profiles, id)
 	f.Writes++
+
 	return nil
 }
 
 func (f *Store) ReadSnapshot(ctx context.Context, org, id string, revision int32) (profilecore.Snapshot, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	if e := ctx.Err(); e != nil {
 		return profilecore.Snapshot{}, e
 	}
@@ -140,6 +146,7 @@ func (f *Store) ReadSnapshot(ctx context.Context, org, id string, revision int32
 func (f *Store) List(ctx context.Context, org string, q profilecore.ListQuery) ([]profilecore.Profile, int64, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	if e := ctx.Err(); e != nil {
 		return nil, 0, e
 	}
@@ -168,15 +175,24 @@ func (f *Store) List(ctx context.Context, org string, q profilecore.ListQuery) (
 
 		return items[i].CreatedAt.After(items[j].CreatedAt)
 	})
+
 	return items[:min(len(items), q.Limit+1)], q.Boundary, nil
 }
 
 func clone(p profilecore.Profile) profilecore.Profile {
 	p.Config = profilecore.CloneObject(p.Config)
 	p.SecretFieldsSet = append([]string{}, p.SecretFieldsSet...)
+
 	return p
 }
 
 func New() *Store {
-	return &Store{Profiles: map[string]profilecore.Profile{}, keys: map[string]fakeKey{}, snapshots: map[string]profilecore.Profile{}, Bindings: func(ctx context.Context) (bool, error) { return false, ctx.Err() }}
+	return &Store{
+		Profiles:  map[string]profilecore.Profile{},
+		keys:      map[string]fakeKey{},
+		snapshots: map[string]profilecore.Profile{},
+		Bindings: func(ctx context.Context) (bool, error) {
+			return false, ctx.Err()
+		},
+	}
 }

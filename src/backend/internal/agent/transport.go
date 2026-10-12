@@ -24,11 +24,13 @@ var ErrRevoked = errors.New("agent credentials are revoked")
 func session(ctx context.Context, opts Options, j *Journal, s *Service, local *Local, p *Process) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
 	dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second, TLSClientConfig: opts.TLS, Subprotocols: []string{"resource-stream.v1"}}
 	conn, response, err := dialer.DialContext(ctx, opts.URL, http.Header{"Authorization": []string{"Bearer " + opts.Token}})
 	if response != nil && response.Body != nil {
 		response.Body.Close()
 	}
+
 	if err != nil {
 		if response != nil {
 			mediaType, _, _ := mime.ParseMediaType(response.Header.Get("Content-Type"))
@@ -36,38 +38,58 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 				return ErrRevoked
 			}
 		}
+
 		return fmt.Errorf("connect backend: %w", err)
 	}
+
 	defer conn.Close()
+
 	if conn.Subprotocol() != "resource-stream.v1" {
 		return fmt.Errorf("invalid backend subprotocol")
 	}
-	stop := context.AfterFunc(ctx, func() { conn.Close() })
+
+	stop := context.AfterFunc(ctx, func() {
+		conn.Close()
+	})
 	defer stop()
+
 	conn.SetReadLimit(contract.MaxBodyBytes)
 	w := wire{conn: conn}
 	supported := opts.SupportedTypes
 	if len(supported) == 0 {
 		supported = []agentws.SupportedType{{TypeID: "tcp-banner", TypeVersion: 1, Actions: []string{"start", "stop", "apply_config"}}}
 	}
-	helloID, err := w.send("agent.hello", agentws.AgentHello{TrafficMirroring: true, BootID: opts.BootID, AgentVersion: "1.0", Hostname: opts.Hostname, SupportedTypes: supported, Runtime: s.Runtime()})
+
+	helloID, err := w.send("agent.hello", agentws.AgentHello{
+		TrafficMirroring: true,
+		BootID:           opts.BootID,
+		AgentVersion:     "1.0",
+		Hostname:         opts.Hostname,
+		SupportedTypes:   supported,
+		Runtime:          s.Runtime(),
+	})
 	if err != nil {
 		return err
 	}
+
 	if err := conn.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
 		return err
 	}
+
 	kind, raw, err := conn.ReadMessage()
 	if err != nil {
 		return err
 	}
+
 	if kind != websocket.TextMessage {
 		return fmt.Errorf("unsupported backend frame")
 	}
+
 	welcome, err := contract.DecodeEnvelope(raw)
 	if err != nil {
 		return err
 	}
+
 	var body struct {
 		TrafficMirroring bool               `json:"traffic_mirroring"`
 		TrapID           string             `json:"trap_id"`
@@ -77,12 +99,15 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 	if welcome.Type != "agent.welcome" || welcome.ReplyTo == nil || *welcome.ReplyTo != helloID || payload(welcome, &body) != nil || body.TrapID != opts.TrapID {
 		return fmt.Errorf("invalid backend welcome")
 	}
+
 	if body.Interval < 5 || body.Interval > 10 {
 		return fmt.Errorf("invalid heartbeat interval")
 	}
+
 	if err := s.RestoreWelcome(ctx, body.Configuration); err != nil {
 		return fmt.Errorf("restore welcome: %w", err)
 	}
+
 	incoming := make(chan contract.Envelope, 1)
 	readErrors := make(chan error, 1)
 	go func() {
@@ -91,20 +116,24 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 				readErrors <- err
 				return
 			}
+
 			kind, raw, err := conn.ReadMessage()
 			if err != nil {
 				readErrors <- err
 				return
 			}
+
 			if kind != websocket.TextMessage {
 				readErrors <- fmt.Errorf("unsupported backend frame")
 				return
 			}
+
 			message, err := contract.DecodeEnvelope(raw)
 			if err != nil {
 				readErrors <- err
 				return
 			}
+
 			select {
 			case incoming <- message:
 			case <-ctx.Done():
@@ -114,8 +143,10 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 	}()
 	heartbeat := time.NewTimer(beacon.Delay(s.HeartbeatInterval()))
 	defer heartbeat.Stop()
+
 	flush := time.NewTimer(beacon.Delay(s.FlushInterval()))
 	defer flush.Stop()
+
 	var pending *Batch
 	var pendingMessage contract.ID
 	var sentAt time.Time
@@ -127,8 +158,10 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 		if err != nil {
 			return err
 		}
+
 		resultMessages[id] = result.CommandID
 		resultSent[result.CommandID] = time.Now()
+
 		return nil
 	}
 	for {
@@ -140,6 +173,7 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 			if errors.As(err, &closed) && (closed.Code == 4401 || closed.Code == 4409) {
 				return ErrRevoked
 			}
+
 			return err
 		case code := <-local.Failures:
 			s.Failed(code)
@@ -154,6 +188,7 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 			if err := s.PollRunner(p); err != nil {
 				s.Failed("runtime_start_failed")
 			}
+
 			if _, err := w.send("agent.heartbeat", map[string]any{"runtime": s.Runtime()}); err != nil {
 				return err
 			}
@@ -163,6 +198,7 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 				s.Failed("buffer_unavailable")
 				continue
 			}
+
 			s.RecoverBuffer()
 			for _, result := range s.PendingResults() {
 				if time.Since(resultSent[result.CommandID]) >= 2*time.Second {
@@ -171,9 +207,11 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 					}
 				}
 			}
+
 			if pending != nil && time.Since(sentAt) > 10*time.Second {
 				return fmt.Errorf("telemetry acknowledgement timed out")
 			}
+
 			if pending == nil {
 				batches := j.Pending()
 				if len(batches) > 0 {
@@ -182,6 +220,7 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 					if err != nil {
 						return err
 					}
+
 					pending = &batch
 					pendingMessage = id
 					sentAt = time.Now()
@@ -194,10 +233,12 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 				if !body.TrafficMirroring || payload(message, &delivery) != nil || delivery.TargetID != opts.TrapID || !contract.ValidID(delivery.SourceID) || traffic.CheckFrame(delivery.Frame) != nil {
 					return fmt.Errorf("invalid mirrored traffic")
 				}
+
 				inbox := local.ReceivedTraffic
 				if opts.TrafficInbox != nil {
 					inbox = opts.TrafficInbox
 				}
+
 				inbox.Receive(delivery)
 			case "traffic.ack":
 				var ack struct {
@@ -206,6 +247,7 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 				if err := payload(message, &ack); err != nil {
 					return err
 				}
+
 				if ack.SkippedTargets > 0 {
 					slog.DebugContext(ctx, "raw traffic copy skipped", "targets", ack.SkippedTargets)
 				}
@@ -213,33 +255,41 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 				if pending == nil || message.ReplyTo == nil || *message.ReplyTo != pendingMessage {
 					return fmt.Errorf("unexpected telemetry acknowledgement")
 				}
+
 				var ack agentws.TelemetryAck
 				if err := payload(message, &ack); err != nil {
 					return err
 				}
+
 				if ack.BatchID != pending.BatchID || ack.StoredAt.IsZero() {
 					return fmt.Errorf("invalid telemetry acknowledgement")
 				}
+
 				if err := j.Ack(ack.BatchID, ack.AcknowledgedEventIDs); err != nil {
 					s.Failed("buffer_unavailable")
 					return err
 				}
+
 				pending = nil
 			case "command.dispatch":
 				var dispatch commands.Dispatch
 				if err := payload(message, &dispatch); err != nil {
 					return err
 				}
+
 				if !contract.ValidID(dispatch.CommandID) || !contract.ValidID(dispatch.LeaseID) {
 					return fmt.Errorf("invalid command identity")
 				}
+
 				if _, err := w.send("command.progress", map[string]string{"command_id": dispatch.CommandID, "lease_id": dispatch.LeaseID}); err != nil {
 					return err
 				}
+
 				result, err := s.Execute(ctx, dispatch)
 				if err != nil {
 					return fmt.Errorf("execute command: %w", err)
 				}
+
 				flush.Reset(beacon.Delay(s.FlushInterval()))
 				if err := sendResult(result); err != nil {
 					return err
@@ -251,12 +301,14 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 				if payload(message, &rejection) == nil && (rejection.Error.Code == "telemetry_invalid" || rejection.Error.Code == "event_id_conflict" || rejection.Error.Code == "batch_conflict") {
 					s.Failed("telemetry_invalid")
 				}
+
 				if rejection.Error.Code == "stale_command_lease" && message.ReplyTo != nil {
 					if id, ok := resultMessages[*message.ReplyTo]; ok {
 						resultSent[id] = time.Now().Add(24 * time.Hour)
 						continue
 					}
 				}
+
 				return fmt.Errorf("backend rejected agent message")
 			case "command.ack":
 				var ack struct {
@@ -267,15 +319,18 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 				if message.ReplyTo == nil || payload(message, &ack) != nil || ack.RecordedAt.IsZero() || (resultMessages[*message.ReplyTo] != ack.CommandID && acknowledgedResults[ack.CommandID] != ack.Status) {
 					return fmt.Errorf("invalid command acknowledgement")
 				}
+
 				if err := s.AckResult(ack.CommandID, ack.Status); err != nil {
 					s.Failed("buffer_unavailable")
 					return err
 				}
+
 				for id, commandID := range resultMessages {
 					if commandID == ack.CommandID {
 						delete(resultMessages, id)
 					}
 				}
+
 				delete(resultSent, ack.CommandID)
 				acknowledgedResults[ack.CommandID] = ack.Status
 			case "agent.heartbeat_ack", "command.progress_ack":

@@ -136,6 +136,7 @@ func (s *Service) Read(ctx context.Context, a auth.AuthContext, trapID, commandI
 	if !contract.ValidID(trapID) || !contract.ValidID(commandID) {
 		return commands.Command{}, commands.ErrValidation
 	}
+
 	if s.store == nil {
 		return commands.Command{}, commands.ErrUnavailable
 	}
@@ -155,6 +156,7 @@ func (s *Service) List(ctx context.Context, a auth.AuthContext, trapID string, q
 	if query.Limit < 1 || query.Limit > 100 {
 		return nil, false, commands.ErrValidation
 	}
+
 	if s.store == nil {
 		return nil, false, commands.ErrUnavailable
 	}

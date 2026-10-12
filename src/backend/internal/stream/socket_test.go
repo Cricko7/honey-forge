@@ -30,7 +30,9 @@ func TestTransport(t *testing.T) {
 				if err != nil {
 					return
 				}
+
 				defer socket.Close()
+
 				message, err := socket.Read(c.Request.Context())
 				if err == nil {
 					if err := socket.Reply(c.Request.Context(), message, "hello.ok", map[string]any{}); err != nil {
@@ -40,18 +42,27 @@ func TestTransport(t *testing.T) {
 			})
 			server := httptest.NewTLSServer(r)
 			defer server.Close()
-			dialer := websocket.Dialer{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, EnableCompression: true, Subprotocols: []string{"dashboard-stream.v1"}}
+
+			dialer := websocket.Dialer{
+				TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
+				EnableCompression: true,
+				Subprotocols:      []string{"dashboard-stream.v1"},
+			}
 			client, response, err := dialer.Dial("wss"+strings.TrimPrefix(server.URL, "https")+"/api/stream", http.Header{"Origin": []string{server.URL}})
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			defer client.Close()
+
 			if response.Header.Get("X-Request-ID") == "" || response.Header.Get("Sec-WebSocket-Extensions") != "" {
 				t.Fatal("handshake headers")
 			}
+
 			if err := client.WriteMessage(tt.kind, []byte(tt.data)); err != nil {
 				t.Fatal(err)
 			}
+
 			_, b, err := client.ReadMessage()
 			if tt.close != 0 {
 				var closed *websocket.CloseError
@@ -76,12 +87,15 @@ func TestFailedHandshake(t *testing.T) {
 	})
 	s := httptest.NewTLSServer(r)
 	defer s.Close()
+
 	client := s.Client()
 	response, err := client.Get(s.URL + "/api/stream")
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer response.Body.Close()
+
 	if response.StatusCode != 401 || response.Header.Get("X-Request-ID") == "" {
 		t.Fatal("unsafe handshake")
 	}

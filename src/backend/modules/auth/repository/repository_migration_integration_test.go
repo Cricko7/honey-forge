@@ -3,12 +3,13 @@
 package repository
 
 import (
-	authcore "honey-forge/modules/auth"
-	authservice "honey-forge/modules/auth/service"
 	"path/filepath"
 	"testing"
 
 	"golang.org/x/crypto/bcrypt"
+
+	authcore "honey-forge/modules/auth"
+	authservice "honey-forge/modules/auth/service"
 )
 
 func TestPostgresMigrationPreservesExistingUsers(t *testing.T) {
@@ -22,9 +23,11 @@ func TestPostgresMigrationPreservesExistingUsers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if _, err := pool.Exec(t.Context(), "INSERT INTO organizations (id, name) VALUES ($1, 'Legacy org')", orgID); err != nil {
 		t.Fatal(err)
 	}
+
 	_, err = pool.Exec(t.Context(), "INSERT INTO users (id, organization_id, email, password_hash) VALUES ($1, $2, 'legacy@example.com', $3)", userID, orgID, string(hash))
 	if err != nil {
 		t.Fatal(err)
@@ -36,13 +39,16 @@ func TestPostgresMigrationPreservesExistingUsers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if view.User.ID != userID || view.User.OrganizationID != orgID || view.User.Role != authcore.RoleAdmin || view.Organization.Name != "Legacy org" {
 		t.Fatal("migration lost the old identity")
 	}
+
 	session, err := service.ResolveSession(t.Context(), raw)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	code, err := service.JoinCode(t.Context(), session.AuthContext())
 	if err != nil || code.Revision != 1 || !authcore.ValidOpaque(code.Code, 32) {
 		t.Fatal("legacy organization did not receive its join code")

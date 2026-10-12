@@ -15,6 +15,7 @@ func TestOwnershipBeforeBody(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	r := NewRouter()
 	org := contract.NewID()
 	called := false

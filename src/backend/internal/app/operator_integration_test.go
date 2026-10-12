@@ -31,10 +31,12 @@ func TestRealSessionCatalogAndProfileFlow(t *testing.T) {
 	if path != "/api/profiles/"+profile.ID || etag != profiles.ETag(profile) || profile.Revision != 1 || profile.TypeID != input.TypeID || int64(profile.TypeVersion) != input.TypeVersion || profile.InteractionLevel != "low" {
 		t.Fatalf("created profile differs from catalog/request: %s", created.Body.String())
 	}
+
 	read := decodeIntegration[profiles.Profile](t, sendOperator(t, runtime, "GET", path, "", viewer, 200))
 	if !reflect.DeepEqual(read, profile) {
 		t.Fatal("viewer does not see the created profile")
 	}
+
 	page := decodeIntegration[profiles.Page](t, sendOperator(t, runtime, "GET", "/api/profiles?type_id="+input.TypeID, "", viewer, 200))
 	if len(page.Items) != 1 || page.Items[0].ID != profile.ID || page.NextCursor != nil {
 		t.Fatal("created profile missing from filtered list")
@@ -44,6 +46,7 @@ func TestRealSessionCatalogAndProfileFlow(t *testing.T) {
 	if replayed.Header().Get("Idempotency-Replayed") != "true" || !reflect.DeepEqual(decodeIntegration[profiles.Profile](t, replayed), profile) {
 		t.Fatal("creation replay changed the profile")
 	}
+
 	conflicting := input
 	conflicting.Name = "different request"
 	requireOperatorError(t, sendOperator(t, runtime, "POST", "/api/profiles", integrationJSON(t, conflicting), admin, 409), "idempotency_conflict")
@@ -56,14 +59,17 @@ func TestRealSessionCatalogAndProfileFlow(t *testing.T) {
 	if current.Revision != 2 || current.Name != "Updated" || current.TypeID != profile.TypeID || current.TypeVersion != profile.TypeVersion || !profiles.EqualJSON(current.Config, config) {
 		t.Fatalf("profile update was not persisted: %s", updated.Body.String())
 	}
+
 	currentETag := updated.Header().Get("ETag")
 	if currentETag != profiles.ETag(current) || currentETag == etag {
 		t.Fatal("profile ETag did not follow revision")
 	}
+
 	noOp := sendOperator(t, runtime, "PATCH", path, patch, admin, 200, currentETag)
 	if noOp.Header().Get("ETag") != currentETag || !reflect.DeepEqual(decodeIntegration[profiles.Profile](t, noOp), current) {
 		t.Fatal("no-op update changed the revision or timestamps")
 	}
+
 	requireOperatorError(t, sendOperator(t, runtime, "PATCH", path, `{"name":"stale"}`, admin, 412, etag), "revision_mismatch")
 	requireOperatorError(t, sendOperator(t, runtime, "DELETE", path, "", admin, 412, etag), "revision_mismatch")
 
@@ -71,6 +77,7 @@ func TestRealSessionCatalogAndProfileFlow(t *testing.T) {
 	if historical.Header().Get("Idempotency-Replayed") != "true" || historical.Header().Get("ETag") != "" || !reflect.DeepEqual(decodeIntegration[profiles.Profile](t, historical), profile) {
 		t.Fatal("replay must return original revision without a current ETag")
 	}
+
 	if got := decodeIntegration[profiles.Profile](t, sendOperator(t, runtime, "GET", path, "", viewer, 200)); !reflect.DeepEqual(got, current) {
 		t.Fatal("replay or stale mutation changed current state")
 	}
@@ -79,6 +86,7 @@ func TestRealSessionCatalogAndProfileFlow(t *testing.T) {
 	if deleted.Body.Len() != 0 {
 		t.Fatal("DELETE 204 has a response body")
 	}
+
 	requireOperatorError(t, sendOperator(t, runtime, "GET", path, "", viewer, 404), "resource_not_found")
 	requireOperatorError(t, sendOperator(t, runtime, "POST", "/api/profiles", body, admin, 409), "request_already_used")
 	empty := decodeIntegration[profiles.Page](t, sendOperator(t, runtime, "GET", "/api/profiles", "", viewer, 200))
@@ -109,9 +117,11 @@ func TestRealSessionRevocationProtectsCatalogAndProfiles(t *testing.T) {
 			if w.Code != 401 {
 				t.Fatalf("revoked session: status %d, want 401: %s", w.Code, w.Body.String())
 			}
+
 			requireOperatorError(t, w, "unauthenticated")
 		})
 	}
+
 	requireOperatorError(t, sendOperator(t, runtime, "POST", "/api/profiles", integrationJSON(t, input), admin, 401), "unauthenticated")
 
 	login := sendOperator(t, runtime, "POST", "/api/sessions", integrationJSON(t, auth.LoginRequest{Email: admin.view.User.Email, Password: integrationPassword}), operatorSession{}, 201)
@@ -119,10 +129,12 @@ func TestRealSessionRevocationProtectsCatalogAndProfiles(t *testing.T) {
 	if fresh.cookie == admin.cookie || fresh.view.CSRFToken == admin.view.CSRFToken || fresh.view.User.ID != admin.view.User.ID {
 		t.Fatal("login did not create a fresh session for the same user")
 	}
+
 	read := sendOperator(t, runtime, "GET", path, "", fresh, 200)
 	if decodeIntegration[profiles.Profile](t, read).ID != decodeIntegration[profiles.Profile](t, created).ID {
 		t.Fatal("profile disappeared after logout/login")
 	}
+
 	catalogProfileRequest(t, runtime, fresh)
 
 	wrongCSRF := fresh

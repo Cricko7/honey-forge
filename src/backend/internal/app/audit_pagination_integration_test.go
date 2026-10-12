@@ -3,11 +3,12 @@
 package app
 
 import (
+	"testing"
+
 	"honey-forge/internal/contract"
 	"honey-forge/modules/audit"
 	"honey-forge/modules/auth"
 	"honey-forge/modules/traps"
-	"testing"
 )
 
 func TestAuditPaginationExcludesLateCommitWithEarlierTimestamp(t *testing.T) {
@@ -20,6 +21,7 @@ func TestAuditPaginationExcludesLateCommitWithEarlierTimestamp(t *testing.T) {
 	if _, err := r.pool.Exec(t.Context(), `UPDATE mutation_audit SET created_at='2000-01-01' WHERE resource_id=$1`, created.ID); err != nil {
 		t.Fatal(err)
 	}
+
 	total := len(first.Items)
 	next := first.NextCursor
 	for next != nil {
@@ -29,9 +31,11 @@ func TestAuditPaginationExcludesLateCommitWithEarlierTimestamp(t *testing.T) {
 				t.Fatal("late commit entered old page snapshot")
 			}
 		}
+
 		total += len(page.Items)
 		next = page.NextCursor
 	}
+
 	if total != 4 {
 		t.Fatalf("original snapshot has %d entries, want 4", total)
 	}

@@ -41,10 +41,12 @@ func ParseConfig(ctx context.Context, snapshot profiles.Snapshot) (Config, error
 	if err != nil {
 		return config, err
 	}
+
 	service, err := catalog.NewService(catalog.BuiltinDefinitions(), codec)
 	if err != nil {
 		return config, fmt.Errorf("load catalog: %w", err)
 	}
+
 	if err := service.CheckConfig(ctx, snapshot.TypeID, 1, raw); err != nil {
 		return config, fmt.Errorf("validate configuration: %w", err)
 	}

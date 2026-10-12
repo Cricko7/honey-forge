@@ -6,7 +6,9 @@ import (
 	"strings"
 )
 
-func ETag(p Profile) string { return fmt.Sprintf(`"profile:%s:%d"`, p.ID, p.Revision) }
+func ETag(p Profile) string {
+	return fmt.Sprintf(`"profile:%s:%d"`, p.ID, p.Revision)
+}
 
 func Precondition(p Profile, value string) error {
 	if value == "" {

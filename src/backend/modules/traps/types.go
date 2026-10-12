@@ -16,14 +16,18 @@ type CreateRequest struct {
 	AutoDeploy        bool   `json:"-"`
 	AutoDeployActorID string `json:"-"`
 }
+
 type PatchRequest struct {
 	Name        *string `json:"name" validate:"omitempty,name"`
 	Description *string `json:"description" validate:"omitempty,max=1000"`
 }
+
 type CredentialsRequest struct {
 	ExpectedGeneration *int64 `json:"expected_generation" validate:"required,min=0,max=2147483646"`
 }
+
 type RuntimeError = commands.RuntimeError
+
 type AgentStatus struct {
 	AgentVersion        string        `json:"agent_version"`
 	Hostname            string        `json:"hostname"`
@@ -33,6 +37,7 @@ type AgentStatus struct {
 	BufferState         string        `json:"buffer_state"`
 	LastError           *RuntimeError `json:"last_error"`
 }
+
 type Trap struct {
 	ID                     string       `json:"id"`
 	Name                   string       `json:"name"`
@@ -54,6 +59,7 @@ type Trap struct {
 	Agent                  *AgentStatus `json:"agent"`
 	ActiveCommandID        *string      `json:"active_command_id"`
 }
+
 type AgentCredentials struct {
 	TrapID     string    `json:"trap_id"`
 	Token      string    `json:"token"`
@@ -61,6 +67,7 @@ type AgentCredentials struct {
 	AgentWSURL string    `json:"agent_ws_url"`
 	IssuedAt   time.Time `json:"issued_at"`
 }
+
 type CredentialsStatus struct {
 	TrapID     string     `json:"trap_id"`
 	Generation int64      `json:"generation"`
@@ -80,10 +87,12 @@ type Record struct {
 	PendingIngestions    int64
 	AppliedConfiguration *profiles.Snapshot
 }
+
 type CreateResult struct {
 	Trap     Trap
 	Replayed bool
 }
+
 type ListQuery struct {
 	Limit                   int
 	ProfileID, Connectivity string

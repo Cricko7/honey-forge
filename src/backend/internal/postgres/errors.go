@@ -15,10 +15,12 @@ func IsUnavailable(err error) bool {
 	if IsConnectionError(err) {
 		return true
 	}
+
 	var pgError *pgconn.PgError
 	if errors.As(err, &pgError) {
 		return strings.HasPrefix(pgError.Code, "08") || strings.HasPrefix(pgError.Code, "57P0") || pgError.Code == "53300" || pgError.Code == "57014"
 	}
+
 	return false
 }
 
@@ -27,6 +29,7 @@ func IsUnavailable(err error) bool {
 func IsConnectionError(err error) bool {
 	var connection *pgconn.ConnectError
 	var network net.Error
+
 	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || errors.As(err, &connection) || errors.As(err, &network) || pgconn.SafeToRetry(err)
 }
 
@@ -37,5 +40,10 @@ type connectionError struct {
 	cause   error
 }
 
-func (e *connectionError) Error() string { return e.message }
-func (e *connectionError) Unwrap() error { return e.cause }
+func (e *connectionError) Error() string {
+	return e.message
+}
+
+func (e *connectionError) Unwrap() error {
+	return e.cause
+}

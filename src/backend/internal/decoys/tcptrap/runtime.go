@@ -22,8 +22,13 @@ type Sink func(context.Context, events.AgentEvent) error
 
 type Runtime struct{ server *tcpserver.Server }
 
-func (r *Runtime) Stop()      { r.server.Stop() }
-func (r *Runtime) Err() error { return r.server.Err() }
+func (r *Runtime) Stop() {
+	r.server.Stop()
+}
+
+func (r *Runtime) Err() error {
+	return r.server.Err()
+}
 
 // Start binds every listener before reporting success. No partial launch is kept.
 func Start(ctx context.Context, snapshot profiles.Snapshot, host string, sink Sink) (*Runtime, error) {
@@ -31,9 +36,11 @@ func Start(ctx context.Context, snapshot profiles.Snapshot, host string, sink Si
 	if err != nil {
 		return nil, err
 	}
+
 	if sink == nil {
 		return nil, fmt.Errorf("telemetry sink is required")
 	}
+
 	listeners := make([]tcpserver.Listener, 0, len(config.Listeners))
 	for _, l := range config.Listeners {
 		listener, err := traffic.Listen(ctx, "tcp", net.JoinHostPort(host, fmtPort(l.Port)))
@@ -41,12 +48,15 @@ func Start(ctx context.Context, snapshot profiles.Snapshot, host string, sink Si
 			for _, bound := range listeners {
 				_ = bound.Listener.Close()
 			}
+
 			return nil, fmt.Errorf("bind TCP listener: %w", err)
 		}
+
 		listeners = append(listeners, tcpserver.Listener{Listener: listener, Serve: func(ctx context.Context, conn net.Conn) error {
 			return serve(ctx, conn, l, config, snapshot, sink)
 		}})
 	}
+
 	return &Runtime{tcpserver.Start(ctx, listeners, 64)}, nil
 }
 
@@ -55,6 +65,7 @@ func serve(ctx context.Context, conn net.Conn, l Listener, config Config, snapsh
 	if !ok {
 		return fmt.Errorf("unsupported TCP address")
 	}
+
 	session := string(contract.NewID())
 	sequence := int64(0)
 	started := time.Now()
@@ -63,15 +74,30 @@ func serve(ctx context.Context, conn net.Conn, l Listener, config Config, snapsh
 		if err != nil {
 			return fmt.Errorf("encode TCP event: %w", err)
 		}
+
 		sequence++
 		// Finish metadata can still be committed after the runtime context is canceled.
 		eventCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
-		return sink(eventCtx, events.AgentEvent{EventID: string(contract.NewID()), EventType: kind, TypeID: "tcp-banner", TypeVersion: 1, ProfileRevision: int64(snapshot.ProfileRevision), OccurredAt: time.Now().UTC().Format(time.RFC3339Nano), SessionID: session, SessionSequence: sequence, Source: events.Source{IP: source.IP.String(), Port: source.Port}, Destination: events.Destination{Protocol: "tcp", Port: l.Port}, Data: raw})
+
+		return sink(eventCtx, events.AgentEvent{
+			EventID:         string(contract.NewID()),
+			EventType:       kind,
+			TypeID:          "tcp-banner",
+			TypeVersion:     1,
+			ProfileRevision: int64(snapshot.ProfileRevision),
+			OccurredAt:      time.Now().UTC().Format(time.RFC3339Nano),
+			SessionID:       session,
+			SessionSequence: sequence,
+			Source:          events.Source{IP: source.IP.String(), Port: source.Port},
+			Destination:     events.Destination{Protocol: "tcp", Port: l.Port},
+			Data:            raw,
+		})
 	}
 	if err := emit("tcp.connection_opened", map[string]any{"listener_name": l.Name}); err != nil {
 		return err
 	}
+
 	reason := "banner_sent"
 	var received int64
 	interaction := func() error {
@@ -83,30 +109,42 @@ func serve(ctx context.Context, conn net.Conn, l Listener, config Config, snapsh
 		if err := conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
 			return err
 		}
+
 		if _, err := io.WriteString(conn, l.Banner); err != nil {
 			reason = "network_error"
 			return nil
 		}
+
 		if l.CloseAfterBanner {
 			return nil
 		}
+
 		captured := 0
 		buffer := make([]byte, 4096)
 		for {
 			if err := conn.SetReadDeadline(time.Now().Add(30 * time.Second)); err != nil {
 				return err
 			}
+
 			n, err := conn.Read(buffer)
 			if n > 0 {
 				received += int64(n)
 				if config.Logging.Capture && captured < config.Logging.MaxBytes {
 					count := min(n, config.Logging.MaxBytes-captured)
-					if err := emit("tcp.payload_received", map[string]any{"listener_name": l.Name, "payload_base64": base64.StdEncoding.EncodeToString(buffer[:count]), "captured_bytes": count, "original_bytes": n, "truncated": count < n}); err != nil {
+					if err := emit("tcp.payload_received", map[string]any{
+						"listener_name":  l.Name,
+						"payload_base64": base64.StdEncoding.EncodeToString(buffer[:count]),
+						"captured_bytes": count,
+						"original_bytes": n,
+						"truncated":      count < n,
+					}); err != nil {
 						return err
 					}
+
 					captured += count
 				}
 			}
+
 			if err != nil {
 				switch {
 				case ctx.Err() != nil:
@@ -121,6 +159,7 @@ func serve(ctx context.Context, conn net.Conn, l Listener, config Config, snapsh
 						reason = "network_error"
 					}
 				}
+
 				return nil
 			}
 		}
@@ -129,6 +168,13 @@ func serve(ctx context.Context, conn net.Conn, l Listener, config Config, snapsh
 	if err != nil {
 		reason = "service_stopped"
 	}
-	closeErr := emit("tcp.connection_closed", map[string]any{"listener_name": l.Name, "duration_ms": time.Since(started).Milliseconds(), "bytes_received": received, "reason": reason})
+
+	closeErr := emit("tcp.connection_closed", map[string]any{
+		"listener_name":  l.Name,
+		"duration_ms":    time.Since(started).Milliseconds(),
+		"bytes_received": received,
+		"reason":         reason,
+	})
+
 	return errors.Join(err, closeErr)
 }

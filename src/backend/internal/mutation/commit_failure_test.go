@@ -18,11 +18,18 @@ func TestNotificationWriteFailureRollsBackAudit(t *testing.T) {
 		if _, err := tx.Exec(ctx, "UPDATE organization_changes SET sequence=$2 WHERE organization_id=$1", string(scope.OrganizationID), int64(math.MaxInt64)); err != nil {
 			return Outcome{}, err
 		}
-		return Outcome{ResourceID: id, Location: "/api/profiles/" + string(id), Action: "profile.created", Changes: []Change{{Type: "profile.created", ResourceID: id}}}, nil
+
+		return Outcome{
+			ResourceID: id,
+			Location:   "/api/profiles/" + string(id),
+			Action:     "profile.created",
+			Changes:    []Change{{Type: "profile.created", ResourceID: id}},
+		}, nil
 	})
 	if err == nil {
 		t.Fatal("notification failure was acknowledged")
 	}
+
 	for _, table := range []string{"mutation_requests", "mutation_audit", "mutation_changes", "organization_changes"} {
 		var count int
 		query := "SELECT count(*) FROM " + pgx.Identifier{table}.Sanitize() + " WHERE organization_id=$1"

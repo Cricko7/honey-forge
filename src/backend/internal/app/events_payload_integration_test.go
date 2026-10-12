@@ -22,6 +22,7 @@ func TestEventPayloadCaptureBudget(t *testing.T) {
 			if capture {
 				config["logging"] = profiles.Object{"capture_payload": true, "max_payload_bytes": 4}
 			}
+
 			p := decodeIntegration[profiles.Profile](t, sendOperator(t, r, "POST", "/api/profiles", integrationJSON(t, profiles.CreateRequest{RequestID: string(contract.NewID()), Name: "Payload", TypeID: "tcp-banner", TypeVersion: 1, Config: config}), a, 201))
 			trap := decodeIntegration[traps.Trap](t, sendOperator(t, r, "POST", "/api/traps", integrationJSON(t, traps.CreateRequest{RequestID: string(contract.NewID()), Name: "Payload", ProfileID: p.ID}), a, 201))
 			ctx, identity, connection, runtime := connectIntegrationAgent(t, r, a, trap)
@@ -37,12 +38,15 @@ func TestEventPayloadCaptureBudget(t *testing.T) {
 				assertEventError(t, err, "telemetry_invalid")
 				return
 			}
+
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			if _, err := r.Agents.Ingest(ctx, identity, connection, eventBatch(t, event)); err != nil {
 				t.Fatal("replay charged twice:", err)
 			}
+
 			event.EventID = string(contract.NewID())
 			event.SessionSequence++
 			_, err = r.Agents.Ingest(ctx, identity, connection, eventBatch(t, event))

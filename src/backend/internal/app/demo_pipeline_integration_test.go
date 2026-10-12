@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gorilla/websocket"
 	"io"
 	"net"
 	"net/http"
@@ -22,6 +21,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/gorilla/websocket"
 
 	"honey-forge/internal/agent"
 	"honey-forge/internal/contract"
@@ -48,18 +49,22 @@ func testDemoRegistrationToTCPStop(t *testing.T, disconnect bool) {
 	if brokers == "" {
 		t.Skip("TEST_KAFKA_BROKERS required")
 	}
+
 	kafkaTLS, err := tlsconfig.Client(os.Getenv("TEST_KAFKA_CA_FILE"))
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	redisTLS, err := tlsconfig.Client(os.Getenv("TEST_REDIS_CA_FILE"))
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	publisher, err := events.NewKafkaPublisher(strings.Split(brokers, ","), "honey-forge-e2e-"+string(contract.NewID()), kafkaTLS)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	t.Cleanup(publisher.Close)
 
 	server := httptest.NewUnstartedServer(http.NotFoundHandler())
@@ -83,10 +88,12 @@ func testDemoRegistrationToTCPStop(t *testing.T, disconnect bool) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	port := probe.Addr().(*net.TCPAddr).Port
 	if err := probe.Close(); err != nil {
 		t.Fatal(err)
 	}
+
 	profileRequest := catalogProfileRequest(t, r, admin)
 	config := validIntegrationConfig()
 	listener := config["listeners"].([]any)[0].(profiles.Object)
@@ -98,6 +105,7 @@ func testDemoRegistrationToTCPStop(t *testing.T, disconnect bool) {
 	if disconnect {
 		flushInterval = 1000
 	}
+
 	config["management"] = profiles.Object{"heartbeat_interval_seconds": 5, "telemetry_flush_interval_ms": flushInterval}
 	profileRequest.Config = config
 	profile := decodeIntegration[profiles.Profile](t, sendOperator(t, r, "POST", "/api/profiles", integrationJSON(t, profileRequest), admin, 201))
@@ -113,21 +121,26 @@ func testDemoRegistrationToTCPStop(t *testing.T, disconnect bool) {
 	if runtime.GOOS == "windows" {
 		executable += ".exe"
 	}
+
 	build := exec.CommandContext(t.Context(), "go", "build", "-o", executable, "../../cmd/agent")
 	if output, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build real agent: %v: %s", err, output)
 	}
+
 	ctx, cancel := context.WithCancel(t.Context())
 	finished := make(chan error, 1)
 	deleted := false
 	journalPath := filepath.Join(t.TempDir(), "agent.journal")
 	go func() {
 		finished <- agent.Run(ctx, agent.Options{
-			URL: credentials.AgentWSURL, Token: credentials.Token, TrapID: credentials.TrapID,
-			JournalPath: journalPath, Executable: executable,
-			RedisURL: os.Getenv("TEST_REDIS_URL"),
-			RedisTLS: redisTLS,
-			TLS:      server.Client().Transport.(*http.Transport).TLSClientConfig,
+			URL:         credentials.AgentWSURL,
+			Token:       credentials.Token,
+			TrapID:      credentials.TrapID,
+			JournalPath: journalPath,
+			Executable:  executable,
+			RedisURL:    os.Getenv("TEST_REDIS_URL"),
+			RedisTLS:    redisTLS,
+			TLS:         server.Client().Transport.(*http.Transport).TLSClientConfig,
 		})
 	}()
 	defer func() {
@@ -154,17 +167,21 @@ func testDemoRegistrationToTCPStop(t *testing.T, disconnect bool) {
 				t.Logf("%s command succeeded", command.Action)
 				return
 			}
+
 			if current.Status == commands.Failed || current.Status == commands.Expired {
 				t.Fatalf("%s command ended: status=%s error=%+v", command.Action, current.Status, current.Error)
 			}
+
 			select {
 			case err := <-finished:
 				finished <- err
 				t.Fatalf("agent stopped before %s completed: %v", command.Action, err)
 			default:
 			}
+
 			time.Sleep(100 * time.Millisecond)
 		}
+
 		t.Fatalf("%s command did not complete", command.Action)
 	}
 
@@ -184,39 +201,48 @@ func testDemoRegistrationToTCPStop(t *testing.T, disconnect bool) {
 	if err != nil {
 		t.Fatalf("connect to real TCP trap: %v", err)
 	}
+
 	if err := connection.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
 		t.Fatal(err)
 	}
+
 	banner := make([]byte, len("hello\n"))
 	if _, err := io.ReadFull(connection, banner); err != nil || string(banner) != "hello\n" {
 		t.Fatalf("TCP banner %q: %v", banner, err)
 	}
+
 	attack := []byte("attack-probe")
 	if _, err := connection.Write(attack); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := connection.Close(); err != nil {
 		t.Fatal(err)
 	}
+
 	readEventNotification := func(c *websocket.Conn) (events.EventSummary, string) {
 		t.Helper()
 		if err := c.SetReadDeadline(time.Now().Add(30 * time.Second)); err != nil {
 			t.Fatal(err)
 		}
+
 		for {
 			var message contract.Envelope
 			if err := c.ReadJSON(&message); err != nil {
 				t.Fatal(err)
 			}
+
 			if message.Type != "event.created" {
 				continue
 			}
+
 			var data struct {
 				Event events.EventSummary `json:"event"`
 			}
 			if err := json.Unmarshal(message.Payload["data"], &data); err != nil {
 				t.Fatal(err)
 			}
+
 			return data.Event, frontendCursor(t, message)
 		}
 	}
@@ -224,9 +250,11 @@ func testDemoRegistrationToTCPStop(t *testing.T, disconnect bool) {
 	if firstEvent.TrapID != trap.ID {
 		t.Fatal("dashboard event belongs to another trap")
 	}
+
 	if err := dashboard.Close(); err != nil {
 		t.Fatal(err)
 	}
+
 	if disconnect {
 		connections.dropActive()
 		if err := connections.waitForReconnect(15 * time.Second); err != nil {
@@ -242,11 +270,14 @@ func testDemoRegistrationToTCPStop(t *testing.T, disconnect bool) {
 		if len(received) == 3 {
 			break
 		}
+
 		time.Sleep(100 * time.Millisecond)
 	}
+
 	if len(received) != 3 {
 		t.Fatalf("expected exactly three TCP events after reconnect, got %d", len(received))
 	}
+
 	kinds := make(map[string]bool)
 	for _, summary := range received {
 		kinds[summary.EventType] = true
@@ -258,17 +289,20 @@ func testDemoRegistrationToTCPStop(t *testing.T, disconnect bool) {
 			if err := json.Unmarshal(detail.Data, &data); err != nil {
 				t.Fatal(err)
 			}
+
 			payload, err := base64.StdEncoding.DecodeString(data.Payload)
 			if err != nil || string(payload) != string(attack) {
 				t.Fatalf("captured payload %q: %v", payload, err)
 			}
 		}
 	}
+
 	for _, kind := range []string{"tcp.connection_opened", "tcp.payload_received", "tcp.connection_closed"} {
 		if !kinds[kind] {
 			t.Fatalf("missing %s from persisted events", kind)
 		}
 	}
+
 	t.Logf("real TCP attack produced %d persisted events", len(received))
 	resumedDashboard := dialFrontend(t, server, admin)
 	subscribeFrontend(t, resumedDashboard, resumeCursor)
@@ -276,14 +310,17 @@ func testDemoRegistrationToTCPStop(t *testing.T, disconnect bool) {
 	if err := resumedDashboard.SetReadDeadline(time.Now().Add(30 * time.Second)); err != nil {
 		t.Fatal(err)
 	}
+
 	for {
 		var notice contract.Envelope
 		if err := resumedDashboard.ReadJSON(&notice); err != nil {
 			t.Fatal(err)
 		}
+
 		if notice.Type == "stream.ready" {
 			break
 		}
+
 		if notice.Type == "event.created" {
 			var data struct {
 				Event events.EventSummary `json:"event"`
@@ -291,28 +328,34 @@ func testDemoRegistrationToTCPStop(t *testing.T, disconnect bool) {
 			if err := json.Unmarshal(notice.Payload["data"], &data); err != nil {
 				t.Fatal(err)
 			}
+
 			if delivered[data.Event.EventID] {
 				t.Fatal("cursor replay repeated processed event")
 			}
+
 			delivered[data.Event.EventID] = true
 		}
 	}
+
 	for _, event := range received {
 		if !delivered[event.EventID] {
 			t.Fatal("dashboard reconnect missed stored event")
 		}
 	}
+
 	if disconnect {
 		for _, summary := range received {
 			if summary.EventType == "tcp.payload_received" && summary.ProfileRevision != 1 {
 				t.Fatalf("unexpected profile revision after reconnect: %+v", summary)
 			}
 		}
+
 		time.Sleep(1500 * time.Millisecond)
 		page := decodeIntegration[events.EventPage](t, sendOperator(t, r, "GET", "/api/events?trap_id="+trap.ID, "", admin, 200))
 		if len(page.Items) != 3 {
 			t.Fatalf("duplicate TCP events after reconnect: %d", len(page.Items))
 		}
+
 		for _, previous := range []commands.Command{appliedBefore, startedBefore} {
 			current := decodeIntegration[commands.Command](t, sendOperator(t, r, "GET", path+"/commands/"+previous.ID, "", admin, 200))
 			if current.Status != commands.Succeeded || current.FinishedAt == nil || previous.FinishedAt == nil || !current.FinishedAt.Equal(*previous.FinishedAt) {
@@ -326,11 +369,13 @@ func testDemoRegistrationToTCPStop(t *testing.T, disconnect bool) {
 	if stopped.RuntimeState != "stopped" || stopped.DesiredState != "stopped" {
 		t.Fatalf("trap state after stop: runtime=%s desired=%s", stopped.RuntimeState, stopped.DesiredState)
 	}
+
 	connection, err = net.DialTimeout("tcp", address, time.Second)
 	if err == nil {
 		connection.Close()
 		t.Fatal("TCP listener still accepts connections after stop")
 	}
+
 	// Profile edits do not alter the installed snapshot. Applying a captured
 	// revision, stop/start and deletion keep the original event/command history.
 	profileRead := sendOperator(t, r, "GET", "/api/profiles/"+profile.ID, "", admin, 200)
@@ -339,12 +384,14 @@ func testDemoRegistrationToTCPStop(t *testing.T, disconnect bool) {
 	if updated.Revision != 2 || beforeApply.AppliedProfileRevision == nil || *beforeApply.AppliedProfileRevision != 1 {
 		t.Fatal("profile edit automatically applied")
 	}
+
 	waitCommand(createCommand("apply_config", json.RawMessage(`{"profile_revision":2}`)))
 	waitCommand(createCommand("start", json.RawMessage(`{}`)))
 	connection, err = net.DialTimeout("tcp", address, 3*time.Second)
 	if err != nil {
 		t.Fatal("start did not reopen listener", err)
 	}
+
 	connection.Close()
 	waitCommand(createCommand("stop", json.RawMessage(`{}`)))
 	deadline = time.Now().Add(30 * time.Second)
@@ -358,21 +405,26 @@ func testDemoRegistrationToTCPStop(t *testing.T, disconnect bool) {
 				deleted = true
 				break
 			}
+
 			if result.Code != 409 {
 				t.Fatalf("delete trap: %d %s", result.Code, result.Body.String())
 			}
 		}
+
 		time.Sleep(100 * time.Millisecond)
 	}
+
 	if !deleted {
 		t.Fatal("stopped drained trap could not be deleted")
 	}
+
 	sendOperator(t, r, "GET", path, "", admin, 404)
 	sendOperator(t, r, "GET", path+"/commands/"+apply.ID, "", admin, 200)
 	sendOperator(t, r, "GET", path+"/commands", "", admin, 200)
 	for _, event := range received {
 		sendOperator(t, r, "GET", "/api/events/"+event.EventID, "", admin, 200)
 	}
+
 	sendOperator(t, r, "GET", "/api/events?trap_id="+trap.ID, "", admin, 200)
 	profileRead = sendOperator(t, r, "GET", "/api/profiles/"+profile.ID, "", admin, 200)
 	sendOperator(t, r, "DELETE", "/api/profiles/"+profile.ID, "", admin, 204, profileRead.Header().Get("ETag"))
@@ -391,16 +443,19 @@ func (l *agentConnections) Accept() (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	l.mu.Lock()
 	l.active[conn] = struct{}{}
 	l.count++
 	l.mu.Unlock()
+
 	return conn, nil
 }
 
 func (l *agentConnections) dropActive() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
 	l.droppedAt = l.count
 	for conn := range l.active {
 		conn.Close()
@@ -417,7 +472,9 @@ func (l *agentConnections) waitForReconnect(timeout time.Duration) error {
 		if count > previous {
 			return nil
 		}
+
 		time.Sleep(50 * time.Millisecond)
 	}
+
 	return fmt.Errorf("agent did not reconnect")
 }

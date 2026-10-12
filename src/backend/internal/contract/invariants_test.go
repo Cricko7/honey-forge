@@ -44,9 +44,11 @@ func TestOrganizationIsolation(t *testing.T) {
 	if err := RequireOrganization(ctx, id); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := RequireOrganization(ctx, "22222222-2222-4222-8222-222222222222"); err == nil || err.(*Error).Code != "resource_not_found" {
 		t.Fatalf("foreign access: %v", err)
 	}
+
 	if err := RequireOrganization(context.Background(), id); err == nil || err.(*Error).Code != "unauthenticated" {
 		t.Fatalf("anonymous access: %v", err)
 	}
@@ -62,7 +64,9 @@ func TestEnvelopeNotification(t *testing.T) {
 func TestConcurrentRequests(t *testing.T) {
 	r := gin.New()
 	r.Use(Middleware())
-	r.GET("/", func(c *gin.Context) { c.Status(204) })
+	r.GET("/", func(c *gin.Context) {
+		c.Status(204)
+	})
 	var wg sync.WaitGroup
 	ids := make(chan string, 32)
 	for i := 0; i < 32; i++ {
@@ -72,9 +76,11 @@ func TestConcurrentRequests(t *testing.T) {
 			if w.Code != 204 || w.Body.Len() != 0 {
 				t.Errorf("empty response %d %s", w.Code, w.Body.String())
 			}
+
 			ids <- w.Header().Get("X-Request-ID")
 		})
 	}
+
 	wg.Wait()
 	close(ids)
 	seen := map[string]bool{}
@@ -82,6 +88,7 @@ func TestConcurrentRequests(t *testing.T) {
 		if !ValidID(id) || seen[id] {
 			t.Fatalf("invalid or repeated request identifier %q", id)
 		}
+
 		seen[id] = true
 	}
 }

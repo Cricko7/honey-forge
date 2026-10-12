@@ -41,12 +41,15 @@ func TestRecordingAuthorizationAndCompleteness(t *testing.T) {
 				if tc.closed && i == len(tc.sequences)-1 {
 					kind = "service.connection_closed"
 				}
+
 				store.events = append(store.events, Event{AgentEvent: AgentEvent{SessionSequence: seq, EventType: kind}})
 			}
+
 			ctx := context.Background()
 			if tc.role != "" {
 				ctx = contract.WithPrincipal(ctx, contract.Principal{Role: tc.role, OrganizationID: "11111111-1111-4111-8111-111111111111"})
 			}
+
 			recording, err := NewRecordingService(store).Read(ctx, "11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222")
 			if tc.code != "" {
 				var api *contract.Error
@@ -56,6 +59,7 @@ func TestRecordingAuthorizationAndCompleteness(t *testing.T) {
 			} else if err != nil || recording.Complete != tc.complete {
 				t.Fatalf("recording %+v: %v", recording, err)
 			}
+
 			if (tc.role == "" || tc.role == contract.Agent) && store.calls != 0 {
 				t.Fatal("unauthorized database read")
 			}

@@ -27,6 +27,7 @@ func TestEventRejectedBatchReleasesFenceAfterCancellation(t *testing.T) {
 	ctx, identity, connection, _ := connectIntegrationAgent(t, r, a, trap)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
 	gateway := traps.NewGateway(traps.NewRepository(r.pool), r.Catalog, cancelledRejection{cancel})
 	_, err := gateway.Ingest(ctx, identity, connection, eventBatch(t, attackEvent(time.Now().UTC())))
 	assertEventError(t, err, "telemetry_invalid")

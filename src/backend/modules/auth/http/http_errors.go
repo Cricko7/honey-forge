@@ -3,7 +3,6 @@ package http
 import (
 	"errors"
 	"fmt"
-	authcore "honey-forge/modules/auth"
 	"log/slog"
 	"net/http"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"honey-forge/internal/platform/httpx"
+	authcore "honey-forge/modules/auth"
 )
 
 func (h *Handler) fail(c *gin.Context, event string, err error) {

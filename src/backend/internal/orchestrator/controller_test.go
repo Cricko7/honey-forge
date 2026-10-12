@@ -13,10 +13,17 @@ import (
 func TestReconcileReplacesLegacySharedNetworkDeployment(t *testing.T) {
 	store := &fakeStore{targets: []Target{{ID: "legacy", Generation: 1}}}
 	docker := &fakeDocker{current: map[string]ServiceState{"legacy": {Exists: true, Generation: 1, Ports: []int{2222}, UnsafeNetwork: true}}}
-	c := Controller{Store: store, Docker: docker, Ports: func(context.Context, profiles.Snapshot) ([]int, error) { return []int{2222}, nil }}
+	c := Controller{
+		Store:  store,
+		Docker: docker,
+		Ports: func(context.Context, profiles.Snapshot) ([]int, error) {
+			return []int{2222}, nil
+		},
+	}
 	if err := c.Reconcile(t.Context()); err != nil {
 		t.Fatal(err)
 	}
+
 	if !reflect.DeepEqual(docker.removed, []string{"legacy"}) || !reflect.DeepEqual(docker.deployed, []string{"legacy"}) {
 		t.Fatalf("legacy deployment kept: removed=%v deployed=%v", docker.removed, docker.deployed)
 	}
@@ -28,7 +35,10 @@ type fakeStore struct {
 	advanced []string
 }
 
-func (f *fakeStore) List(context.Context) ([]Target, error) { return f.targets, nil }
+func (f *fakeStore) List(context.Context) ([]Target, error) {
+	return f.targets, nil
+}
+
 func (f *fakeStore) Issue(_ context.Context, target Target) (string, int64, error) {
 	f.issued = append(f.issued, target.ID)
 	for i := range f.targets {
@@ -36,8 +46,10 @@ func (f *fakeStore) Issue(_ context.Context, target Target) (string, int64, erro
 			f.targets[i].Generation++
 		}
 	}
+
 	return "token", target.Generation + 1, nil
 }
+
 func (f *fakeStore) Advance(_ context.Context, target Target) error {
 	f.advanced = append(f.advanced, target.ID)
 	return nil
@@ -53,20 +65,26 @@ type fakeDocker struct {
 func (f *fakeDocker) Current(_ context.Context, id string) (ServiceState, error) {
 	return f.current[id], nil
 }
+
 func (f *fakeDocker) States(context.Context, []string) (map[string]ServiceState, error) {
 	return f.current, nil
 }
+
 func (f *fakeDocker) Remove(_ context.Context, id string) error {
 	f.removed = append(f.removed, id)
 	delete(f.current, id)
+
 	return nil
 }
+
 func (f *fakeDocker) Deploy(_ context.Context, target Target, token string, generation int64, ports []int) error {
 	if target.ID == f.failID {
 		return errors.New("unavailable")
 	}
+
 	f.deployed = append(f.deployed, target.ID)
 	f.current[target.ID] = ServiceState{Exists: true, Generation: generation, Ports: ports}
+
 	return nil
 }
 
@@ -76,16 +94,25 @@ func TestReconcilePlacesEveryPendingTrapAndReusesCurrentService(t *testing.T) {
 		{ID: "two", Snapshot: profiles.Snapshot{TypeID: "redis-emulator", TypeVersion: 1}},
 	}}
 	docker := &fakeDocker{current: map[string]ServiceState{}}
-	c := Controller{Store: store, Docker: docker, Ports: func(context.Context, profiles.Snapshot) ([]int, error) { return []int{2222}, nil }}
+	c := Controller{
+		Store:  store,
+		Docker: docker,
+		Ports: func(context.Context, profiles.Snapshot) ([]int, error) {
+			return []int{2222}, nil
+		},
+	}
 	if err := c.Reconcile(t.Context()); err != nil {
 		t.Fatal(err)
 	}
+
 	if !reflect.DeepEqual(docker.deployed, []string{"one", "two"}) || len(store.issued) != 2 || !reflect.DeepEqual(store.advanced, []string{"one", "two"}) {
 		t.Fatalf("deployed=%v issued=%v", docker.deployed, store.issued)
 	}
+
 	if err := c.Reconcile(t.Context()); err != nil {
 		t.Fatal(err)
 	}
+
 	if len(docker.deployed) != 2 || len(store.issued) != 2 {
 		t.Fatalf("repeated deployment: deployed=%v issued=%v", docker.deployed, store.issued)
 	}
@@ -97,10 +124,17 @@ func TestReconcileRedeploysChangedPortsAndRemovesDeletedTrap(t *testing.T) {
 		"changed": {Exists: true, Generation: 1, Ports: []int{2222}},
 		"deleted": {Exists: true, Generation: 1, Ports: []int{6380}},
 	}}
-	c := Controller{Store: store, Docker: docker, Ports: func(context.Context, profiles.Snapshot) ([]int, error) { return []int{2223}, nil }}
+	c := Controller{
+		Store:  store,
+		Docker: docker,
+		Ports: func(context.Context, profiles.Snapshot) ([]int, error) {
+			return []int{2223}, nil
+		},
+	}
 	if err := c.Reconcile(t.Context()); err != nil {
 		t.Fatal(err)
 	}
+
 	if !reflect.DeepEqual(docker.removed, []string{"changed", "deleted"}) || !reflect.DeepEqual(docker.deployed, []string{"changed"}) {
 		t.Fatalf("removed=%v deployed=%v", docker.removed, docker.deployed)
 	}
@@ -109,7 +143,13 @@ func TestReconcileRedeploysChangedPortsAndRemovesDeletedTrap(t *testing.T) {
 func TestReconcileContinuesAfterOneDeploymentFails(t *testing.T) {
 	store := &fakeStore{targets: []Target{{ID: "bad"}, {ID: "good"}}}
 	docker := &fakeDocker{current: map[string]ServiceState{}, failID: "bad"}
-	c := Controller{Store: store, Docker: docker, Ports: func(context.Context, profiles.Snapshot) ([]int, error) { return []int{2222}, nil }}
+	c := Controller{
+		Store:  store,
+		Docker: docker,
+		Ports: func(context.Context, profiles.Snapshot) ([]int, error) {
+			return []int{2222}, nil
+		},
+	}
 	if err := c.Reconcile(t.Context()); err == nil || !reflect.DeepEqual(docker.deployed, []string{"good"}) {
 		t.Fatalf("error=%v deployed=%v", err, docker.deployed)
 	}
@@ -118,10 +158,13 @@ func TestReconcileContinuesAfterOneDeploymentFails(t *testing.T) {
 func TestReconcileRotatesExpiringCertificate(t *testing.T) {
 	store := &fakeStore{targets: []Target{{ID: "renew", Generation: 1}}}
 	docker := &fakeDocker{current: map[string]ServiceState{"renew": {Exists: true, Generation: 1, CertificateExpires: time.Now().Add(time.Hour)}}}
-	c := Controller{Store: store, Docker: docker, Ports: func(context.Context, profiles.Snapshot) ([]int, error) { return nil, nil }}
+	c := Controller{Store: store, Docker: docker, Ports: func(context.Context, profiles.Snapshot) ([]int, error) {
+		return nil, nil
+	}}
 	if err := c.Reconcile(t.Context()); err != nil {
 		t.Fatal(err)
 	}
+
 	if len(store.issued) != 1 || len(docker.removed) != 1 || len(docker.deployed) != 1 {
 		t.Fatal("expiring certificate did not rotate token and service")
 	}

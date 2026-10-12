@@ -16,17 +16,22 @@ func Fingerprint(normalized json.RawMessage) ([32]byte, error) {
 	if err := contract.CheckJSON(normalized); err != nil {
 		return [32]byte{}, contract.NewError("invalid_json")
 	}
+
 	d := json.NewDecoder(bytes.NewReader(normalized))
 	d.UseNumber()
 	var v map[string]any
 	if err := d.Decode(&v); err != nil || v == nil {
 		return [32]byte{}, contract.NewError("invalid_json")
 	}
+
 	b, err := jsonvalue.Canonical(v)
 	if err != nil {
 		return [32]byte{}, contract.NewError("invalid_json")
 	}
+
 	return sha256.Sum256(b), nil
 }
 
-func equalFingerprint(a, b []byte) bool { return subtle.ConstantTimeCompare(a, b) == 1 }
+func equalFingerprint(a, b []byte) bool {
+	return subtle.ConstantTimeCompare(a, b) == 1
+}

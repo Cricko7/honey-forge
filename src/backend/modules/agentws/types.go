@@ -79,6 +79,7 @@ func (e *Event) UnmarshalJSON(raw []byte) error {
 
 	e.EventID = id.EventID
 	e.Raw = append(e.Raw[:0], raw...)
+
 	return nil
 }
 
@@ -116,6 +117,7 @@ func decodePayload(payload map[string]json.RawMessage, dst any) error {
 	if err != nil {
 		return fmt.Errorf("encode payload: %w", err)
 	}
+
 	if err := contract.CheckJSON(encoded); err != nil {
 		return contract.NewError("invalid_message")
 	}
@@ -125,9 +127,11 @@ func decodePayload(payload map[string]json.RawMessage, dst any) error {
 	if err := decoder.Decode(dst); err != nil {
 		return contract.NewError("invalid_message")
 	}
+
 	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
 		return contract.NewError("invalid_message")
 	}
+
 	if err := binding.Validator.ValidateStruct(dst); err != nil {
 		return contract.NewError("validation_failed")
 	}
@@ -139,21 +143,27 @@ func validateRuntime(runtime commands.AgentRuntime) error {
 	if runtime.BufferedEvents < 0 || runtime.BufferBytes < 0 || runtime.BufferCapacityBytes <= 0 {
 		return contract.NewError("validation_failed")
 	}
+
 	if runtime.AppliedProfileRevision != nil && *runtime.AppliedProfileRevision < 1 {
 		return contract.NewError("validation_failed")
 	}
+
 	if runtime.RuntimeState != "running" && runtime.RuntimeState != "stopped" && runtime.RuntimeState != "error" && runtime.RuntimeState != "unknown" {
 		return contract.NewError("validation_failed")
 	}
+
 	if runtime.BufferState != "ok" && runtime.BufferState != "full" && runtime.BufferState != "unavailable" {
 		return contract.NewError("validation_failed")
 	}
+
 	if runtime.RuntimeState == "error" && runtime.LastError == nil {
 		return contract.NewError("validation_failed")
 	}
+
 	if runtime.LastError != nil && (runtime.LastError.Code == "" || len(runtime.LastError.Message) > 200) {
 		return contract.NewError("validation_failed")
 	}
+
 	if runtime.LastError != nil && commands.NormalizeRuntimeError(runtime.LastError) != nil {
 		return contract.NewError("validation_failed")
 	}
@@ -173,6 +183,7 @@ func validateHello(identity Identity, hello AgentHello) error {
 		if seen[key] {
 			return contract.NewError("validation_failed")
 		}
+
 		seen[key] = true
 
 		actions := make(map[string]bool, len(supported.Actions))
@@ -180,6 +191,7 @@ func validateHello(identity Identity, hello AgentHello) error {
 			if actions[action] {
 				return contract.NewError("validation_failed")
 			}
+
 			actions[action] = true
 		}
 
@@ -192,6 +204,7 @@ func validateHello(identity Identity, hello AgentHello) error {
 			}
 		}
 	}
+
 	if !found {
 		return contract.NewError("unsupported_type")
 	}
@@ -210,6 +223,7 @@ func validateBatch(batch TelemetryBatch) error {
 		if !contract.ValidID(id) || len(event.Raw) > 16*1024 || seen[id] {
 			return contract.NewError("validation_failed")
 		}
+
 		seen[id] = true
 	}
 
@@ -220,6 +234,7 @@ func validateResultPayload(payload map[string]json.RawMessage) error {
 	if _, ok := payload["result"]; !ok {
 		return contract.NewError("command_result_invalid")
 	}
+
 	if _, ok := payload["error"]; !ok {
 		return contract.NewError("command_result_invalid")
 	}

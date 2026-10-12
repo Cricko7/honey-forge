@@ -36,6 +36,7 @@ func TestBindJSONMediaAndBodyLimits(t *testing.T) {
 			if tc.chunked {
 				req.ContentLength = -1
 			}
+
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
 			if w.Code != tc.status {

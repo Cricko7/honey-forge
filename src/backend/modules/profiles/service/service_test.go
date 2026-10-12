@@ -8,10 +8,9 @@ import (
 	"sync"
 	"testing"
 
+	"honey-forge/modules/auth"
 	profilecore "honey-forge/modules/profiles"
 	"honey-forge/modules/profiles/internal/teststore"
-
-	"honey-forge/modules/auth"
 )
 
 const (
@@ -47,9 +46,15 @@ func testService() (*Service, *teststore.Store) {
 				return profilecore.Type{}, profilecore.ErrUnknownType
 			}
 
-			return profilecore.Type{InteractionLevel: "low", AvailableForNewProfiles: true,
-				SecretPaths:  func(profilecore.Object) []string { return []string{"/credentials/password"} },
-				IsSecretPath: func(p string) bool { return p == "/credentials/password" },
+			return profilecore.Type{
+				InteractionLevel:        "low",
+				AvailableForNewProfiles: true,
+				SecretPaths: func(profilecore.Object) []string {
+					return []string{"/credentials/password"}
+				},
+				IsSecretPath: func(p string) bool {
+					return p == "/credentials/password"
+				},
 				CheckConfig: func(ctx context.Context, c profilecore.Object) error {
 					if err := ctx.Err(); err != nil {
 						return err
@@ -165,6 +170,7 @@ func TestServiceFailures(t *testing.T) {
 			a := admin
 			a.Role = auth.RoleViewer
 			_, e := s.Patch(t.Context(), a, p.ID, profilecore.ETag(p), profilecore.PatchRequest{Name: ptr("X")})
+
 			return e
 		}, profilecore.ErrForbidden},
 		{"unauthenticated", func(s *Service, p profilecore.Profile) error {
@@ -175,6 +181,7 @@ func TestServiceFailures(t *testing.T) {
 			a := admin
 			a.OrganizationID = requestID
 			_, e := s.ReadProfile(t.Context(), a, p.ID)
+
 			return e
 		}, profilecore.ErrNotFound},
 		{"stale etag", func(s *Service, p profilecore.Profile) error {
@@ -213,6 +220,7 @@ func TestServiceFailures(t *testing.T) {
 			req.RequestID = userID
 			req.Config["visible"] = strings.Repeat("я", 128<<10)
 			_, e := s.Create(t.Context(), admin, req)
+
 			return e
 		}, profilecore.ErrConfigTooLarge},
 	} {
@@ -241,7 +249,9 @@ func TestServiceDependenciesAndConcurrency(t *testing.T) {
 		t.Fatal(e)
 	}
 
-	store.Bindings = func(context.Context) (bool, error) { return true, nil }
+	store.Bindings = func(context.Context) (bool, error) {
+		return true, nil
+	}
 	if e := s.Delete(t.Context(), admin, c.Profile.ID, profilecore.ETag(c.Profile)); !errors.Is(e, profilecore.ErrInUse) {
 		t.Fatalf("binding=%v", e)
 	}
@@ -254,7 +264,12 @@ func TestServiceDependenciesAndConcurrency(t *testing.T) {
 		t.Fatal("dependency failure accepted")
 	}
 
-	store.Profiles[c.Profile.ID] = func() profilecore.Profile { p := store.Profiles[c.Profile.ID]; p.Revision = math.MaxInt32; return p }()
+	store.Profiles[c.Profile.ID] = func() profilecore.Profile {
+		p := store.Profiles[c.Profile.ID]
+		p.Revision = math.MaxInt32
+
+		return p
+	}()
 	if _, e := s.Patch(t.Context(), admin, c.Profile.ID,
 		profilecore.ETag(store.Profiles[c.Profile.ID]), profilecore.PatchRequest{Name: ptr("X")}); !errors.Is(e, profilecore.ErrRevisionExhausted) {
 		t.Fatalf("overflow=%v", e)
@@ -264,7 +279,10 @@ func TestServiceDependenciesAndConcurrency(t *testing.T) {
 	var wg sync.WaitGroup
 	errs := make(chan error, 8)
 	for range 8 {
-		wg.Go(func() { _, e := s.Create(t.Context(), admin, request()); errs <- e })
+		wg.Go(func() {
+			_, e := s.Create(t.Context(), admin, request())
+			errs <- e
+		})
 	}
 
 	wg.Wait()
@@ -280,7 +298,9 @@ func TestServiceDependenciesAndConcurrency(t *testing.T) {
 	}
 }
 
-func ptr(s string) *string { return &s }
+func ptr(s string) *string {
+	return &s
+}
 
 func TestServiceConfigNullParentAndReplacement(t *testing.T) {
 	s, _ := testService()

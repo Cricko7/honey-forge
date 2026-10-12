@@ -17,15 +17,18 @@ func TestSandboxCleanupOnlyRemovesExpiredOwnedContainers(t *testing.T) {
 			if args[2] == "expired" {
 				return []byte("/node-metrics-session-11111111-1111-4111-8111-111111111111 100"), nil
 			}
+
 			return []byte("/node-metrics-session-22222222-2222-4222-8222-222222222222 300"), nil
 		case "rm":
 			removed = append(removed, args[2])
 		}
+
 		return nil, nil
 	}}
 	if err := d.CleanupSandboxes(t.Context(), time.Unix(200, 0)); err != nil {
 		t.Fatal(err)
 	}
+
 	if strings.Join(removed, ",") != "expired" {
 		t.Fatalf("removed %v", removed)
 	}

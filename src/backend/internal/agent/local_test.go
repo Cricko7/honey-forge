@@ -22,25 +22,31 @@ func TestLocalWebSocketAuthenticationAndCommit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer j.Close()
+
 	local, err := NewLocal(j, "local-token")
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	local.Configure(demoSnapshot())
 	config, certificate, err := newLocalTLS()
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	server := httptest.NewUnstartedServer(local.Handler(t.Context()))
 	server.TLS = config
 	server.StartTLS()
 	defer server.Close()
+
 	endpoint := "wss" + strings.TrimPrefix(server.URL, "https") + "/trap-stream"
 	clientTLS, err := localClientTLS(endpoint, certificate)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	for _, tc := range []struct {
 		name, token, origin string
 		status              int
@@ -51,30 +57,44 @@ func TestLocalWebSocketAuthenticationAndCommit(t *testing.T) {
 			if tc.origin != "" {
 				headers.Set("Origin", tc.origin)
 			}
+
 			conn, response, err := (&websocket.Dialer{TLSClientConfig: clientTLS}).DialContext(t.Context(), endpoint, headers)
 			if conn != nil {
 				conn.Close()
 			}
+
 			if response != nil {
 				defer response.Body.Close()
 			}
+
 			if err == nil || response == nil || response.StatusCode != tc.status {
 				t.Fatalf("status %v error %v", response, err)
 			}
 		})
 	}
+
 	client, err := DialLocal(t.Context(), endpoint, "local-token", certificate)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer client.Close()
-	frame := traffic.Frame{ConnectionID: string(contract.NewID()), Sequence: 1, Kind: "data", RemoteAddress: "127.0.0.1:1234", LocalAddress: "127.0.0.1:2222", Data: []byte{0, 255, 1}}
+
+	frame := traffic.Frame{
+		ConnectionID:  string(contract.NewID()),
+		Sequence:      1,
+		Kind:          "data",
+		RemoteAddress: "127.0.0.1:1234",
+		LocalAddress:  "127.0.0.1:2222",
+		Data:          []byte{0, 255, 1},
+	}
 	for n, kind := range []string{"open", "data", "close"} {
 		copy := frame
 		copy.Sequence, copy.Kind = int64(n+1), kind
 		if kind != "data" {
 			copy.Data = nil
 		}
+
 		client.Mirror(copy)
 		select {
 		case got := <-local.Traffic:
@@ -85,21 +105,38 @@ func TestLocalWebSocketAuthenticationAndCommit(t *testing.T) {
 			t.Fatal("missing local traffic copy", kind)
 		}
 	}
+
 	if len(j.Pending()) != 0 {
 		t.Fatal("raw traffic entered telemetry")
 	}
-	e := events.AgentEvent{EventID: string(contract.NewID()), EventType: "tcp.connection_opened", TypeID: "tcp-banner", TypeVersion: 1, ProfileRevision: 1, OccurredAt: time.Now().UTC().Format(time.RFC3339Nano), SessionID: string(contract.NewID()), SessionSequence: 1, Source: events.Source{IP: "127.0.0.1", Port: 12345}, Destination: events.Destination{Protocol: "tcp", Port: 2222}, Data: json.RawMessage(`{"listener_name":"demo"}`)}
+
+	e := events.AgentEvent{
+		EventID:         string(contract.NewID()),
+		EventType:       "tcp.connection_opened",
+		TypeID:          "tcp-banner",
+		TypeVersion:     1,
+		ProfileRevision: 1,
+		OccurredAt:      time.Now().UTC().Format(time.RFC3339Nano),
+		SessionID:       string(contract.NewID()),
+		SessionSequence: 1,
+		Source:          events.Source{IP: "127.0.0.1", Port: 12345},
+		Destination:     events.Destination{Protocol: "tcp", Port: 2222},
+		Data:            json.RawMessage(`{"listener_name":"demo"}`),
+	}
 	if err := client.Emit(t.Context(), e); err != nil {
 		t.Fatal(err)
 	}
+
 	if len(j.Pending()) != 1 {
 		t.Fatal("acknowledged event absent from journal")
 	}
+
 	e.EventID = string(contract.NewID())
 	e.ProfileRevision = 2
 	if err := client.Emit(context.Background(), e); err == nil {
 		t.Fatal("accepted unissued revision")
 	}
+
 	if len(j.Pending()) != 1 {
 		t.Fatal("invalid event was queued")
 	}

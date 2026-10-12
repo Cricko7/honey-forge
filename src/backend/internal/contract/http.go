@@ -26,14 +26,20 @@ func Configure() {
 		binding.EnableDecoderUseNumber = true
 		v := binding.Validator.Engine().(*validator.Validate)
 		v.SetTagName("validate")
-		v.RegisterTagNameFunc(func(f reflect.StructField) string { return strings.Split(f.Tag.Get("json"), ",")[0] })
+		v.RegisterTagNameFunc(func(f reflect.StructField) string {
+			return strings.Split(f.Tag.Get("json"), ",")[0]
+		})
 		for name, fn := range map[string]validator.Func{
 			"present": func(f validator.FieldLevel) bool {
 				value, ok := f.Field().Interface().(interface{ Present() bool })
 				return !ok || value.Present()
 			},
-			"name":    func(f validator.FieldLevel) bool { return ValidName(f.Field().String()) },
-			"type_id": func(f validator.FieldLevel) bool { return typePattern.MatchString(f.Field().String()) },
+			"name": func(f validator.FieldLevel) bool {
+				return ValidName(f.Field().String())
+			},
+			"type_id": func(f validator.FieldLevel) bool {
+				return typePattern.MatchString(f.Field().String())
+			},
 		} {
 			if err := v.RegisterValidation(name, fn); err != nil {
 				panic(err)
@@ -55,9 +61,11 @@ func Middleware() gin.HandlerFunc {
 				if !c.Writer.Written() {
 					Fail(c, NewError("internal_error"))
 				}
+
 				c.Abort()
 			}
 		}()
+
 		c.Next()
 	}
 }
@@ -68,21 +76,26 @@ func BindJSON(c *gin.Context, dst any) bool {
 	if !ok {
 		return false
 	}
+
 	if err := CheckJSON(b); err != nil {
 		Fail(c, NewError("invalid_json"))
 		return false
 	}
+
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(b, &raw); err != nil || raw == nil || !strictShape(b, reflect.TypeOf(dst)) {
 		Fail(c, NewError("invalid_json"))
 		return false
 	}
+
 	if fields := missingPresent(b, reflect.TypeOf(dst), ""); len(fields) > 0 {
 		e := NewError("validation_failed")
 		e.Fields = fields
 		Fail(c, e)
+
 		return false
 	}
+
 	c.Request.Body = io.NopCloser(bytes.NewReader(b))
 	if err := c.ShouldBindJSON(dst); err != nil {
 		var domain *Error
@@ -90,6 +103,7 @@ func BindJSON(c *gin.Context, dst any) bool {
 			Fail(c, domain)
 			return false
 		}
+
 		var validation validator.ValidationErrors
 		if errors.As(err, &validation) {
 			e := NewError("validation_failed")
@@ -97,14 +111,18 @@ func BindJSON(c *gin.Context, dst any) bool {
 				if len(e.Fields) == MaxFieldErrors {
 					break
 				}
+
 				e.Fields = append(e.Fields, FieldError{Path: fieldPointer(field.Namespace()), Code: "invalid_value", Message: "Value does not satisfy the field constraints"})
 			}
+
 			Fail(c, e)
 		} else {
 			Fail(c, NewError("invalid_json"))
 		}
+
 		return false
 	}
+
 	return true
 }
 
@@ -113,11 +131,13 @@ func fieldPointer(namespace string) string {
 	if len(parts) > 1 {
 		parts = parts[1:]
 	}
+
 	for i, p := range parts {
 		p = strings.ReplaceAll(strings.ReplaceAll(p, "~", "~0"), "/", "~1")
 		p = strings.ReplaceAll(strings.ReplaceAll(p, "[", "/"), "]", "")
 		parts[i] = p
 	}
+
 	return "/" + strings.Join(parts, "/")
 }
 
@@ -126,14 +146,17 @@ func CheckJSON(b []byte) error {
 	if !utf8.Valid(b) {
 		return errors.New("invalid UTF-8")
 	}
+
 	d := json.NewDecoder(bytes.NewReader(b))
 	d.UseNumber()
 	if err := scanValue(d); err != nil {
 		return err
 	}
+
 	if _, err := d.Token(); err != io.EOF {
 		return errors.New("trailing JSON")
 	}
+
 	return nil
 }
 
@@ -142,10 +165,12 @@ func scanValue(d *json.Decoder) error {
 	if err != nil {
 		return err
 	}
+
 	delim, ok := token.(json.Delim)
 	if !ok {
 		return nil
 	}
+
 	switch delim {
 	case '{':
 		seen := map[string]bool{}
@@ -154,10 +179,12 @@ func scanValue(d *json.Decoder) error {
 			if err != nil {
 				return err
 			}
+
 			s, ok := key.(string)
 			if !ok || seen[s] {
 				return errors.New("duplicate or invalid object key")
 			}
+
 			seen[s] = true
 			if err := scanValue(d); err != nil {
 				return err
@@ -172,6 +199,8 @@ func scanValue(d *json.Decoder) error {
 	default:
 		return errors.New("unexpected delimiter")
 	}
+
 	_, err = d.Token()
+
 	return err
 }

@@ -21,10 +21,12 @@ func ProfileTypeLookup(service *catalog.Service) func(context.Context, string, i
 		if err != nil {
 			return profiles.Type{}, profileCatalogError(err)
 		}
+
 		schema, err := service.ConfigSchema(ctx, id, contract.TypeVersion(version))
 		if err != nil {
 			return profiles.Type{}, profileCatalogError(err)
 		}
+
 		return profiles.Type{
 			InteractionLevel:        string(entry.InteractionLevel),
 			AvailableForNewProfiles: entry.AvailableForNewProfiles,
@@ -52,6 +54,7 @@ func checkCatalogConfig(
 	if err != nil {
 		return fmt.Errorf("encode config: %w", err)
 	}
+
 	return profileCatalogError(service.CheckConfig(ctx, id, contract.TypeVersion(version), raw))
 }
 
@@ -60,10 +63,12 @@ func catalogSecretPaths(schema *configschema.Schema, value profiles.Object) []st
 	if err != nil {
 		return nil
 	}
+
 	_, paths, err := schema.PublicConfig(raw)
 	if err != nil {
 		return nil
 	}
+
 	return paths
 }
 
@@ -76,10 +81,12 @@ func mergeCatalogConfig(
 	if err != nil {
 		return nil, fmt.Errorf("encode stored config: %w", err)
 	}
+
 	next, err := json.Marshal(incoming)
 	if err != nil {
 		return nil, fmt.Errorf("encode incoming config: %w", err)
 	}
+
 	raw, err := schema.MergeConfig(old, next, clear)
 	if err != nil {
 		return nil, profileCatalogError(err)
@@ -91,6 +98,7 @@ func mergeCatalogConfig(
 	if err := decoder.Decode(&result); err != nil {
 		return nil, fmt.Errorf("decode merged config: %w", err)
 	}
+
 	return result, nil
 }
 
@@ -98,10 +106,12 @@ func profileCatalogError(err error) error {
 	if err == nil {
 		return nil
 	}
+
 	var source *contract.Error
 	if !errors.As(err, &source) {
 		return err
 	}
+
 	var cause error
 	switch source.Code {
 	case "resource_not_found":
@@ -119,9 +129,11 @@ func profileCatalogError(err error) error {
 	default:
 		cause = profiles.ErrConfigInvalid
 	}
+
 	result := &profiles.ValidationError{Cause: cause}
 	for _, field := range source.Fields {
 		result.Fields = append(result.Fields, profiles.FieldError{Path: field.Path, Code: field.Code, Message: field.Message})
 	}
+
 	return result
 }

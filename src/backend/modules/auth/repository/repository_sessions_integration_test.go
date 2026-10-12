@@ -4,10 +4,11 @@ package repository
 
 import (
 	"errors"
-	authcore "honey-forge/modules/auth"
-	authservice "honey-forge/modules/auth/service"
 	"math"
 	"testing"
+
+	authcore "honey-forge/modules/auth"
+	authservice "honey-forge/modules/auth/service"
 )
 
 func TestPostgresFailedLoginReplacementPreservesSession(t *testing.T) {
@@ -23,12 +24,15 @@ func TestPostgresFailedLoginReplacementPreservesSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if _, _, err := service.Login(ctx, authcore.LoginRequest{Email: "admin@example.com", Password: "demo-password-2026"}, raw); err == nil {
 		t.Fatal("audit failure must fail login replacement")
 	}
+
 	if _, err := service.ResolveSession(ctx, raw); err != nil {
 		t.Fatal("failed replacement revoked the old session")
 	}
+
 	if sqlCount(t, pool, "operator_sessions") != 1 || sqlCount(t, pool, "auth_audit") != 2 || sqlCount(t, pool, "auth_changes") != 2 {
 		t.Fatal("failed replacement left partial session/audit state")
 	}
@@ -42,6 +46,7 @@ func TestPostgresRevisionExhaustionAndSessionExpiry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	sess, err := service.ResolveSession(ctx, raw)
 	if err != nil {
 		t.Fatal(err)
@@ -51,10 +56,12 @@ func TestPostgresRevisionExhaustionAndSessionExpiry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	before, _ := service.JoinCode(ctx, sess.AuthContext())
 	if _, err := service.RotateJoinCode(ctx, sess.AuthContext(), math.MaxInt32); !errors.Is(err, authcore.ErrRevisionExhausted) {
 		t.Fatalf("revision exhaustion: %v", err)
 	}
+
 	after, _ := service.JoinCode(ctx, sess.AuthContext())
 	if before != after {
 		t.Fatal("exhausted revision changed join code")
@@ -64,9 +71,11 @@ func TestPostgresRevisionExhaustionAndSessionExpiry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if _, err := service.ResolveSession(ctx, raw); !errors.Is(err, authcore.ErrUnauthorized) {
 		t.Fatal("expired PostgreSQL session authenticated")
 	}
+
 	if err := service.Logout(ctx, raw, ""); err != nil {
 		t.Fatal("expired session logout should be idempotent without CSRF")
 	}

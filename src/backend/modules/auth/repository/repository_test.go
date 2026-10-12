@@ -5,10 +5,10 @@ import (
 	"errors"
 	"testing"
 
-	authcore "honey-forge/modules/auth"
-
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+
+	authcore "honey-forge/modules/auth"
 )
 
 func TestDatabaseErrorClassification(t *testing.T) {
@@ -43,6 +43,7 @@ func TestDatabaseErrorClassification(t *testing.T) {
 	if err := databaseError("invalid SQL", syntax); errors.Is(err, authcore.ErrUnavailable) || !errors.Is(err, syntax) {
 		t.Fatal("SQL programming errors must stay internal errors with preserved causes")
 	}
+
 	reserved := &pgconn.PgError{Code: "57P00"}
 	if err := databaseError("reserved SQLSTATE", reserved); errors.Is(err, authcore.ErrUnavailable) || !errors.Is(err, reserved) {
 		t.Fatal("auth must retain its exact shutdown-code policy")

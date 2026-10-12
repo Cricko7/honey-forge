@@ -17,6 +17,7 @@ func (j *Journal) RecoverSessions() error {
 	for _, a := range j.active {
 		active = append(active, a)
 	}
+
 	j.mu.Unlock()
 	for _, a := range active {
 		var data struct {
@@ -26,7 +27,12 @@ func (j *Journal) RecoverSessions() error {
 		if err := json.Unmarshal(a.Last.Data, &data); err != nil {
 			return err
 		}
-		fields := map[string]any{"duration_ms": max(int64(0), time.Since(a.Started).Milliseconds()), "bytes_received": a.Bytes, "reason": "service_stopped"}
+
+		fields := map[string]any{
+			"duration_ms":    max(int64(0), time.Since(a.Started).Milliseconds()),
+			"bytes_received": a.Bytes,
+			"reason":         "service_stopped",
+		}
 		kind := "tcp.connection_closed"
 		if strings.HasPrefix(a.Last.EventType, "service.") || a.Last.EventType == "honeytoken.triggered" {
 			kind = "service.connection_closed"
@@ -34,10 +40,12 @@ func (j *Journal) RecoverSessions() error {
 		} else {
 			fields["listener_name"] = data.Listener
 		}
+
 		raw, err := json.Marshal(fields)
 		if err != nil {
 			return err
 		}
+
 		e := a.Last
 		e.EventID = string(contract.NewID())
 		e.EventType = kind
@@ -48,5 +56,6 @@ func (j *Journal) RecoverSessions() error {
 			return fmt.Errorf("close recovered session: %w", err)
 		}
 	}
+
 	return nil
 }

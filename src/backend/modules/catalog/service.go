@@ -38,19 +38,23 @@ func NewService(definitions []Definition, cursors *contract.CursorCodec) (*Servi
 	if cursors == nil {
 		return nil, fmt.Errorf("catalog cursor codec is required")
 	}
+
 	s := &Service{byType: map[typeKey]*compiledEntry{}, cursors: cursors}
 	for _, definition := range definitions {
 		e, err := compileEntry(definition)
 		if err != nil {
 			return nil, fmt.Errorf("compile catalog %s/%d: %w", definition.Entry.TypeID, definition.Entry.TypeVersion, err)
 		}
+
 		key := typeKey{string(e.entry.TypeID), e.entry.TypeVersion}
 		if s.byType[key] != nil {
 			return nil, fmt.Errorf("duplicate catalog type version %s/%d", key.id, key.version)
 		}
+
 		s.byType[key] = e
 		s.entries = append(s.entries, e)
 	}
+
 	sort.Slice(s.entries, func(i, j int) bool {
 		a, b := s.entries[i].entry, s.entries[j].entry
 		return a.TypeID < b.TypeID || a.TypeID == b.TypeID && a.TypeVersion < b.TypeVersion
@@ -59,7 +63,9 @@ func NewService(definitions []Definition, cursors *contract.CursorCodec) (*Servi
 	for _, e := range s.entries {
 		hash.Write(e.raw)
 	}
+
 	s.etag = fmt.Sprintf(`"catalog-%x"`, hash.Sum(nil))
+
 	return s, nil
 }
 
@@ -67,10 +73,12 @@ func (s *Service) lookup(ctx context.Context, id string, version contract.TypeVe
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+
 	e := s.byType[typeKey{id, version}]
 	if e == nil {
 		return nil, contract.NewError("resource_not_found")
 	}
+
 	return e, nil
 }
 
@@ -80,6 +88,7 @@ func (s *Service) LookupType(ctx context.Context, id string, version contract.Ty
 	if err != nil {
 		return CatalogEntry{}, err
 	}
+
 	return cloneEntry(e)
 }
 
@@ -88,6 +97,7 @@ func cloneEntry(e *compiledEntry) (CatalogEntry, error) {
 	if err := json.Unmarshal(e.raw, &entry); err != nil {
 		return CatalogEntry{}, fmt.Errorf("copy catalog entry: %w", err)
 	}
+
 	return entry, nil
 }
 
@@ -95,7 +105,9 @@ func (s *Service) Read(ctx context.Context, id string, version contract.TypeVers
 	if err := contract.Authorize(ctx, contract.Admin, contract.Viewer); err != nil {
 		return CatalogEntry{}, "", err
 	}
+
 	e, err := s.LookupType(ctx, id, version)
+
 	return e, s.etag, err
 }
 
@@ -103,17 +115,21 @@ func (s *Service) List(ctx context.Context, q Query) (contract.Page[CatalogEntry
 	if err := contract.Authorize(ctx, contract.Admin, contract.Viewer); err != nil {
 		return contract.Page[CatalogEntry]{}, "", err
 	}
+
 	if err := ctx.Err(); err != nil {
 		return contract.Page[CatalogEntry]{}, "", err
 	}
+
 	if q.Limit < 1 || q.Limit > 100 || q.TypeID != "" && !contract.ValidTypeID(q.TypeID) {
 		return contract.Page[CatalogEntry]{}, "", contract.NewError("invalid_query")
 	}
+
 	p, _ := contract.PrincipalFrom(ctx)
 	filters := q.TypeID + "|"
 	if q.Available != nil {
 		filters += strconv.FormatBool(*q.Available)
 	}
+
 	scope := contract.CursorScope{OrganizationID: p.OrganizationID, Collection: "trap-types", Filters: filters}
 	start := 0
 	if q.Cursor != "" {
@@ -121,12 +137,15 @@ func (s *Service) List(ctx context.Context, q Query) (contract.Page[CatalogEntry
 		if err != nil {
 			return contract.Page[CatalogEntry]{}, "", err
 		}
+
 		n, err := strconv.Atoi(position.After)
 		if err != nil || n < 0 || n >= len(s.entries) || position.Boundary != s.etag {
 			return contract.Page[CatalogEntry]{}, "", contract.NewError("invalid_cursor")
 		}
+
 		start = n + 1
 	}
+
 	items := []CatalogEntry{}
 	last := -1
 	more := false
@@ -135,24 +154,30 @@ func (s *Service) List(ctx context.Context, q Query) (contract.Page[CatalogEntry
 		if q.TypeID != "" && string(e.entry.TypeID) != q.TypeID || q.Available != nil && e.entry.AvailableForNewProfiles != *q.Available {
 			continue
 		}
+
 		if len(items) == q.Limit {
 			more = true
 			break
 		}
+
 		item, err := cloneEntry(e)
 		if err != nil {
 			return contract.Page[CatalogEntry]{}, "", err
 		}
+
 		items = append(items, item)
 		last = i
 	}
+
 	var next *string
 	if more {
 		token, err := s.cursors.Encode(scope, contract.CursorPosition{Boundary: s.etag, After: strconv.Itoa(last)})
 		if err != nil {
 			return contract.Page[CatalogEntry]{}, "", err
 		}
+
 		next = &token
 	}
+
 	return contract.NewPage(items, next), s.etag, nil
 }

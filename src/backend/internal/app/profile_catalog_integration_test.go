@@ -20,19 +20,33 @@ func TestRealCatalogRejectsInvalidProfilesWithoutSideEffects(t *testing.T) {
 		change func(*profiles.CreateRequest)
 		code   string
 	}{
-		{"unknown_type", func(r *profiles.CreateRequest) { r.TypeID = "unknown" }, "unknown_trap_type"},
-		{"unknown_version", func(r *profiles.CreateRequest) { r.TypeVersion = 2 }, "unknown_trap_type"},
-		{"port_zero", func(r *profiles.CreateRequest) { r.Config["listeners"].([]any)[0].(profiles.Object)["port"] = 0 }, "config_invalid"},
-		{"fractional_port", func(r *profiles.CreateRequest) { r.Config["listeners"].([]any)[0].(profiles.Object)["port"] = 2222.5 }, "config_invalid"},
-		{"empty_listeners", func(r *profiles.CreateRequest) { r.Config["listeners"] = []any{} }, "config_invalid"},
-		{"unknown_config_field", func(r *profiles.CreateRequest) { r.Config["unexpected"] = true }, "config_invalid"},
+		{"unknown_type", func(r *profiles.CreateRequest) {
+			r.TypeID = "unknown"
+		}, "unknown_trap_type"},
+		{"unknown_version", func(r *profiles.CreateRequest) {
+			r.TypeVersion = 2
+		}, "unknown_trap_type"},
+		{"port_zero", func(r *profiles.CreateRequest) {
+			r.Config["listeners"].([]any)[0].(profiles.Object)["port"] = 0
+		}, "config_invalid"},
+		{"fractional_port", func(r *profiles.CreateRequest) {
+			r.Config["listeners"].([]any)[0].(profiles.Object)["port"] = 2222.5
+		}, "config_invalid"},
+		{"empty_listeners", func(r *profiles.CreateRequest) {
+			r.Config["listeners"] = []any{}
+		}, "config_invalid"},
+		{"unknown_config_field", func(r *profiles.CreateRequest) {
+			r.Config["unexpected"] = true
+		}, "config_invalid"},
 		{"duplicate_port", func(r *profiles.CreateRequest) {
 			r.Config["listeners"] = append(r.Config["listeners"].([]any), profiles.Object{"name": "http", "port": 2222, "banner": "demo", "close_after_banner": true})
 		}, "config_invalid"},
 		{"duplicate_name", func(r *profiles.CreateRequest) {
 			r.Config["listeners"] = append(r.Config["listeners"].([]any), profiles.Object{"name": "ssh", "port": 8080, "banner": "demo", "close_after_banner": true})
 		}, "config_invalid"},
-		{"inconsistent_logging", func(r *profiles.CreateRequest) { r.Config["logging"].(profiles.Object)["max_payload_bytes"] = 1 }, "config_invalid"},
+		{"inconsistent_logging", func(r *profiles.CreateRequest) {
+			r.Config["logging"].(profiles.Object)["max_payload_bytes"] = 1
+		}, "config_invalid"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			input := base
@@ -54,6 +68,7 @@ func TestRealCatalogRejectsInvalidProfilesWithoutSideEffects(t *testing.T) {
 			if read.Header().Get("ETag") != etag || !reflect.DeepEqual(decodeIntegration[profiles.Profile](t, read), profile) {
 				t.Fatal("rejected configuration update changed persisted profile")
 			}
+
 			sendOperator(t, runtime, "DELETE", path, "", admin, 204, etag)
 			empty := decodeIntegration[profiles.Page](t, sendOperator(t, runtime, "GET", "/api/profiles", "", admin, 200))
 			if len(empty.Items) != 0 {

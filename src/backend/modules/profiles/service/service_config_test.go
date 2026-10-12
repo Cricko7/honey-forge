@@ -23,6 +23,7 @@ func TestServiceCatalogAndEffectiveConfig(t *testing.T) {
 	s.deps.LookupType = func(ctx context.Context, id string, version int32) (profilecore.Type, error) {
 		typ, e := lookup(ctx, id, version)
 		typ.AvailableForNewProfiles = false
+
 		return typ, e
 	}
 
@@ -114,15 +115,29 @@ func TestServiceNormalizationAndCancellation(t *testing.T) {
 		name string
 		call func() error
 	}{
-		{"create", func() error { _, e := s.Create(ctx, admin, request()); return e }},
-		{"read", func() error { _, e := s.ReadProfile(ctx, admin, created.Profile.ID); return e }},
+		{"create", func() error {
+			_, e := s.Create(ctx, admin, request())
+			return e
+		}},
+		{"read", func() error {
+			_, e := s.ReadProfile(ctx, admin, created.Profile.ID)
+			return e
+		}},
 		{"patch", func() error {
 			_, e := s.Patch(ctx, admin, created.Profile.ID, profilecore.ETag(created.Profile), profilecore.PatchRequest{Name: ptr("X")})
 			return e
 		}},
-		{"delete", func() error { return s.Delete(ctx, admin, created.Profile.ID, profilecore.ETag(created.Profile)) }},
-		{"list", func() error { _, e := s.List(ctx, admin, profilecore.ListOptions{}); return e }},
-		{"snapshot", func() error { _, e := s.ReadSnapshot(ctx, orgID, created.Profile.ID, 1); return e }},
+		{"delete", func() error {
+			return s.Delete(ctx, admin, created.Profile.ID, profilecore.ETag(created.Profile))
+		}},
+		{"list", func() error {
+			_, e := s.List(ctx, admin, profilecore.ListOptions{})
+			return e
+		}},
+		{"snapshot", func() error {
+			_, e := s.ReadSnapshot(ctx, orgID, created.Profile.ID, 1)
+			return e
+		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if e := tc.call(); !errors.Is(e, context.Canceled) {
@@ -140,9 +155,14 @@ func TestServicePreservesSecretsInOmittedArray(t *testing.T) {
 	s, _ := testService()
 	s.deps.LookupType = func(context.Context, string, int32) (profilecore.Type, error) {
 		return profilecore.Type{
-			InteractionLevel: "low", AvailableForNewProfiles: true,
-			SecretPaths:  func(profilecore.Object) []string { return []string{"/servers/0/password"} },
-			IsSecretPath: func(path string) bool { return path == "/servers/0/password" },
+			InteractionLevel:        "low",
+			AvailableForNewProfiles: true,
+			SecretPaths: func(profilecore.Object) []string {
+				return []string{"/servers/0/password"}
+			},
+			IsSecretPath: func(path string) bool {
+				return path == "/servers/0/password"
+			},
 			CheckConfig: func(ctx context.Context, c profilecore.Object) error {
 				servers, ok := c["servers"].([]any)
 				if !ok || len(servers) != 1 {

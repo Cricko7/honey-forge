@@ -12,6 +12,7 @@ func TestClientRejectsMissingAndInvalidCA(t *testing.T) {
 	if err := os.WriteFile(invalid, []byte("not a certificate"), 0600); err != nil {
 		t.Fatal(err)
 	}
+
 	for _, tt := range []struct{ name, path string }{
 		{"missing", filepath.Join(t.TempDir(), "missing.pem")},
 		{"invalid", invalid},
@@ -22,6 +23,7 @@ func TestClientRejectsMissingAndInvalidCA(t *testing.T) {
 			}
 		})
 	}
+
 	config, err := Client("")
 	if err != nil || config.MinVersion != tls.VersionTLS12 || config.InsecureSkipVerify {
 		t.Fatalf("unsafe system trust configuration: %+v %v", config, err)
@@ -44,6 +46,7 @@ func TestSecureRejectsInsecureSettingsAndClonesConfig(t *testing.T) {
 			if (err == nil) != tt.valid {
 				t.Fatalf("Secure()=%+v %v", config, err)
 			}
+
 			if tt.valid && (config.MinVersion < tls.VersionTLS12 || config.InsecureSkipVerify || config == tt.config) {
 				t.Fatal("configuration must be secure and independently owned")
 			}

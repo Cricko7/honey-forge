@@ -14,13 +14,33 @@ func TestAgentEndpointConfiguration(t *testing.T) {
 		browsers            []string
 		valid               bool
 	}{
-		{name: "separate hosts", agent: "wss://resources.example/assets/stream", public: "https://api.example", browsers: []string{"https://app.example"}, valid: true},
+		{
+			name:     "separate hosts",
+			agent:    "wss://resources.example/assets/stream",
+			public:   "https://api.example",
+			browsers: []string{"https://app.example"},
+			valid:    true,
+		},
 		{name: "missing agent", public: "https://api.example"},
 		{name: "missing public", agent: "wss://resources.example/assets/stream"},
 		{name: "operator host", agent: "wss://api.example/assets/stream", public: "https://api.example"},
-		{name: "operator host with different case and port", agent: "wss://API.EXAMPLE:8443/assets/stream", public: "https://api.example"},
-		{name: "browser host", agent: "wss://app.example/assets/stream", public: "https://api.example", browsers: []string{"https://app.example"}},
-		{name: "second browser host", agent: "wss://app.example/assets/stream", public: "https://api.example", browsers: []string{"https://other.example", "https://app.example"}},
+		{
+			name:   "operator host with different case and port",
+			agent:  "wss://API.EXAMPLE:8443/assets/stream",
+			public: "https://api.example",
+		},
+		{
+			name:     "browser host",
+			agent:    "wss://app.example/assets/stream",
+			public:   "https://api.example",
+			browsers: []string{"https://app.example"},
+		},
+		{
+			name:     "second browser host",
+			agent:    "wss://app.example/assets/stream",
+			public:   "https://api.example",
+			browsers: []string{"https://other.example", "https://app.example"},
+		},
 		{name: "query", agent: "wss://resources.example/assets/stream?", public: "https://api.example"},
 		{name: "plaintext", agent: "ws://resources.example/assets/stream", public: "https://api.example"},
 	} {
@@ -38,9 +58,14 @@ func TestTelemetryHostIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	router := NewRouter(telemetryHost(endpoint))
-	router.GET("/api/session", func(c *gin.Context) { c.String(200, "operator") })
-	router.GET("/assets/stream", func(c *gin.Context) { c.String(200, "authorized stream boundary") })
+	router.GET("/api/session", func(c *gin.Context) {
+		c.String(200, "operator")
+	})
+	router.GET("/assets/stream", func(c *gin.Context) {
+		c.String(200, "authorized stream boundary")
+	})
 	for _, tt := range []struct {
 		name, host, method, path, contains string
 		status                             int
@@ -64,6 +89,7 @@ func TestTelemetryHostIsolation(t *testing.T) {
 			if response.Code != tt.status || !strings.Contains(response.Body.String(), tt.contains) {
 				t.Fatalf("%d %s", response.Code, response.Body.String())
 			}
+
 			if strings.Contains(response.Body.String(), "agent_unauthenticated") || strings.Contains(response.Body.String(), "HoneyForge") {
 				t.Fatal("telemetry host discloses application identity")
 			}

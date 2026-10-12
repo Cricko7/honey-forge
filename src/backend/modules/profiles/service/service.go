@@ -9,9 +9,8 @@ import (
 	"strings"
 	"time"
 
-	profilecore "honey-forge/modules/profiles"
-
 	"honey-forge/modules/auth"
+	profilecore "honey-forge/modules/profiles"
 )
 
 // store is the consumed test seam; transaction implementations own atomic writes.
@@ -91,12 +90,20 @@ func (s *Service) Create(ctx context.Context, a auth.AuthContext, req profilecor
 		}
 
 		now := time.Now().UTC().Truncate(time.Microsecond)
+
 		return profilecore.Profile{
-			ID: profilecore.NewID(), Name: req.Name, Description: req.Description,
-			TypeID: req.TypeID, TypeVersion: int32(req.TypeVersion),
-			InteractionLevel: typ.InteractionLevel, Config: config,
-			SecretFieldsSet: profilecore.InstalledSecrets(typ, config), Revision: 1,
-			CreatedAt: now, UpdatedAt: now, OrganizationID: a.OrganizationID,
+			ID:               profilecore.NewID(),
+			Name:             req.Name,
+			Description:      req.Description,
+			TypeID:           req.TypeID,
+			TypeVersion:      int32(req.TypeVersion),
+			InteractionLevel: typ.InteractionLevel,
+			Config:           config,
+			SecretFieldsSet:  profilecore.InstalledSecrets(typ, config),
+			Revision:         1,
+			CreatedAt:        now,
+			UpdatedAt:        now,
+			OrganizationID:   a.OrganizationID,
 		}, nil
 	})
 	if err != nil {
@@ -104,6 +111,7 @@ func (s *Service) Create(ctx context.Context, a auth.AuthContext, req profilecor
 	}
 
 	result.Profile = profilecore.Redacted(result.Profile)
+
 	return result, nil
 }
 

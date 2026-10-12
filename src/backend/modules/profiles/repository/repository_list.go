@@ -3,9 +3,10 @@ package repository
 import (
 	"context"
 	"fmt"
-	profilecore "honey-forge/modules/profiles"
 
 	"github.com/jackc/pgx/v5"
+
+	profilecore "honey-forge/modules/profiles"
 )
 
 func (r *Repository) List(ctx context.Context, org string, q profilecore.ListQuery) ([]profilecore.Profile, int64, error) {
@@ -30,6 +31,7 @@ func (r *Repository) List(ctx context.Context, org string, q profilecore.ListQue
 		}
 
 		defer rows.Close()
+
 		for rows.Next() {
 			p, err := scanProfile(rows)
 			if err != nil {
@@ -41,5 +43,6 @@ func (r *Repository) List(ctx context.Context, org string, q profilecore.ListQue
 
 		return rows.Err()
 	})
+
 	return items, q.Boundary, databaseError("listing profiles transaction", err)
 }

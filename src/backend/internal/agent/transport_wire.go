@@ -21,15 +21,18 @@ func (w *wire) send(kind string, payload any) (contract.ID, error) {
 	if err != nil {
 		return "", fmt.Errorf("encode agent payload: %w", err)
 	}
+
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &fields); err != nil {
 		return "", err
 	}
+
 	id := contract.NewID()
 	encoded, err := json.Marshal(contract.Envelope{MessageID: id, Type: kind, Payload: fields})
 	if err != nil {
 		return "", fmt.Errorf("encode agent envelope: %w", err)
 	}
+
 	encoded, err = padMessage(encoded)
 	if err != nil {
 		return "", err
@@ -38,6 +41,7 @@ func (w *wire) send(kind string, payload any) (contract.ID, error) {
 	if err := w.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
 		return "", err
 	}
+
 	return id, w.conn.WriteMessage(websocket.TextMessage, encoded)
 }
 
@@ -49,6 +53,7 @@ func padMessage(raw []byte) ([]byte, error) {
 
 	// JSON whitespace varies the frame size without changing the envelope or batch.
 	padding := min(64+rand.IntN(961), remaining)
+
 	return append(raw, bytes.Repeat([]byte(" "), padding)...), nil
 }
 
@@ -57,5 +62,6 @@ func payload(message contract.Envelope, dst any) error {
 	if err != nil {
 		return err
 	}
+
 	return json.Unmarshal(raw, dst)
 }

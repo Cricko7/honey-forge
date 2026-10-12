@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	authcore "honey-forge/modules/auth"
 
 	"github.com/jackc/pgx/v5"
+
+	authcore "honey-forge/modules/auth"
 )
 
 func insertSession(ctx context.Context, tx pgx.Tx, sess authcore.Session) error {
@@ -63,6 +64,7 @@ func revokeSession(ctx context.Context, tx pgx.Tx, hash []byte) error {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
 	}
+
 	if err != nil {
 		return fmt.Errorf("deleting session: %w", err)
 	}

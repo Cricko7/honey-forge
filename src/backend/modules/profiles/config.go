@@ -11,7 +11,9 @@ import (
 	"honey-forge/internal/platform/validation"
 )
 
-func Canonical(v any) ([]byte, error) { return jsonvalue.Canonical(v) }
+func Canonical(v any) ([]byte, error) {
+	return jsonvalue.Canonical(v)
+}
 
 func EqualJSON(a, b any) bool {
 	x, e := Canonical(a)
@@ -20,6 +22,7 @@ func EqualJSON(a, b any) bool {
 	}
 
 	y, e := Canonical(b)
+
 	return e == nil && bytes.Equal(x, y)
 }
 
@@ -88,6 +91,7 @@ func InstalledSecrets(typ Type, c Object) []string {
 	}
 
 	sort.Strings(paths)
+
 	return paths
 }
 
@@ -110,8 +114,10 @@ func PatchConfig(typ Type, p Profile, req PatchRequest) (Object, error) {
 				pointerRemove(incoming, path)
 			}
 		}
+
 		return typ.MergeConfig(p.Config, incoming, req.ClearSecretFields)
 	}
+
 	clear := map[string]bool{}
 	for _, path := range req.ClearSecretFields {
 		if typ.IsSecretPath == nil || !typ.IsSecretPath(path) {

@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"honey-forge/internal/decoys/honeytrap"
-
 	"honey-forge/internal/decoys/redistrap"
 	"honey-forge/internal/decoys/sshtrap"
 	"honey-forge/internal/decoys/tcptrap"
@@ -33,7 +32,8 @@ type definition struct {
 
 var builtins = []definition{
 	{
-		typeID: "tcp-banner", version: 1,
+		typeID:  "tcp-banner",
+		version: 1,
 		start: func(ctx context.Context, snapshot profiles.Snapshot, host string, sink func(context.Context, events.AgentEvent) error) (Runtime, error) {
 			return tcptrap.Start(ctx, snapshot, host, tcptrap.Sink(sink))
 		},
@@ -42,15 +42,18 @@ var builtins = []definition{
 			if err != nil {
 				return nil, err
 			}
+
 			ports := make([]int, 0, len(config.Listeners))
 			for _, listener := range config.Listeners {
 				ports = append(ports, listener.Port)
 			}
+
 			return ports, nil
 		},
 	},
 	{
-		typeID: "redis-emulator", version: 1,
+		typeID:  "redis-emulator",
+		version: 1,
 		start: func(ctx context.Context, snapshot profiles.Snapshot, host string, sink func(context.Context, events.AgentEvent) error) (Runtime, error) {
 			return redistrap.Start(ctx, snapshot, host, redistrap.Sink(sink))
 		},
@@ -59,11 +62,13 @@ var builtins = []definition{
 			if err != nil {
 				return nil, err
 			}
+
 			return []int{config.Services[0].Port}, nil
 		},
 	},
 	{
-		typeID: "honeytoken-http", version: 1,
+		typeID:  "honeytoken-http",
+		version: 1,
 		start: func(ctx context.Context, snapshot profiles.Snapshot, host string, sink func(context.Context, events.AgentEvent) error) (Runtime, error) {
 			return honeytrap.Start(ctx, snapshot, host, honeytrap.Sink(sink))
 		},
@@ -72,11 +77,13 @@ var builtins = []definition{
 			if err != nil {
 				return nil, err
 			}
+
 			return []int{config.Services[0].Port}, nil
 		},
 	},
 	{
-		typeID: "ssh-high-interaction", version: 1,
+		typeID:  "ssh-high-interaction",
+		version: 1,
 		start: func(ctx context.Context, snapshot profiles.Snapshot, host string, sink func(context.Context, events.AgentEvent) error) (Runtime, error) {
 			return sshtrap.Start(ctx, snapshot, host, sshtrap.Sink(sink))
 		},
@@ -85,6 +92,7 @@ var builtins = []definition{
 			if err != nil {
 				return nil, err
 			}
+
 			return []int{config.Services[0].Port}, nil
 		},
 	},
@@ -96,6 +104,7 @@ func lookup(snapshot profiles.Snapshot) (definition, error) {
 			return entry, nil
 		}
 	}
+
 	return definition{}, fmt.Errorf("unsupported trap type %q version %d", snapshot.TypeID, snapshot.TypeVersion)
 }
 
@@ -109,6 +118,7 @@ func SupportedTypes() []agentws.SupportedType {
 	for _, entry := range builtins {
 		types = append(types, agentws.SupportedType{TypeID: entry.typeID, TypeVersion: entry.version, Actions: []string{"start", "stop", "apply_config"}})
 	}
+
 	return types
 }
 
@@ -117,11 +127,13 @@ func ForType(typeID string) ([]agentws.SupportedType, error) {
 	if typeID == "" {
 		return all, nil
 	}
+
 	for _, supported := range all {
 		if supported.TypeID == typeID {
 			return []agentws.SupportedType{supported}, nil
 		}
 	}
+
 	return nil, fmt.Errorf("unsupported decoy image type %q", typeID)
 }
 
@@ -131,5 +143,6 @@ func Ports(ctx context.Context, snapshot profiles.Snapshot) ([]int, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return entry.ports(ctx, snapshot)
 }

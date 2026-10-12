@@ -20,22 +20,27 @@ func DecodeEnvelope(b []byte) (Envelope, error) {
 	if len(b) > MaxBodyBytes {
 		return Envelope{}, NewError("body_too_large")
 	}
+
 	if err := CheckJSON(b); err != nil {
 		return Envelope{}, NewError("invalid_json")
 	}
+
 	var envelope Envelope
 	if !strictShape(b, reflect.TypeOf(envelope)) {
 		return Envelope{}, NewError("invalid_json")
 	}
+
 	d := json.NewDecoder(bytes.NewReader(b))
 	d.DisallowUnknownFields()
 	if err := d.Decode(&envelope); err != nil {
 		return Envelope{}, NewError("invalid_json")
 	}
+
 	Configure()
 	if err := binding.Validator.ValidateStruct(envelope); err != nil {
 		return Envelope{}, NewError("validation_failed")
 	}
+
 	return envelope, nil
 }
 

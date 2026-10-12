@@ -12,10 +12,12 @@ func TestNormalizedNumbers(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			b, err := Fingerprint(json.RawMessage(tt.b))
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			if a != b {
 				t.Fatal("equivalent normalized JSON differs")
 			}

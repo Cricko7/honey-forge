@@ -19,6 +19,7 @@ import (
 )
 
 const testTrapID = "11111111-1111-4111-8111-111111111111"
+
 const testOrgID = "22222222-2222-4222-8222-222222222222"
 
 type fakeGateway struct {
@@ -40,7 +41,13 @@ func (f *fakeGateway) Authenticate(_ context.Context, token string) (Identity, e
 		return Identity{}, contract.NewError("agent_unauthenticated")
 	}
 
-	return Identity{OrganizationID: testOrgID, TrapID: testTrapID, TypeID: "tcp-banner", TypeVersion: 1, RequiredActions: []string{"start", "stop", "apply_config"}}, nil
+	return Identity{
+		OrganizationID:  testOrgID,
+		TrapID:          testTrapID,
+		TypeID:          "tcp-banner",
+		TypeVersion:     1,
+		RequiredActions: []string{"start", "stop", "apply_config"},
+	}, nil
 }
 
 func (f *fakeGateway) Observe(_ context.Context, _ Identity, _ string, runtime commands.AgentRuntime) (State, error) {
@@ -51,6 +58,7 @@ func (f *fakeGateway) Observe(_ context.Context, _ Identity, _ string, runtime c
 	if f.state.DesiredState != "" {
 		return f.state, nil
 	}
+
 	return State{DesiredState: "stopped", HeartbeatIntervalSeconds: 10}, nil
 }
 
@@ -59,6 +67,7 @@ func (f *fakeGateway) Offline(_ context.Context, _ Identity, _ string) error {
 	defer f.mu.Unlock()
 
 	f.offline++
+
 	return nil
 }
 
@@ -98,6 +107,7 @@ func (f *fakeCommands) Claim(context.Context, string, string) (*commands.Dispatc
 		dispatch = f.dispatches[0]
 		f.dispatches = f.dispatches[1:]
 	}
+
 	return dispatch, nil
 }
 
@@ -113,6 +123,7 @@ func (f *fakeCommands) RecordResult(_ context.Context, _, _ string, result comma
 	if f.recorded != nil {
 		f.recorded <- struct{}{}
 	}
+
 	return time.Now().UTC(), nil
 }
 
@@ -123,6 +134,7 @@ func startAgentServer(t *testing.T, gateway *fakeGateway, commands *fakeCommands
 	router.Use(contract.Middleware())
 	NewHandler(gateway, commands).Register(router)
 	server := httptest.NewTLSServer(router)
+
 	return "wss" + strings.TrimPrefix(server.URL, "https") + "/assets/stream", server.Close
 }
 
@@ -132,6 +144,7 @@ func dialAgent(t *testing.T, url, token string) (*websocket.Conn, *http.Response
 	dialer := websocket.Dialer{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, Subprotocols: []string{"resource-stream.v1"}}
 	header := http.Header{}
 	header.Set("Authorization", "Bearer "+token)
+
 	return dialer.Dial(url, header)
 }
 
@@ -150,10 +163,12 @@ func readAgent(t *testing.T, conn *websocket.Conn, want string) map[string]json.
 	if err := conn.SetReadDeadline(time.Now().Add(3 * time.Second)); err != nil {
 		t.Fatal(err)
 	}
+
 	var message map[string]json.RawMessage
 	if err := conn.ReadJSON(&message); err != nil {
 		t.Fatal(err)
 	}
+
 	if string(message["type"]) != `"`+want+`"` {
 		t.Fatalf("got message %s, want %s", message["type"], want)
 	}
@@ -163,9 +178,19 @@ func readAgent(t *testing.T, conn *websocket.Conn, want string) map[string]json.
 
 func helloPayload() map[string]any {
 	return map[string]any{
-		"boot_id": contract.NewID(), "agent_version": "0.1.0", "hostname": "decoy-01",
+		"boot_id":         contract.NewID(),
+		"agent_version":   "0.1.0",
+		"hostname":        "decoy-01",
 		"supported_types": []any{map[string]any{"type_id": "tcp-banner", "type_version": 1, "actions": []string{"start", "stop", "apply_config"}}},
-		"runtime":         map[string]any{"runtime_state": "stopped", "applied_profile_revision": nil, "buffered_events": 0, "buffer_bytes": 0, "buffer_capacity_bytes": 1024, "buffer_state": "ok", "last_error": nil},
+		"runtime": map[string]any{
+			"runtime_state":            "stopped",
+			"applied_profile_revision": nil,
+			"buffered_events":          0,
+			"buffer_bytes":             0,
+			"buffer_capacity_bytes":    1024,
+			"buffer_state":             "ok",
+			"last_error":               nil,
+		},
 	}
 }
 
@@ -184,9 +209,11 @@ func TestHandshakeAndHello(t *testing.T) {
 			if response == nil || response.StatusCode != tt.status {
 				t.Fatalf("status %v, error %v", response, err)
 			}
+
 			if conn == nil {
 				return
 			}
+
 			defer conn.Close()
 
 			sendAgent(t, conn, "agent.hello", helloPayload())
@@ -229,6 +256,7 @@ func TestHandshakeRejectsBrowserAndWrongProtocol(t *testing.T) {
 				conn.Close()
 				t.Fatal("invalid handshake upgraded")
 			}
+
 			if response == nil || response.StatusCode != tt.status || err == nil {
 				t.Fatalf("status=%v error=%v", response, err)
 			}
@@ -247,6 +275,7 @@ func TestMissingDependenciesReturnUnavailable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	request.Header.Set("Connection", "Upgrade")
 	request.Header.Set("Upgrade", "websocket")
 	request.Header.Set("Authorization", "Bearer secret")
@@ -254,7 +283,9 @@ func TestMissingDependenciesReturnUnavailable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer response.Body.Close()
+
 	if response.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("status=%d", response.StatusCode)
 	}
@@ -262,7 +293,14 @@ func TestMissingDependenciesReturnUnavailable(t *testing.T) {
 
 func TestCommandAndTelemetry(t *testing.T) {
 	gateway := &fakeGateway{token: "secret"}
-	dispatch := &commands.Dispatch{CommandID: string(contract.NewID()), LeaseID: string(contract.NewID()), Action: "stop", Params: json.RawMessage(`{}`), LeaseExpiresAt: time.Now().Add(time.Minute), ExpiresAt: time.Now().Add(time.Hour)}
+	dispatch := &commands.Dispatch{
+		CommandID:      string(contract.NewID()),
+		LeaseID:        string(contract.NewID()),
+		Action:         "stop",
+		Params:         json.RawMessage(`{}`),
+		LeaseExpiresAt: time.Now().Add(time.Minute),
+		ExpiresAt:      time.Now().Add(time.Hour),
+	}
 	cmd := &fakeCommands{dispatch: dispatch}
 	url, closeServer := startAgentServer(t, gateway, cmd)
 	defer closeServer()
@@ -271,6 +309,7 @@ func TestCommandAndTelemetry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer conn.Close()
 
 	sendAgent(t, conn, "agent.hello", helloPayload())
@@ -281,7 +320,14 @@ func TestCommandAndTelemetry(t *testing.T) {
 	sendAgent(t, conn, "command.progress", map[string]any{"command_id": dispatch.CommandID, "lease_id": dispatch.LeaseID})
 	readAgent(t, conn, "command.progress_ack")
 
-	sendAgent(t, conn, "command.result", map[string]any{"command_id": dispatch.CommandID, "lease_id": dispatch.LeaseID, "status": "succeeded", "result": map[string]any{"runtime_state": "stopped", "applied_profile_revision": nil}, "error": nil, "runtime": runtime})
+	sendAgent(t, conn, "command.result", map[string]any{
+		"command_id": dispatch.CommandID,
+		"lease_id":   dispatch.LeaseID,
+		"status":     "succeeded",
+		"result":     map[string]any{"runtime_state": "stopped", "applied_profile_revision": nil},
+		"error":      nil,
+		"runtime":    runtime,
+	})
 	readAgent(t, conn, "command.ack")
 
 	sendAgent(t, conn, "agent.heartbeat", map[string]any{"runtime": runtime})
@@ -292,8 +338,10 @@ func TestCommandAndTelemetry(t *testing.T) {
 	readAgent(t, conn, "telemetry.ack")
 	gateway.mu.Lock()
 	defer gateway.mu.Unlock()
+
 	cmd.mu.Lock()
 	defer cmd.mu.Unlock()
+
 	if len(gateway.batches) != 1 || len(gateway.observed) != 3 || cmd.result.CommandID != dispatch.CommandID {
 		t.Fatalf("batches=%d observed=%d", len(gateway.batches), len(gateway.observed))
 	}
@@ -308,6 +356,7 @@ func TestSlowTelemetryDoesNotBlockHeartbeat(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer conn.Close()
 
 	sendAgent(t, conn, "agent.hello", helloPayload())
@@ -339,6 +388,7 @@ func TestInvalidMessageKeepsConnection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer conn.Close()
 
 	sendAgent(t, conn, "agent.hello", helloPayload())
@@ -348,6 +398,7 @@ func TestInvalidMessageKeepsConnection(t *testing.T) {
 	if err := conn.WriteMessage(websocket.TextMessage, []byte(`{"message_id":"`+id+`","type":"agent.heartbeat","payload":{},"unexpected":true}`)); err != nil {
 		t.Fatal(err)
 	}
+
 	message := readAgent(t, conn, "error")
 	if string(message["reply_to"]) != `"`+id+`"` {
 		t.Fatalf("wrong reply_to: %s", message["reply_to"])
@@ -359,8 +410,22 @@ func TestInvalidMessageKeepsConnection(t *testing.T) {
 
 func TestExpiredLeaseIsRedispatched(t *testing.T) {
 	commandID := string(contract.NewID())
-	first := &commands.Dispatch{CommandID: commandID, LeaseID: string(contract.NewID()), Action: "stop", Params: json.RawMessage(`{}`), LeaseExpiresAt: time.Now().Add(100 * time.Millisecond), ExpiresAt: time.Now().Add(time.Hour)}
-	second := &commands.Dispatch{CommandID: commandID, LeaseID: string(contract.NewID()), Action: "stop", Params: json.RawMessage(`{}`), LeaseExpiresAt: time.Now().Add(time.Minute), ExpiresAt: first.ExpiresAt}
+	first := &commands.Dispatch{
+		CommandID:      commandID,
+		LeaseID:        string(contract.NewID()),
+		Action:         "stop",
+		Params:         json.RawMessage(`{}`),
+		LeaseExpiresAt: time.Now().Add(100 * time.Millisecond),
+		ExpiresAt:      time.Now().Add(time.Hour),
+	}
+	second := &commands.Dispatch{
+		CommandID:      commandID,
+		LeaseID:        string(contract.NewID()),
+		Action:         "stop",
+		Params:         json.RawMessage(`{}`),
+		LeaseExpiresAt: time.Now().Add(time.Minute),
+		ExpiresAt:      first.ExpiresAt,
+	}
 	url, closeServer := startAgentServer(t, &fakeGateway{token: "secret"}, &fakeCommands{dispatches: []*commands.Dispatch{first, second}})
 	defer closeServer()
 
@@ -368,6 +433,7 @@ func TestExpiredLeaseIsRedispatched(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer conn.Close()
 
 	sendAgent(t, conn, "agent.hello", helloPayload())

@@ -27,6 +27,7 @@ func TestTrapCredentialWSSRevocation(t *testing.T) {
 	path := "/api/traps/" + trap.ID
 	server := httptest.NewTLSServer(r.Router)
 	defer server.Close()
+
 	endpoint := "wss" + strings.TrimPrefix(server.URL, "https") + "/assets/stream"
 	dialer := websocket.Dialer{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, Subprotocols: []string{"resource-stream.v1"}}
 	connect := func(token string) *websocket.Conn {
@@ -36,24 +37,34 @@ func TestTrapCredentialWSSRevocation(t *testing.T) {
 		if err != nil {
 			t.Fatalf("dial %v response %v", err, response)
 		}
+
 		t.Cleanup(func() {
 			if err := socket.Close(); err != nil {
 				t.Logf("close test socket: %v", err)
 			}
 		})
-		hello := agentws.AgentHello{BootID: string(contract.NewID()), AgentVersion: "0.1", Hostname: "decoy", SupportedTypes: []agentws.SupportedType{{TypeID: trap.TypeID, TypeVersion: trap.TypeVersion, Actions: []string{"start", "stop", "apply_config"}}}, Runtime: commands.AgentRuntime{RuntimeState: "stopped", BufferState: "ok", BufferCapacityBytes: 1024}}
+		hello := agentws.AgentHello{
+			BootID:         string(contract.NewID()),
+			AgentVersion:   "0.1",
+			Hostname:       "decoy",
+			SupportedTypes: []agentws.SupportedType{{TypeID: trap.TypeID, TypeVersion: trap.TypeVersion, Actions: []string{"start", "stop", "apply_config"}}},
+			Runtime:        commands.AgentRuntime{RuntimeState: "stopped", BufferState: "ok", BufferCapacityBytes: 1024},
+		}
 		if err := socket.WriteJSON(map[string]any{"message_id": contract.NewID(), "type": "agent.hello", "payload": hello}); err != nil {
 			t.Fatal(err)
 		}
+
 		if err := socket.SetReadDeadline(time.Now().Add(3 * time.Second)); err != nil {
 			t.Fatal(err)
 		}
+
 		var welcome struct {
 			Type string `json:"type"`
 		}
 		if err := socket.ReadJSON(&welcome); err != nil || welcome.Type != "agent.welcome" {
 			t.Fatalf("welcome %+v %v", welcome, err)
 		}
+
 		return socket
 	}
 	credentials := decodeIntegration[traps.AgentCredentials](t, sendOperator(t, r, "POST", path+"/agent-credentials", `{"expected_generation":0}`, a, 200))
@@ -64,25 +75,30 @@ func TestTrapCredentialWSSRevocation(t *testing.T) {
 	if !errors.As(err, &closeError) || closeError.Code != 4401 {
 		t.Fatalf("rotation close: %v", err)
 	}
+
 	response, err := r.Agents.Authenticate(t.Context(), credentials.Token)
 	if err == nil {
 		t.Fatalf("old token authenticated: %+v", response)
 	}
+
 	socket2 := connect(second.Token)
 	trapMutation(t, r, a, "DELETE", path, "", 1, 204)
 	_, _, err = socket2.ReadMessage()
 	if !errors.As(err, &closeError) || closeError.Code != 4401 {
 		t.Fatalf("delete close: %v", err)
 	}
+
 	header := http.Header{"Host": []string{"resources.example"}, "Authorization": []string{"Bearer " + second.Token}}
 	failed, handshake, err := dialer.Dial(endpoint, header)
 	if failed != nil {
 		failed.Close()
 		t.Fatal("tombstone connected")
 	}
+
 	if err == nil || handshake == nil || handshake.StatusCode != 200 {
 		t.Fatalf("tombstone handshake: %v %v", handshake, err)
 	}
+
 	if handshake.Body != nil {
 		if err := handshake.Body.Close(); err != nil {
 			t.Fatal(err)

@@ -18,7 +18,10 @@ func TestLimiterBoundsConcurrentAuthenticationAcrossIPs(t *testing.T) {
 	entered := make(chan struct{}, 2)
 	release := make(chan struct{})
 	var wg sync.WaitGroup
-	t.Cleanup(func() { close(release); wg.Wait() })
+	t.Cleanup(func() {
+		close(release)
+		wg.Wait()
+	})
 
 	router.POST("/sessions", limiter.middleware, func(c *gin.Context) {
 		entered <- struct{}{}
@@ -29,7 +32,9 @@ func TestLimiterBoundsConcurrentAuthenticationAcrossIPs(t *testing.T) {
 	for _, ip := range []string{"192.0.2.1:1234", "192.0.2.2:1234"} {
 		request := httptest.NewRequest(http.MethodPost, "/sessions", nil)
 		request.RemoteAddr = ip
-		wg.Go(func() { router.ServeHTTP(httptest.NewRecorder(), request) })
+		wg.Go(func() {
+			router.ServeHTTP(httptest.NewRecorder(), request)
+		})
 		select {
 		case <-entered:
 		case <-time.After(5 * time.Second):
@@ -41,12 +46,16 @@ func TestLimiterBoundsConcurrentAuthenticationAcrossIPs(t *testing.T) {
 	request.RemoteAddr = "192.0.2.3:1234"
 	response := httptest.NewRecorder()
 	done := make(chan struct{})
-	wg.Go(func() { router.ServeHTTP(response, request); close(done) })
+	wg.Go(func() {
+		router.ServeHTTP(response, request)
+		close(done)
+	})
 	select {
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("a third concurrent request must be rejected before reaching expensive authentication")
 	}
+
 	if response.Code != http.StatusTooManyRequests || response.Header().Get("Retry-After") == "" || !strings.Contains(response.Body.String(), "rate_limited") {
 		t.Fatalf("overload response: %d %s", response.Code, response.Body.String())
 	}
@@ -113,6 +122,7 @@ func TestLimiterUsesRollingMinute(t *testing.T) {
 	if ok, _ := limiter.allow("127.0.0.1", now.Add(time.Minute)); !ok {
 		t.Fatal("the oldest attempt should expire")
 	}
+
 	if ok, _ := limiter.allow("127.0.0.1", now.Add(time.Minute)); ok {
 		t.Fatal("a fixed-window boundary must not allow another burst")
 	}

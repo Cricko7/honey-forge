@@ -1,15 +1,16 @@
 package http
 
 import (
-	authhttp "honey-forge/modules/auth/http"
-	profilecore "honey-forge/modules/profiles"
-	profileservice "honey-forge/modules/profiles/service"
 	"log/slog"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+
 	"honey-forge/internal/platform/httpx"
+	authhttp "honey-forge/modules/auth/http"
+	profilecore "honey-forge/modules/profiles"
+	profileservice "honey-forge/modules/profiles/service"
 )
 
 type Handler struct {
@@ -32,6 +33,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine, session gin.HandlerFunc) error {
 	group.GET("/:id", h.read)
 	group.PATCH("/:id", h.patch)
 	group.DELETE("/:id", h.delete)
+
 	return nil
 }
 

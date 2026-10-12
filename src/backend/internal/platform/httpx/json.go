@@ -14,26 +14,32 @@ func StrictObject(raw []byte, typ reflect.Type) bool {
 	if !json.Valid(raw) || !uniqueKeys(json.NewDecoder(bytes.NewReader(raw))) {
 		return false
 	}
+
 	for typ.Kind() == reflect.Pointer {
 		typ = typ.Elem()
 	}
+
 	var fields map[string]json.RawMessage
 	if json.Unmarshal(raw, &fields) != nil || fields == nil {
 		return false
 	}
+
 	known := make(map[string]reflect.Type)
 	for i := 0; i < typ.NumField(); i++ {
 		f := typ.Field(i)
 		known[strings.Split(f.Tag.Get("json"), ",")[0]] = f.Type
 	}
+
 	for name, value := range fields {
 		ft, ok := known[name]
 		if !ok || bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
 			return false
 		}
+
 		for ft.Kind() == reflect.Pointer {
 			ft = ft.Elem()
 		}
+
 		switch ft.Kind() {
 		case reflect.Struct:
 			if !StrictObject(value, ft) {
@@ -49,6 +55,7 @@ func StrictObject(raw []byte, typ reflect.Type) bool {
 				if json.Unmarshal(value, &items) != nil {
 					return false
 				}
+
 				for _, item := range items {
 					if !StrictObject(item, ft.Elem()) {
 						return false
@@ -57,6 +64,7 @@ func StrictObject(raw []byte, typ reflect.Type) bool {
 			}
 		}
 	}
+
 	return true
 }
 
@@ -65,10 +73,12 @@ func uniqueKeys(d *json.Decoder) bool {
 	if err != nil {
 		return false
 	}
+
 	delim, container := token.(json.Delim)
 	if !container {
 		return true
 	}
+
 	switch delim {
 	case '{':
 		seen := make(map[string]bool)
@@ -78,6 +88,7 @@ func uniqueKeys(d *json.Decoder) bool {
 			if err != nil || !ok || seen[name] {
 				return false
 			}
+
 			seen[name] = true
 			if !uniqueKeys(d) {
 				return false
@@ -92,8 +103,12 @@ func uniqueKeys(d *json.Decoder) bool {
 	default:
 		return false
 	}
+
 	_, err = d.Token()
+
 	return err == nil
 }
 
-func DecodeObject(raw []byte) (map[string]any, error) { return jsonvalue.DecodeObject(raw) }
+func DecodeObject(raw []byte) (map[string]any, error) {
+	return jsonvalue.DecodeObject(raw)
+}

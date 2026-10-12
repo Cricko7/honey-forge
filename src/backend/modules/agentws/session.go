@@ -30,7 +30,9 @@ func (h *Handler) serveMessages(entry *sessionEntry, session *agentSession, hell
 
 	var lastPong atomic.Int64
 	lastPong.Store(time.Now().UnixNano())
-	session.socket.SetPongHandler(func() { lastPong.Store(time.Now().UnixNano()) })
+	session.socket.SetPongHandler(func() {
+		lastPong.Store(time.Now().UnixNano())
+	})
 
 	messages := make(chan incoming, 1)
 	go func() {
@@ -39,11 +41,13 @@ func (h *Handler) serveMessages(entry *sessionEntry, session *agentSession, hell
 			if err == nil && message.Type == "agent.heartbeat" {
 				err = session.socket.SetReadDeadline(time.Now().Add(30 * time.Second))
 			}
+
 			select {
 			case messages <- incoming{message, err}:
 			case <-session.ctx.Done():
 				return
 			}
+
 			var apiError *contract.Error
 			if err != nil && (!errors.As(err, &apiError) || apiError.Code != "invalid_message") {
 				return
@@ -53,6 +57,7 @@ func (h *Handler) serveMessages(entry *sessionEntry, session *agentSession, hell
 
 	claimTicker := time.NewTicker(time.Second)
 	defer claimTicker.Stop()
+
 	pingTimer := time.NewTimer(beacon.Delay(15 * time.Second))
 	defer pingTimer.Stop()
 
@@ -90,11 +95,15 @@ func (h *Handler) serveMessages(entry *sessionEntry, session *agentSession, hell
 					if err := session.replyError(next.message, next.err); err != nil {
 						return err
 					}
+
 					continue
 				}
+
 				_ = session.socket.CloseCode(4408, "heartbeat_timeout")
+
 				return nil
 			}
+
 			if err := h.handleMessage(entry, session, next.message, busy, &pending); err != nil {
 				return err
 			}
@@ -103,10 +112,12 @@ func (h *Handler) serveMessages(entry *sessionEntry, session *agentSession, hell
 				_ = session.socket.CloseCode(4408, "heartbeat_timeout")
 				return nil
 			}
+
 			if !lastPing.IsZero() && time.Since(lastPing) > 10*time.Second && time.Unix(0, lastPong.Load()).Before(lastPing) {
 				_ = session.socket.CloseCode(4408, "heartbeat_timeout")
 				return nil
 			}
+
 			if pending == nil || !time.Now().Before(pending.expires) {
 				if err := h.claim(entry, session, supportedActions, &pending); err != nil {
 					return err
@@ -129,10 +140,12 @@ func (h *Handler) withActive(entry *sessionEntry, session *agentSession, action 
 	if entry.current != session || !session.active.Load() {
 		return context.Canceled
 	}
+
 	identity, err := h.gateway.Authenticate(session.ctx, session.token)
 	if err != nil || !sameIdentity(identity, session.identity) {
 		_ = session.socket.CloseCode(4401, "authentication_revoked")
 		session.cancel()
+
 		return context.Canceled
 	}
 
@@ -146,9 +159,11 @@ func (h *Handler) withActive(entry *sessionEntry, session *agentSession, action 
 		if errors.As(authErr, &api) && api.Code == "agent_unauthenticated" || authErr == nil && !sameIdentity(current, session.identity) {
 			_ = session.socket.CloseCode(4401, "authentication_revoked")
 			session.cancel()
+
 			return context.Canceled
 		}
 	}
+
 	return err
 }
 
@@ -157,27 +172,35 @@ func (h *Handler) claim(entry *sessionEntry, session *agentSession, supported ma
 	err := h.withActive(entry, session, func(ctx context.Context) error {
 		var err error
 		dispatch, err = h.commands.Claim(ctx, session.identity.OrganizationID, session.identity.TrapID)
+
 		return err
 	})
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			return nil
 		}
+
 		return fmt.Errorf("claim agent command: %w", err)
 	}
+
 	if dispatch == nil {
 		return nil
 	}
+
 	if !supported[dispatch.Action] {
 		return contract.NewError("unsupported_action")
 	}
 
 	*pending = &commandLease{commandID: dispatch.CommandID, expires: dispatch.LeaseExpiresAt}
+
 	return session.socket.Notify(session.ctx, "command.dispatch", map[string]any{
-		"command_id": dispatch.CommandID, "lease_id": dispatch.LeaseID,
-		"lease_expires_at": dispatch.LeaseExpiresAt, "action": dispatch.Action,
-		"params": dispatch.Params, "configuration": dispatch.Configuration,
-		"expires_at": dispatch.ExpiresAt,
+		"command_id":       dispatch.CommandID,
+		"lease_id":         dispatch.LeaseID,
+		"lease_expires_at": dispatch.LeaseExpiresAt,
+		"action":           dispatch.Action,
+		"params":           dispatch.Params,
+		"configuration":    dispatch.Configuration,
+		"expires_at":       dispatch.ExpiresAt,
 	})
 }
 
@@ -190,6 +213,7 @@ func (h *Handler) handleMessage(entry *sessionEntry, session *agentSession, mess
 		if err := decodePayload(message.Payload, &body); err != nil {
 			return session.replyError(message, err)
 		}
+
 		if err := validateRuntime(body.Runtime); err != nil {
 			return session.replyError(message, err)
 		}
@@ -198,16 +222,20 @@ func (h *Handler) handleMessage(entry *sessionEntry, session *agentSession, mess
 		err := h.withActive(entry, session, func(ctx context.Context) error {
 			var err error
 			state, err = h.gateway.Observe(ctx, session.identity, session.connectionID, body.Runtime)
+
 			return err
 		})
 		if err != nil {
 			return session.replyError(message, err)
 		}
+
 		session.heartbeatAt.Store(time.Now().UnixNano())
 
 		return session.socket.Reply(session.ctx, message, "agent.heartbeat_ack", map[string]any{
-			"server_time": time.Now().UTC(), "heartbeat_interval_seconds": interval(state),
-			"desired_profile_revision": state.DesiredProfileRevision, "desired_state": desiredState(state),
+			"server_time":                time.Now().UTC(),
+			"heartbeat_interval_seconds": interval(state),
+			"desired_profile_revision":   state.DesiredProfileRevision,
+			"desired_state":              desiredState(state),
 		})
 	case "command.progress":
 		var body progress
@@ -219,11 +247,13 @@ func (h *Handler) handleMessage(entry *sessionEntry, session *agentSession, mess
 		err := h.withActive(entry, session, func(ctx context.Context) error {
 			var err error
 			expires, err = h.commands.ExtendLease(ctx, session.identity.OrganizationID, session.identity.TrapID, body.CommandID, body.LeaseID)
+
 			return err
 		})
 		if err != nil {
 			return session.replyError(message, err)
 		}
+
 		if *pending != nil && (*pending).commandID == body.CommandID {
 			(*pending).expires = expires
 		}
@@ -238,14 +268,23 @@ func (h *Handler) handleMessage(entry *sessionEntry, session *agentSession, mess
 		if err := decodePayload(message.Payload, &body); err != nil {
 			return session.replyError(message, err)
 		}
+
 		if err := validateRuntime(body.Runtime); err != nil {
 			return session.replyError(message, contract.NewError("command_result_invalid"))
 		}
 
-		input := commands.AgentResult{CommandID: body.CommandID, LeaseID: body.LeaseID, Status: body.Status, Result: body.Result, Error: body.Error, Runtime: body.Runtime}
+		input := commands.AgentResult{
+			CommandID: body.CommandID,
+			LeaseID:   body.LeaseID,
+			Status:    body.Status,
+			Result:    body.Result,
+			Error:     body.Error,
+			Runtime:   body.Runtime,
+		}
 		if string(input.Result) == "null" {
 			input.Result = nil
 		}
+
 		var recordedAt time.Time
 		err := h.withActive(entry, session, func(ctx context.Context) error {
 			var err error
@@ -263,6 +302,7 @@ func (h *Handler) handleMessage(entry *sessionEntry, session *agentSession, mess
 			} else {
 				_, err = h.gateway.Observe(ctx, session.identity, session.connectionID, body.Runtime)
 			}
+
 			return err
 		})
 		if err != nil {
@@ -272,20 +312,24 @@ func (h *Handler) handleMessage(entry *sessionEntry, session *agentSession, mess
 		if *pending != nil && (*pending).commandID == body.CommandID {
 			*pending = nil
 		}
+
 		return session.socket.Reply(session.ctx, message, "command.ack", map[string]any{"command_id": body.CommandID, "status": body.Status, "recorded_at": recordedAt})
 	case "telemetry.batch":
 		var body TelemetryBatch
 		if err := decodePayload(message.Payload, &body); err != nil {
 			return session.replyError(message, err)
 		}
+
 		if err := validateBatch(body); err != nil {
 			return session.replyError(message, err)
 		}
+
 		if !busy.CompareAndSwap(false, true) {
 			return session.replyError(message, contract.NewError("ingestion_busy"))
 		}
 
 		go h.ingest(entry, session, message, body, busy)
+
 		return nil
 	default:
 		return session.replyError(message, contract.NewError("invalid_message"))
@@ -309,6 +353,7 @@ func (h *Handler) ingest(entry *sessionEntry, session *agentSession, message con
 	if err != nil || !sameIdentity(identity, session.identity) {
 		_ = session.socket.CloseCode(4401, "authentication_revoked")
 		session.cancel()
+
 		return
 	}
 
@@ -318,21 +363,27 @@ func (h *Handler) ingest(entry *sessionEntry, session *agentSession, message con
 	if !session.active.Load() {
 		return
 	}
+
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		_ = session.replyError(message, contract.NewError("ingestion_pending"))
 		return
 	}
+
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			err = contract.NewError("ingestion_pending")
 		}
+
 		_ = session.replyError(message, err)
+
 		return
 	}
+
 	if ack.BatchID != batch.BatchID || len(ack.AcknowledgedEventIDs) != len(batch.Events) || ack.StoredAt.IsZero() {
 		_ = session.replyError(message, contract.NewError("ingestion_pending"))
 		return
 	}
+
 	for i, event := range batch.Events {
 		if !strings.EqualFold(ack.AcknowledgedEventIDs[i], event.EventID) {
 			_ = session.replyError(message, contract.NewError("ingestion_pending"))

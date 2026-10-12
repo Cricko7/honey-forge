@@ -23,9 +23,11 @@ func TestCommandCatalogAdapter(t *testing.T) {
 	if err := check(t.Context(), "tcp-banner", 1, "stop", json.RawMessage(`{}`)); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := check(t.Context(), "tcp-banner", 1, "stop", json.RawMessage(`{"shell":"x"}`)); err == nil {
 		t.Fatal("catalog accepted unexpected parameter")
 	}
+
 	if err := check(t.Context(), "tcp-banner", 1, "restore", json.RawMessage(`{}`)); err == nil {
 		t.Fatal("catalog accepted unsupported action")
 	}
@@ -34,6 +36,7 @@ func TestCommandCatalogAdapter(t *testing.T) {
 	if err := result(t.Context(), "tcp-banner", 1, "stop", json.RawMessage(`{"runtime_state":"stopped","applied_profile_revision":null}`), false); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := result(t.Context(), "tcp-banner", 1, "stop", json.RawMessage(`{"runtime_state":"stopped","applied_profile_revision":null}`), true); err == nil {
 		t.Fatal("catalog accepted missing applied revision")
 	}

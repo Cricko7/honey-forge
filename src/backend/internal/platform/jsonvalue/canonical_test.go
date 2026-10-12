@@ -19,6 +19,7 @@ func TestCanonical(t *testing.T) {
 			}
 		})
 	}
+
 	if _, err := Canonical(make(chan int)); err == nil {
 		t.Fatal("accepted a non-JSON value")
 	}

@@ -30,6 +30,7 @@ func TestSSHRecordingPersistsAndRespectsOrganization(t *testing.T) {
 	if strings.Contains(w.Body.String(), "demo-secret") {
 		t.Fatal("profile leaked password")
 	}
+
 	p := decodeIntegration[profiles.Profile](t, w)
 	trap := decodeIntegration[traps.Trap](t, sendOperator(t, r, "POST", "/api/traps", integrationJSON(t, traps.CreateRequest{RequestID: string(contract.NewID()), Name: "SSH", ProfileID: p.ID}), admin, 201))
 	ctx, identity, connection, state := connectIntegrationAgent(t, r, admin, trap)
@@ -44,19 +45,36 @@ func TestSSHRecordingPersistsAndRespectsOrganization(t *testing.T) {
 		if i == 1 {
 			data = `{"service":"ssh","channel_id":"` + channel + `","stream":"stdin","payload_base64":"aWQK","bytes":3}`
 		}
+
 		if i == 2 {
 			data = `{"service":"ssh","duration_ms":100,"bytes_received":3,"reason":"peer_closed"}`
 		}
-		captured = append(captured, events.AgentEvent{EventID: string(contract.NewID()), EventType: kind, TypeID: "ssh-high-interaction", TypeVersion: 1, ProfileRevision: 1, SessionID: session, SessionSequence: int64(i + 1), OccurredAt: time.Now().UTC().Format(time.RFC3339Nano), Source: events.Source{IP: "192.0.2.1", Port: 12345}, Destination: events.Destination{Protocol: "tcp", Port: 2222}, Data: json.RawMessage(data)})
+
+		captured = append(captured, events.AgentEvent{
+			EventID:         string(contract.NewID()),
+			EventType:       kind,
+			TypeID:          "ssh-high-interaction",
+			TypeVersion:     1,
+			ProfileRevision: 1,
+			SessionID:       session,
+			SessionSequence: int64(i + 1),
+			OccurredAt:      time.Now().UTC().Format(time.RFC3339Nano),
+			Source:          events.Source{IP: "192.0.2.1", Port: 12345},
+			Destination:     events.Destination{Protocol: "tcp", Port: 2222},
+			Data:            json.RawMessage(data),
+		})
 	}
+
 	if _, err := r.Agents.Ingest(ctx, identity, connection, eventBatch(t, captured...)); err != nil {
 		t.Fatal(err)
 	}
+
 	path := "/api/events/recordings/" + session + "?trap_id=" + trap.ID
 	record := decodeIntegration[events.Recording](t, sendOperator(t, r, "GET", path, "", viewer, 200))
 	if !record.Complete || len(record.Events) != 3 || string(record.Events[1].Data) != string(captured[1].Data) {
 		t.Fatalf("recording %+v", record)
 	}
+
 	sendOperator(t, r, "GET", path, "", other, 404)
 	sendOperator(t, r, "GET", "/api/events/recordings/"+string(contract.NewID())+"?trap_id="+trap.ID, "", viewer, 404)
 }

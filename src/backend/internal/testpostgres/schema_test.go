@@ -16,10 +16,12 @@ func TestSearchPathPreservesConnectionSettings(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			cfg, err := pgxpool.ParseConfig(dsn)
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			if cfg.ConnConfig.RuntimeParams["search_path"] != "test_schema" || cfg.ConnConfig.Database != "test" || cfg.ConnConfig.User != "operator" || cfg.ConnConfig.Password != "secret" || cfg.ConnConfig.TLSConfig == nil || cfg.ConnConfig.TLSConfig.InsecureSkipVerify {
 				t.Fatal("schema isolation changed the connection settings")
 			}

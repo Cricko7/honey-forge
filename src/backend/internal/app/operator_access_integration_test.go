@@ -67,6 +67,7 @@ func TestRealSessionsEnforceProfilePermissions(t *testing.T) {
 			if w.Code != 403 {
 				t.Fatalf("status %d, want 403: %s", w.Code, w.Body.String())
 			}
+
 			requireOperatorError(t, w, tc.code)
 		})
 	}
@@ -99,6 +100,7 @@ func TestRealOrganizationsIsolateProfilesAndCursors(t *testing.T) {
 			requireOperatorError(t, sendOperator(t, runtime, tc.method, path, tc.body, foreign, 404, etag), "resource_not_found")
 		})
 	}
+
 	empty := decodeIntegration[profiles.Page](t, sendOperator(t, runtime, "GET", "/api/profiles", "", foreign, 200))
 	if empty.Items == nil || len(empty.Items) != 0 || empty.NextCursor != nil {
 		t.Fatal("foreign organization can list owner's profiles")
@@ -109,6 +111,7 @@ func TestRealOrganizationsIsolateProfilesAndCursors(t *testing.T) {
 	if other.ID == original.ID {
 		t.Fatal("request_id was shared across organizations")
 	}
+
 	second := input
 	second.RequestID = profiles.NewID()
 	second.Name = "Second"
@@ -117,6 +120,7 @@ func TestRealOrganizationsIsolateProfilesAndCursors(t *testing.T) {
 	if len(firstPage.Items) != 1 || firstPage.NextCursor == nil {
 		t.Fatal("two profiles did not produce pagination cursor")
 	}
+
 	cursorPath := "/api/profiles?limit=1&type_id=tcp-banner&cursor=" + url.QueryEscape(*firstPage.NextCursor)
 	requireOperatorError(t, sendOperator(t, runtime, "GET", cursorPath, "", foreign, 400), "invalid_cursor")
 
@@ -128,6 +132,7 @@ func TestRealOrganizationsIsolateProfilesAndCursors(t *testing.T) {
 	if len(nextPage.Items) != 1 || nextPage.Items[0].ID == firstPage.Items[0].ID || nextPage.Items[0].ID == newProfile.ID || nextPage.Items[0].ID == other.ID || nextPage.NextCursor != nil {
 		t.Fatal("pagination repeated, leaked, or included a profile created after its boundary")
 	}
+
 	current := decodeIntegration[profiles.Profile](t, sendOperator(t, runtime, "GET", path, "", owner, 200))
 	if !reflect.DeepEqual(current, original) {
 		t.Fatal("foreign organization changed owner's profile")

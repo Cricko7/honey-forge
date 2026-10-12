@@ -28,6 +28,7 @@ func TestTrapLinksPersistenceAndIsolation(t *testing.T) {
 	if response := serveOperator(r.Router, missingCSRF); response.Code != 403 {
 		t.Fatalf("missing CSRF: %d", response.Code)
 	}
+
 	sendOperator(t, r, "POST", "/api/trap-links", body, admin, 201)
 	sendOperator(t, r, "DELETE", "/api/trap-links/"+source.ID+"/"+target.ID, "", viewer, 403)
 	sendOperator(t, r, "POST", "/api/trap-links", body, admin, 409)
@@ -43,16 +44,19 @@ func TestTrapLinksPersistenceAndIsolation(t *testing.T) {
 	if len(listed.Items) != 1 || listed.Items[0] != link {
 		t.Fatal(listed)
 	}
+
 	empty := decodeIntegration[struct {
 		Items []traplinks.Link `json:"items"`
 	}](t, sendOperator(t, r, "GET", "/api/trap-links", "", foreign, 200))
 	if len(empty.Items) != 0 {
 		t.Fatal("foreign organization sees links")
 	}
+
 	var count int
 	if err := r.pool.QueryRow(t.Context(), `SELECT count(*) FROM trap_links WHERE organization_id=$1`, admin.view.Organization.ID).Scan(&count); err != nil || count != 1 {
 		t.Fatalf("persistent count=%d err=%v", count, err)
 	}
+
 	// Concurrent attempts produce one row and one successful create.
 	sendOperator(t, r, "DELETE", "/api/trap-links/"+source.ID+"/"+target.ID, "", admin, 204)
 	codes := make(chan int, 2)
@@ -62,15 +66,18 @@ func TestTrapLinksPersistenceAndIsolation(t *testing.T) {
 			codes <- serveOperator(r.Router, operatorRequest(t, "POST", "/api/trap-links", body, admin)).Code
 		})
 	}
+
 	wg.Wait()
 	close(codes)
 	statuses := map[int]int{}
 	for code := range codes {
 		statuses[code]++
 	}
+
 	if statuses[201] != 1 || statuses[409] != 1 {
 		t.Fatal(statuses)
 	}
+
 	// Tombstones cease routing and disappear from the graph even though FK history remains.
 	trapMutation(t, r, admin, "DELETE", "/api/traps/"+target.ID, "", target.Revision, 204)
 	listed = decodeIntegration[struct {

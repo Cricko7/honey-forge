@@ -15,6 +15,7 @@ func TestProtectedRouteOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	for _, tt := range []struct {
 		name          string
 		authenticated bool
@@ -26,6 +27,7 @@ func TestProtectedRouteOrder(t *testing.T) {
 				if !tt.authenticated {
 					return contract.Principal{}, "", contract.NewError("unauthenticated")
 				}
+
 				return contract.Principal{UserID: contract.NewID(), OrganizationID: contract.NewID(), Role: contract.Admin}, "csrf", nil
 			}, func(c *gin.Context) {
 				var in struct {

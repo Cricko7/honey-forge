@@ -36,9 +36,11 @@ func TestResponseRules(t *testing.T) {
 			if w.Code != tt.status || w.Header().Get("Cache-Control") != tt.cache {
 				t.Fatalf("%d %s", w.Code, w.Header())
 			}
+
 			if tt.status == 201 && w.Header().Get("Location") == "" {
 				t.Fatal("missing Location")
 			}
+
 			if tt.status == 204 || tt.status == 304 {
 				if w.Body.Len() != 0 {
 					t.Fatal("nonempty response")
@@ -56,6 +58,7 @@ func TestSafeErrorFields(t *testing.T) {
 		for i := 0; i < 25; i++ {
 			e.Fields = append(e.Fields, FieldError{Path: "/field", Code: "required", Message: "Field is required"})
 		}
+
 		Fail(c, e)
 	})
 	w := httptest.NewRecorder()

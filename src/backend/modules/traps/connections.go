@@ -16,6 +16,7 @@ func (g *Gateway) ExpireConnections(ctx context.Context, now time.Time) error {
 	if err != nil {
 		return fmt.Errorf("find stale connections: %w", err)
 	}
+
 	type stale struct {
 		identity   agentws.Identity
 		connection string
@@ -27,18 +28,26 @@ func (g *Gateway) ExpireConnections(ctx context.Context, now time.Time) error {
 			rows.Close()
 			return fmt.Errorf("scan stale connection: %w", err)
 		}
+
 		items = append(items, item)
 	}
+
 	err = rows.Err()
 	rows.Close()
 	if err != nil {
 		return fmt.Errorf("iterate stale connections: %w", err)
 	}
+
 	for _, item := range items {
-		agentCtx := contract.WithPrincipal(ctx, contract.Principal{OrganizationID: contract.ID(item.identity.OrganizationID), TrapID: contract.ID(item.identity.TrapID), Role: contract.Agent})
+		agentCtx := contract.WithPrincipal(ctx, contract.Principal{
+			OrganizationID: contract.ID(item.identity.OrganizationID),
+			TrapID:         contract.ID(item.identity.TrapID),
+			Role:           contract.Agent,
+		})
 		if err := g.expireConnection(agentCtx, item.identity, item.connection, now); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }

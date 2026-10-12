@@ -2,12 +2,13 @@ package app
 
 import (
 	"encoding/json"
-	"honey-forge/internal/contract"
-	"honey-forge/modules/catalog"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/gin-gonic/gin"
+
+	"honey-forge/internal/contract"
+	"honey-forge/modules/catalog"
 )
 
 func TestCatalogAccess(t *testing.T) {
@@ -15,14 +16,17 @@ func TestCatalogAccess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	service, err := catalog.NewService(catalog.BuiltinDefinitions(), codec)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	browser, err := contract.NewBrowserPolicy([]string{"https://operator.example"})
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	for _, tt := range []struct {
 		name   string
 		role   contract.Role
@@ -37,6 +41,7 @@ func TestCatalogAccess(t *testing.T) {
 				if tt.role == "" {
 					return contract.Principal{}, "", contract.NewError("unauthenticated")
 				}
+
 				return contract.Principal{OrganizationID: contract.NewID(), Role: tt.role}, "", nil
 			}, service)
 			for _, path := range []string{"/api/trap-types", "/api/trap-types/tcp-banner/versions/1"} {
@@ -48,14 +53,17 @@ func TestCatalogAccess(t *testing.T) {
 				if want == 200 {
 					want = 304
 				}
+
 				if w.Code != want {
 					t.Fatalf("%s: %d %s", path, w.Code, w.Body.String())
 				}
+
 				if tt.code != "" {
 					var body contract.ErrorResponse
 					if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 						t.Fatal(err)
 					}
+
 					if body.Error.Code != tt.code {
 						t.Fatal(w.Body.String())
 					}
@@ -63,6 +71,7 @@ func TestCatalogAccess(t *testing.T) {
 			}
 		})
 	}
+
 	r := NewRouter()
 	RegisterCatalog(r, browser, nil, service)
 	w := httptest.NewRecorder()
@@ -70,6 +79,7 @@ func TestCatalogAccess(t *testing.T) {
 	if w.Code != 401 {
 		t.Fatal(w.Code)
 	}
+
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest("POST", "/api/trap-types", nil))
 	if w.Code != 405 {

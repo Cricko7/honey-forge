@@ -44,6 +44,7 @@ func TestEventJournalPinsBatchBeforeBrokerFailure(t *testing.T) {
 	if publisher.calls != 1 {
 		t.Fatalf("conflicting batch published: calls=%d", publisher.calls)
 	}
+
 	// A snapshot not issued to this trap must never enter the journal.
 	event.ProfileRevision = 2
 	_, err = service.Ingest(ctx, identity, connection, eventBatch(t, event))
@@ -51,6 +52,7 @@ func TestEventJournalPinsBatchBeforeBrokerFailure(t *testing.T) {
 	if publisher.calls != 1 {
 		t.Fatal("invalid snapshot published")
 	}
+
 	_, err = service.Ingest(ctx, identity, connection, batch)
 	assertEventError(t, err, "telemetry_unavailable")
 	if publisher.calls != 2 {

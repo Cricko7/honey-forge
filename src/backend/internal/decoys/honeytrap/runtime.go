@@ -34,6 +34,7 @@ func Start(ctx context.Context, snapshot profiles.Snapshot, host string, sink Si
 	if err != nil {
 		return nil, err
 	}
+
 	if sink == nil {
 		return nil, fmt.Errorf("event sink is required")
 	}
@@ -42,12 +43,19 @@ func Start(ctx context.Context, snapshot profiles.Snapshot, host string, sink Si
 	if err != nil {
 		return nil, fmt.Errorf("listen HTTP service: %w", err)
 	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	r := &Runtime{ctx: ctx, snapshot: snapshot, config: config, sink: sink, cancel: cancel, done: make(chan struct{})}
 	r.server = &http.Server{
-		Handler: http.HandlerFunc(r.serveHTTP), ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout: 5 * time.Second, WriteTimeout: 20 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 8192,
-		BaseContext: func(net.Listener) context.Context { return ctx },
+		Handler:           http.HandlerFunc(r.serveHTTP),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       5 * time.Second,
+		WriteTimeout:      20 * time.Second,
+		IdleTimeout:       30 * time.Second,
+		MaxHeaderBytes:    8192,
+		BaseContext: func(net.Listener) context.Context {
+			return ctx
+		},
 	}
 
 	served := make(chan struct{})
@@ -55,20 +63,24 @@ func Start(ctx context.Context, snapshot profiles.Snapshot, host string, sink Si
 		<-ctx.Done()
 		shutdown, cancelShutdown := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancelShutdown()
+
 		if err := r.server.Shutdown(shutdown); err != nil {
 			r.fail(err)
 			if err := r.server.Close(); err != nil {
 				r.fail(err)
 			}
 		}
+
 		<-served
 		close(r.done)
 	}()
 	go func() {
 		defer close(served)
+
 		if err := r.server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			r.fail(err)
 		}
+
 		cancel()
 	}()
 
@@ -80,6 +92,7 @@ func (r *Runtime) fail(err error) {
 	if r.failure == nil {
 		r.failure = err
 	}
+
 	r.mu.Unlock()
 
 	if r.cancel != nil {
@@ -90,6 +103,7 @@ func (r *Runtime) fail(err error) {
 func (r *Runtime) Err() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	return r.failure
 }
 

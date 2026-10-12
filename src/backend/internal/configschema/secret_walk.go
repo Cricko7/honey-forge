@@ -12,6 +12,7 @@ func clearedPath(path string, clears map[string]bool) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -21,5 +22,6 @@ func descendSecret(schema *jsonschema.Schema, value any, path string, set map[st
 	if value != nil {
 		seen = map[*jsonschema.Schema]bool{}
 	}
+
 	walkSecrets(schema, value, path, set, seen)
 }

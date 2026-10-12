@@ -22,6 +22,7 @@ func Fields(fields validator.ValidationErrors, typ reflect.Type, prefix string) 
 			break
 		}
 	}
+
 	return details
 }
 
@@ -55,11 +56,13 @@ func FieldPath(namespace string, typ reflect.Type) string {
 		for typ.Kind() == reflect.Pointer {
 			typ = typ.Elem()
 		}
+
 		name, index, indexed := strings.Cut(part, "[")
 		field, ok := typ.FieldByName(name)
 		if !ok {
 			break
 		}
+
 		names = append(names, strings.Split(field.Tag.Get("json"), ",")[0])
 		typ = field.Type
 		if indexed {
@@ -67,5 +70,6 @@ func FieldPath(namespace string, typ reflect.Type) string {
 			typ = typ.Elem()
 		}
 	}
+
 	return "/" + strings.Join(names, "/")
 }

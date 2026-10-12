@@ -26,33 +26,41 @@ func (d DockerCLI) Deploy(ctx context.Context, target Target, token string, gene
 			return fmt.Errorf("SSH sandbox image is required")
 		}
 	}
+
 	if image == "" || d.Network == "" || d.ManagementNetwork == "" || d.Network == d.ManagementNetwork || d.WSURL == "" || d.RedisURL == "" || token == "" {
 		return fmt.Errorf("incomplete trap deployment configuration")
 	}
+
 	if err := d.removeSecrets(ctx, target.ID); err != nil {
 		return err
 	}
+
 	base := fmt.Sprintf("nm-%s-%d", target.ID, generation)
 	cleanup := true
 	defer func() {
 		if cleanup {
 			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 			defer cancel()
+
 			if cleanupErr := d.removeSecrets(cleanupCtx, target.ID); cleanupErr != nil {
 				err = fmt.Errorf("%w; cleanup: %w", err, cleanupErr)
 			}
 		}
 	}()
+
 	if err := d.createSecret(ctx, target.ID, base+"-token", []byte(token)); err != nil {
 		return err
 	}
+
 	if err := d.createSecret(ctx, target.ID, base+"-redis", []byte(d.RedisURL)); err != nil {
 		return err
 	}
+
 	memory := "128m"
 	if target.Snapshot.TypeID == "ssh-high-interaction" {
 		memory = "512m"
 	}
+
 	args := []string{"service", "create", "--detach=true", "--name", serviceName(target.ID),
 		"--label", "com.nodemetrics.instance=" + target.ID,
 		"--label", "com.nodemetrics.generation=" + strconv.FormatInt(generation, 10),
@@ -73,14 +81,17 @@ func (d DockerCLI) Deploy(ctx context.Context, target Target, token string, gene
 		if err != nil {
 			return err
 		}
+
 		certificate, key, expires, err := tlsconfig.IssueClient(d.ClientCAFile, d.ClientCAKeyFile, target.ID)
 		if err != nil {
 			return err
 		}
+
 		pins, err := os.ReadFile(d.ServerPinsFile)
 		if err != nil {
 			return fmt.Errorf("read server pins: %w", err)
 		}
+
 		for _, material := range []struct {
 			suffix, target, variable string
 			data                     []byte
@@ -92,11 +103,14 @@ func (d DockerCLI) Deploy(ctx context.Context, target Target, token string, gene
 			if err := d.createSecret(ctx, target.ID, base+material.suffix, material.data); err != nil {
 				return err
 			}
+
 			args = append(args, "--secret", "source="+base+material.suffix+",target="+material.target+",uid=0,gid=0,mode=0400", "--env", material.variable+"=/run/secrets/"+material.target)
 		}
+
 		args = append(args, "--label", "com.nodemetrics.certificate-expires="+expires.UTC().Format(time.RFC3339))
 		args = append(args, "--label", "com.nodemetrics.tls-trust="+revision)
 	}
+
 	for _, trust := range []struct{ file, suffix, target, variable string }{
 		{d.CAFile, "-ca", "nm_ca", "NM_CA_FILE"},
 		{d.RedisCAFile, "-redis-ca", "store_ca", "NM_STORE_CA_FILE"},
@@ -104,23 +118,29 @@ func (d DockerCLI) Deploy(ctx context.Context, target Target, token string, gene
 		if trust.file == "" {
 			continue
 		}
+
 		ca, err := os.ReadFile(trust.file)
 		if err != nil {
 			return fmt.Errorf("read agent CA: %w", err)
 		}
+
 		if err := d.createSecret(ctx, target.ID, base+trust.suffix, ca); err != nil {
 			return err
 		}
+
 		args = append(args, "--secret", "source="+base+trust.suffix+",target="+trust.target+",uid=0,gid=0,mode=0400", "--env", trust.variable+"=/run/secrets/"+trust.target)
 	}
+
 	for _, port := range ports {
 		if port < 1 || port > 65535 {
 			return fmt.Errorf("invalid trap port %d", port)
 		}
+
 		if target.Snapshot.TypeID == "ssh-high-interaction" {
 			args = append(args, "--publish", fmt.Sprintf("published=%d,target=%d,protocol=tcp,mode=host", port, port))
 		}
 	}
+
 	// Only the trusted supervisor can use Docker. Decoy workers receive neither
 	// this socket nor management credentials, and communicate through a TLS pipe.
 	args = append(args, "--mount", "type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock")
@@ -133,11 +153,14 @@ func (d DockerCLI) Deploy(ctx context.Context, target Target, token string, gene
 			args = append(args, "--env", "NM_BIND_IP="+d.WorkerBindIP)
 		}
 	}
+
 	args = append(args, image)
 	if _, err := d.call(ctx, nil, args...); err != nil {
 		return fmt.Errorf("create trap service: %w", err)
 	}
+
 	cleanup = false
+
 	return nil
 }
 
@@ -146,5 +169,6 @@ func portLabel(ports []int) string {
 	for i, port := range ports {
 		parts[i] = strconv.Itoa(port)
 	}
+
 	return strings.Join(parts, ",")
 }
