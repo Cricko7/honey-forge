@@ -2,6 +2,7 @@ package honeytrap
 
 import (
 	"context"
+	"io"
 	"net"
 	"net/http"
 	"strconv"
@@ -41,7 +42,11 @@ func TestRuntimeConcurrentRequestsAndStop(t *testing.T) {
 
 	defer r.Stop()
 
-	client := &http.Client{Timeout: 5 * time.Second}
+	// Own the transport so concurrent dials and idle connections cannot outlive
+	// the requests and race the server's graceful shutdown.
+	transport := &http.Transport{}
+	defer transport.CloseIdleConnections()
+	client := &http.Client{Transport: transport, Timeout: 5 * time.Second}
 	var wg sync.WaitGroup
 	for range 12 {
 		wg.Go(func() {
@@ -51,6 +56,9 @@ func TestRuntimeConcurrentRequestsAndStop(t *testing.T) {
 				return
 			}
 
+			if _, err := io.Copy(io.Discard, response.Body); err != nil {
+				t.Error(err)
+			}
 			if err := response.Body.Close(); err != nil {
 				t.Error(err)
 			}
@@ -62,6 +70,7 @@ func TestRuntimeConcurrentRequestsAndStop(t *testing.T) {
 	}
 
 	wg.Wait()
+	transport.CloseIdleConnections()
 	r.Stop()
 	if r.Err() != nil {
 		t.Fatal(r.Err())

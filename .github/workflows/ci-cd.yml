@@ -13,12 +13,12 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      POSTGRES_PASSWORD: test
+      REDIS_PASSWORD: 0123456789abcdef0123456789abcdef
     steps:
       - uses: actions/checkout@v4
       - name: Start TLS infrastructure
-        env:
-          POSTGRES_PASSWORD: test
-          REDIS_PASSWORD: 0123456789abcdef0123456789abcdef
         run: |
           sh ./gen-certs.sh
           docker compose up -d --wait --wait-timeout 180
@@ -76,8 +76,6 @@ jobs:
           npm run build
       - name: Stop test infrastructure
         if: always()
-        env:
-          POSTGRES_PASSWORD: test
         run: docker compose down
 
   deploy:
