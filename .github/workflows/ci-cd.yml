@@ -265,6 +265,9 @@ jobs:
                 compose "$INCOMING/release.env" stop api orchestrator || true
                 sudo -n systemctl start honeyforge || true
               fi
+              if [ -n "$PREVIOUS_ENV" ] || [ "$OLD_SYSTEMD" -eq 0 ]; then
+                compose "$INCOMING/release.env" start orchestrator || true
+              fi
               ln -s "$PREVIOUS_FRONT" "$FRONT.rollback"
               mv -Tf "$FRONT.rollback" "$FRONT"
               exit 1
@@ -296,6 +299,9 @@ jobs:
               sleep 2
             done
             test "$ready" -eq 1
+            # Reconciliation can replace services and invalidate IDs during an update.
+            # Keep existing agents running while their controller is paused.
+            compose "$INCOMING/release.env" stop orchestrator
             . "$INCOMING/release.env"
             for service in $(docker service ls --filter label=com.nodemetrics.instance --format '{{.ID}}'); do
               old_image=$(docker service inspect --format '{{.Spec.TaskTemplate.ContainerSpec.Image}}' "$service")
@@ -316,6 +322,7 @@ jobs:
               state=$(docker service inspect --format '{{if .UpdateStatus}}{{.UpdateStatus.State}}{{end}}' "$service")
               test "$state" = completed
             done
+            compose "$INCOMING/release.env" start orchestrator
             chmod a+rx "$ROOT" "$ROOT/incoming" "$INCOMING"
             chmod -R a+rX "$INCOMING/frontend"
             ln -s "$INCOMING/frontend" "$FRONT.next"
