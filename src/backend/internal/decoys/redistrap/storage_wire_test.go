@@ -26,7 +26,7 @@ func TestRedisWireRejectsStorageExhaustionAndKeepsServing(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(runtime.Stop)
-	conn, err := net.DialTimeout("tcp", runtime.listener.Addr().String(), time.Second)
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort("127.0.0.1", fmt.Sprint(port)), time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}

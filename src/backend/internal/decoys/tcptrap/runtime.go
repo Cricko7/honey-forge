@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"sync"
 	"time"
 
 	"honey-forge/internal/contract"
 	"honey-forge/internal/decoys/camouflage"
+	"honey-forge/internal/decoys/internal/tcpserver"
 	"honey-forge/internal/platform/traffic"
 	"honey-forge/modules/events"
 	"honey-forge/modules/profiles"
@@ -20,15 +20,10 @@ import (
 
 type Sink func(context.Context, events.AgentEvent) error
 
-type Runtime struct {
-	cancel      context.CancelFunc
-	listeners   []net.Listener
-	wg          sync.WaitGroup
-	mu          sync.Mutex
-	connections map[net.Conn]bool
-	failure     error
-	done        chan struct{}
-}
+type Runtime struct{ server *tcpserver.Server }
+
+func (r *Runtime) Stop()      { r.server.Stop() }
+func (r *Runtime) Err() error { return r.server.Err() }
 
 // Start binds every listener before reporting success. No partial launch is kept.
 func Start(ctx context.Context, snapshot profiles.Snapshot, host string, sink Sink) (*Runtime, error) {
@@ -39,85 +34,21 @@ func Start(ctx context.Context, snapshot profiles.Snapshot, host string, sink Si
 	if sink == nil {
 		return nil, fmt.Errorf("telemetry sink is required")
 	}
-	ctx, cancel := context.WithCancel(ctx)
-	r := &Runtime{cancel: cancel, connections: map[net.Conn]bool{}, done: make(chan struct{})}
+	listeners := make([]tcpserver.Listener, 0, len(config.Listeners))
 	for _, l := range config.Listeners {
 		listener, err := traffic.Listen(ctx, "tcp", net.JoinHostPort(host, fmtPort(l.Port)))
 		if err != nil {
-			cancel()
-			for _, bound := range r.listeners {
-				bound.Close()
+			for _, bound := range listeners {
+				_ = bound.Listener.Close()
 			}
 			return nil, fmt.Errorf("bind TCP listener: %w", err)
 		}
-		r.listeners = append(r.listeners, listener)
+		listeners = append(listeners, tcpserver.Listener{Listener: listener, Serve: func(ctx context.Context, conn net.Conn) error {
+			return serve(ctx, conn, l, config, snapshot, sink)
+		}})
 	}
-	stop := context.AfterFunc(ctx, func() { r.closeConnections() })
-	sessions := make(chan struct{}, 64)
-	for i, l := range config.Listeners {
-		bound := r.listeners[i]
-		r.wg.Go(func() {
-			for {
-				conn, err := bound.Accept()
-				if err != nil {
-					if ctx.Err() == nil {
-						r.fail(err)
-					}
-					return
-				}
-				select {
-				case sessions <- struct{}{}:
-				case <-ctx.Done():
-					conn.Close()
-					return
-				}
-				r.mu.Lock()
-				if ctx.Err() != nil {
-					<-sessions
-					r.mu.Unlock()
-					conn.Close()
-					return
-				}
-				r.connections[conn] = true
-				r.mu.Unlock()
-				// Bound concurrent sessions; each handler exits on idle timeout or cancellation.
-				r.wg.Go(func() {
-					defer func() { <-sessions }()
-					defer func() { conn.Close(); r.mu.Lock(); delete(r.connections, conn); r.mu.Unlock() }()
-					if err := serve(ctx, conn, l, config, snapshot, sink); err != nil {
-						r.fail(err)
-					}
-				})
-			}
-		})
-	}
-	go func() { r.wg.Wait(); stop(); close(r.done) }()
-	return r, nil
+	return &Runtime{tcpserver.Start(ctx, listeners, 64)}, nil
 }
-
-func (r *Runtime) closeConnections() {
-	for _, l := range r.listeners {
-		l.Close()
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	for conn := range r.connections {
-		conn.Close()
-	}
-}
-
-func (r *Runtime) fail(err error) {
-	r.mu.Lock()
-	if r.failure == nil {
-		r.failure = err
-	}
-	r.mu.Unlock()
-	r.cancel()
-}
-
-func (r *Runtime) Err() error { r.mu.Lock(); defer r.mu.Unlock(); return r.failure }
-
-func (r *Runtime) Stop() { r.cancel(); <-r.done }
 
 func serve(ctx context.Context, conn net.Conn, l Listener, config Config, snapshot profiles.Snapshot, sink Sink) error {
 	source, ok := conn.RemoteAddr().(*net.TCPAddr)

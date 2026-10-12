@@ -22,36 +22,94 @@ type Runtime interface {
 
 type Starter func(context.Context, profiles.Snapshot, string, func(context.Context, events.AgentEvent) error) (Runtime, error)
 
-func Select(snapshot profiles.Snapshot) (Starter, error) {
-	switch {
-	case snapshot.TypeID == "ssh-high-interaction" && snapshot.TypeVersion == 1:
-		return func(ctx context.Context, snapshot profiles.Snapshot, host string, sink func(context.Context, events.AgentEvent) error) (Runtime, error) {
-			return sshtrap.Start(ctx, snapshot, host, sshtrap.Sink(sink))
-		}, nil
-	case snapshot.TypeID == "honeytoken-http" && snapshot.TypeVersion == 1:
-		return func(ctx context.Context, snapshot profiles.Snapshot, host string, sink func(context.Context, events.AgentEvent) error) (Runtime, error) {
-			return honeytrap.Start(ctx, snapshot, host, honeytrap.Sink(sink))
-		}, nil
-	case snapshot.TypeID == "tcp-banner" && snapshot.TypeVersion == 1:
-		return func(ctx context.Context, snapshot profiles.Snapshot, host string, sink func(context.Context, events.AgentEvent) error) (Runtime, error) {
+// Runtime registration is the single source for selection, advertised types,
+// and exposed ports. Protocol configuration stays in its owning package.
+type definition struct {
+	typeID  string
+	version int32
+	start   Starter
+	ports   func(context.Context, profiles.Snapshot) ([]int, error)
+}
+
+var builtins = []definition{
+	{
+		typeID: "tcp-banner", version: 1,
+		start: func(ctx context.Context, snapshot profiles.Snapshot, host string, sink func(context.Context, events.AgentEvent) error) (Runtime, error) {
 			return tcptrap.Start(ctx, snapshot, host, tcptrap.Sink(sink))
-		}, nil
-	case snapshot.TypeID == "redis-emulator" && snapshot.TypeVersion == 1:
-		return func(ctx context.Context, snapshot profiles.Snapshot, host string, sink func(context.Context, events.AgentEvent) error) (Runtime, error) {
+		},
+		ports: func(ctx context.Context, snapshot profiles.Snapshot) ([]int, error) {
+			config, err := tcptrap.ParseConfig(ctx, snapshot)
+			if err != nil {
+				return nil, err
+			}
+			ports := make([]int, 0, len(config.Listeners))
+			for _, listener := range config.Listeners {
+				ports = append(ports, listener.Port)
+			}
+			return ports, nil
+		},
+	},
+	{
+		typeID: "redis-emulator", version: 1,
+		start: func(ctx context.Context, snapshot profiles.Snapshot, host string, sink func(context.Context, events.AgentEvent) error) (Runtime, error) {
 			return redistrap.Start(ctx, snapshot, host, redistrap.Sink(sink))
-		}, nil
-	default:
-		return nil, fmt.Errorf("unsupported trap type %q version %d", snapshot.TypeID, snapshot.TypeVersion)
+		},
+		ports: func(ctx context.Context, snapshot profiles.Snapshot) ([]int, error) {
+			config, err := redistrap.ParseConfig(ctx, snapshot)
+			if err != nil {
+				return nil, err
+			}
+			return []int{config.Services[0].Port}, nil
+		},
+	},
+	{
+		typeID: "honeytoken-http", version: 1,
+		start: func(ctx context.Context, snapshot profiles.Snapshot, host string, sink func(context.Context, events.AgentEvent) error) (Runtime, error) {
+			return honeytrap.Start(ctx, snapshot, host, honeytrap.Sink(sink))
+		},
+		ports: func(ctx context.Context, snapshot profiles.Snapshot) ([]int, error) {
+			config, err := honeytrap.ParseConfig(ctx, snapshot)
+			if err != nil {
+				return nil, err
+			}
+			return []int{config.Services[0].Port}, nil
+		},
+	},
+	{
+		typeID: "ssh-high-interaction", version: 1,
+		start: func(ctx context.Context, snapshot profiles.Snapshot, host string, sink func(context.Context, events.AgentEvent) error) (Runtime, error) {
+			return sshtrap.Start(ctx, snapshot, host, sshtrap.Sink(sink))
+		},
+		ports: func(ctx context.Context, snapshot profiles.Snapshot) ([]int, error) {
+			config, err := sshtrap.ParseConfig(ctx, snapshot)
+			if err != nil {
+				return nil, err
+			}
+			return []int{config.Services[0].Port}, nil
+		},
+	},
+}
+
+func lookup(snapshot profiles.Snapshot) (definition, error) {
+	for _, entry := range builtins {
+		if entry.typeID == snapshot.TypeID && entry.version == snapshot.TypeVersion {
+			return entry, nil
+		}
 	}
+	return definition{}, fmt.Errorf("unsupported trap type %q version %d", snapshot.TypeID, snapshot.TypeVersion)
+}
+
+func Select(snapshot profiles.Snapshot) (Starter, error) {
+	entry, err := lookup(snapshot)
+	return entry.start, err
 }
 
 func SupportedTypes() []agentws.SupportedType {
-	return []agentws.SupportedType{
-		{TypeID: "tcp-banner", TypeVersion: 1, Actions: []string{"start", "stop", "apply_config"}},
-		{TypeID: "redis-emulator", TypeVersion: 1, Actions: []string{"start", "stop", "apply_config"}},
-		{TypeID: "honeytoken-http", TypeVersion: 1, Actions: []string{"start", "stop", "apply_config"}},
-		{TypeID: "ssh-high-interaction", TypeVersion: 1, Actions: []string{"start", "stop", "apply_config"}},
+	types := make([]agentws.SupportedType, 0, len(builtins))
+	for _, entry := range builtins {
+		types = append(types, agentws.SupportedType{TypeID: entry.typeID, TypeVersion: entry.version, Actions: []string{"start", "stop", "apply_config"}})
 	}
+	return types
 }
 
 func ForType(typeID string) ([]agentws.SupportedType, error) {
@@ -69,36 +127,9 @@ func ForType(typeID string) ([]agentws.SupportedType, error) {
 
 // Ports validates the exact snapshot and returns ports exposed by its runtime.
 func Ports(ctx context.Context, snapshot profiles.Snapshot) ([]int, error) {
-	switch {
-	case snapshot.TypeID == "ssh-high-interaction" && snapshot.TypeVersion == 1:
-		config, err := sshtrap.ParseConfig(ctx, snapshot)
-		if err != nil {
-			return nil, err
-		}
-		return []int{config.Services[0].Port}, nil
-	case snapshot.TypeID == "honeytoken-http" && snapshot.TypeVersion == 1:
-		config, err := honeytrap.ParseConfig(ctx, snapshot)
-		if err != nil {
-			return nil, err
-		}
-		return []int{config.Services[0].Port}, nil
-	case snapshot.TypeID == "tcp-banner" && snapshot.TypeVersion == 1:
-		config, err := tcptrap.ParseConfig(ctx, snapshot)
-		if err != nil {
-			return nil, err
-		}
-		ports := make([]int, 0, len(config.Listeners))
-		for _, listener := range config.Listeners {
-			ports = append(ports, listener.Port)
-		}
-		return ports, nil
-	case snapshot.TypeID == "redis-emulator" && snapshot.TypeVersion == 1:
-		config, err := redistrap.ParseConfig(ctx, snapshot)
-		if err != nil {
-			return nil, err
-		}
-		return []int{config.Services[0].Port}, nil
-	default:
-		return nil, fmt.Errorf("unsupported trap type %q version %d", snapshot.TypeID, snapshot.TypeVersion)
+	entry, err := lookup(snapshot)
+	if err != nil {
+		return nil, err
 	}
+	return entry.ports(ctx, snapshot)
 }

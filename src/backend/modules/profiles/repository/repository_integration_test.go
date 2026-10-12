@@ -5,74 +5,21 @@ package repository
 import (
 	"context"
 	"errors"
-	profilescore "honey-forge/modules/profiles"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
-	"time"
+
+	profilescore "honey-forge/modules/profiles"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"honey-forge/internal/testpostgres"
 )
 
 func profilePool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	dsn := os.Getenv("TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("TEST_DATABASE_URL is required")
-	}
-
-	root, e := pgxpool.New(t.Context(), dsn)
-	if e != nil {
-		t.Fatal(e)
-	}
-
-	schema := "profiles_test_" + strings.ReplaceAll(newID(), "-", "")
-	if _, e := root.Exec(t.Context(), "CREATE SCHEMA "+pgx.Identifier{schema}.Sanitize()); e != nil {
-		root.Close()
-		t.Fatal(e)
-	}
-
-	cfg, e := pgxpool.ParseConfig(dsn)
-	if e != nil {
-		t.Fatal(e)
-	}
-
-	cfg.ConnConfig.RuntimeParams["search_path"] = schema
-	pool, e := pgxpool.NewWithConfig(t.Context(), cfg)
-	if e != nil {
-		t.Fatal(e)
-	}
-
-	t.Cleanup(func() {
-		pool.Close()
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if _, e := root.Exec(ctx, "DROP SCHEMA "+pgx.Identifier{schema}.Sanitize()+" CASCADE"); e != nil {
-			t.Error(e)
-		}
-
-		root.Close()
-	})
-	files, e := filepath.Glob(filepath.Join("..", "..", "..", "..", "..", "migrations", "*.sql"))
-	if e != nil {
-		t.Fatal(e)
-	}
-
-	for _, file := range files {
-		raw, e := os.ReadFile(file)
-		if e != nil {
-			t.Fatal(e)
-		}
-
-		up := strings.TrimPrefix(strings.Split(string(raw), "-- +goose Down")[0], "-- +goose Up")
-		if e := pgx.BeginFunc(t.Context(), pool, func(tx pgx.Tx) error { _, e := tx.Exec(t.Context(), up); return e }); e != nil {
-			t.Fatalf("migration %s: %v", file, e)
-		}
-	}
-
+	pool := testpostgres.New(t).Migrate(t, "../../../../../migrations")
 	if _, e := pool.Exec(t.Context(), `INSERT INTO organizations(id,name,join_code) VALUES($1,'Demo','0123456789abcdefghijklmnopqrstuv')`, orgID); e != nil {
 		t.Fatal(e)
 	}

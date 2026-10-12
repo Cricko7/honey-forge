@@ -7,10 +7,11 @@ import (
 	"fmt"
 	"sort"
 
-	"honey-forge/internal/platform/httpx"
+	"honey-forge/internal/platform/jsonvalue"
+	"honey-forge/internal/platform/validation"
 )
 
-func Canonical(v any) ([]byte, error) { return httpx.CanonicalJSON(v) }
+func Canonical(v any) ([]byte, error) { return jsonvalue.Canonical(v) }
 
 func EqualJSON(a, b any) bool {
 	x, e := Canonical(a)
@@ -116,7 +117,7 @@ func PatchConfig(typ Type, p Profile, req PatchRequest) (Object, error) {
 		if typ.IsSecretPath == nil || !typ.IsSecretPath(path) {
 			return nil, &ValidationError{
 				ErrValidation,
-				[]httpx.FieldError{{
+				[]validation.FieldError{{
 					Path:    "/clear_secret_fields",
 					Code:    "invalid_secret_path",
 					Message: "Expected a writeOnly field path",

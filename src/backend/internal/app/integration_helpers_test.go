@@ -3,23 +3,17 @@
 package app
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
-	"os"
 	"strings"
 	"testing"
-	"time"
-
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"honey-forge/internal/contract"
+	"honey-forge/internal/testpostgres"
 	"honey-forge/modules/auth"
 	"honey-forge/modules/catalog"
 	"honey-forge/modules/events"
@@ -50,42 +44,7 @@ func openIntegrationRuntimeWithOptions(t *testing.T, definitions []catalog.Defin
 		agentWSURL = integrationAgentURL
 	}
 
-	dsn := os.Getenv("TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("TEST_DATABASE_URL required")
-	}
-
-	pool, err := pgxpool.New(t.Context(), dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(pool.Close)
-
-	schema := "operator_" + strings.ReplaceAll(string(contract.NewID()), "-", "")
-	quoted := pgx.Identifier{schema}.Sanitize()
-	if _, err := pool.Exec(t.Context(), "CREATE SCHEMA "+quoted); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		if _, err := pool.Exec(ctx, "DROP SCHEMA "+quoted+" CASCADE"); err != nil {
-			t.Errorf("drop integration schema: %v", err)
-		}
-	})
-
-	schemaDSN := dsn + " search_path=" + schema
-	if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
-		databaseURL, err := url.Parse(dsn)
-		if err != nil {
-			t.Fatal(err)
-		}
-		query := databaseURL.Query()
-		query.Set("search_path", schema)
-		databaseURL.RawQuery = query.Encode()
-		schemaDSN = databaseURL.String()
-	}
+	schema := testpostgres.New(t)
 
 	var agentClientCA string
 	if len(clientCA) > 0 {
@@ -93,7 +52,7 @@ func openIntegrationRuntimeWithOptions(t *testing.T, definitions []catalog.Defin
 	}
 	runtime, err := Open(t.Context(), Config{
 		AgentClientCAFile:  agentClientCA,
-		DatabaseURL:        schemaDSN,
+		DatabaseURL:        schema.DSN,
 		CursorKey:          []byte("integration-cursor-key-32-bytes!"),
 		BrowserOrigins:     []string{integrationOrigin},
 		PublicOrigin:       integrationOrigin,

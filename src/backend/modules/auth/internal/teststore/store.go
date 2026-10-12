@@ -1,12 +1,14 @@
-package http
+// Package teststore provides the shared in-memory fixture for this feature's tests.
+package teststore
 
 import (
 	"context"
 	"encoding/hex"
-	authcore "honey-forge/modules/auth"
 	"math"
 	"sync"
 	"time"
+
+	authcore "honey-forge/modules/auth"
 )
 
 type storedUser struct {
@@ -20,28 +22,28 @@ type storedOrg struct {
 	code authcore.JoinCode
 }
 
-type memoryStore struct {
+type Store struct {
 	mu       sync.Mutex
 	users    map[string]storedUser
 	orgs     map[string]storedOrg
-	sessions map[string]authcore.Session
-	err      error
+	Sessions map[string]authcore.Session
+	Err      error
 }
 
-func newMemoryStore() *memoryStore {
-	return &memoryStore{
+func New() *Store {
+	return &Store{
 		users:    make(map[string]storedUser),
 		orgs:     make(map[string]storedOrg),
-		sessions: make(map[string]authcore.Session),
+		Sessions: make(map[string]authcore.Session),
 	}
 }
 
-func (m *memoryStore) Register(_ context.Context, user authcore.User, org authcore.Organization, input authcore.OrganizationInput, hash string, sess authcore.Session, code authcore.JoinCode) (authcore.Organization, error) {
+func (m *Store) Register(_ context.Context, user authcore.User, org authcore.Organization, input authcore.OrganizationInput, hash string, sess authcore.Session, code authcore.JoinCode) (authcore.Organization, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.err != nil {
-		return authcore.Organization{}, m.err
+	if m.Err != nil {
+		return authcore.Organization{}, m.Err
 	}
 	if _, exists := m.users[user.Email]; exists {
 		return authcore.Organization{}, authcore.ErrEmailTaken
@@ -65,17 +67,17 @@ func (m *memoryStore) Register(_ context.Context, user authcore.User, org authco
 	}
 
 	m.users[user.Email] = storedUser{user, org, hash}
-	m.sessions[hex.EncodeToString(sess.Hash)] = sess
+	m.Sessions[hex.EncodeToString(sess.Hash)] = sess
 
 	return org, nil
 }
 
-func (m *memoryStore) Credentials(_ context.Context, email string) (authcore.User, authcore.Organization, string, error) {
+func (m *Store) Credentials(_ context.Context, email string) (authcore.User, authcore.Organization, string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.err != nil {
-		return authcore.User{}, authcore.Organization{}, "", m.err
+	if m.Err != nil {
+		return authcore.User{}, authcore.Organization{}, "", m.Err
 	}
 	record, ok := m.users[email]
 	if !ok {
@@ -85,28 +87,28 @@ func (m *memoryStore) Credentials(_ context.Context, email string) (authcore.Use
 	return record.user, record.org, record.hash, nil
 }
 
-func (m *memoryStore) CreateSession(_ context.Context, sess authcore.Session, old []byte) error {
+func (m *Store) CreateSession(_ context.Context, sess authcore.Session, old []byte) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.err != nil {
-		return m.err
+	if m.Err != nil {
+		return m.Err
 	}
 
-	delete(m.sessions, hex.EncodeToString(old))
-	m.sessions[hex.EncodeToString(sess.Hash)] = sess
+	delete(m.Sessions, hex.EncodeToString(old))
+	m.Sessions[hex.EncodeToString(sess.Hash)] = sess
 
 	return nil
 }
 
-func (m *memoryStore) ResolveSession(_ context.Context, hash []byte) (authcore.ResolvedSession, error) {
+func (m *Store) ResolveSession(_ context.Context, hash []byte) (authcore.ResolvedSession, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.err != nil {
-		return authcore.ResolvedSession{}, m.err
+	if m.Err != nil {
+		return authcore.ResolvedSession{}, m.Err
 	}
-	sess, ok := m.sessions[hex.EncodeToString(hash)]
+	sess, ok := m.Sessions[hex.EncodeToString(hash)]
 	if !ok || !sess.ExpiresAt.After(time.Now()) {
 		return authcore.ResolvedSession{}, authcore.ErrNotFound
 	}
@@ -123,39 +125,39 @@ func (m *memoryStore) ResolveSession(_ context.Context, hash []byte) (authcore.R
 	return authcore.ResolvedSession{}, authcore.ErrNotFound
 }
 
-func (m *memoryStore) RevokeSession(_ context.Context, hash []byte) error {
+func (m *Store) RevokeSession(_ context.Context, hash []byte) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.err != nil {
-		return m.err
+	if m.Err != nil {
+		return m.Err
 	}
 
-	delete(m.sessions, hex.EncodeToString(hash))
+	delete(m.Sessions, hex.EncodeToString(hash))
 
 	return nil
 }
 
-func (m *memoryStore) Organization(_ context.Context, id string) (authcore.Organization, error) {
+func (m *Store) Organization(_ context.Context, id string) (authcore.Organization, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	return m.orgs[id].org, m.err
+	return m.orgs[id].org, m.Err
 }
 
-func (m *memoryStore) JoinCode(_ context.Context, id string) (authcore.JoinCode, error) {
+func (m *Store) JoinCode(_ context.Context, id string) (authcore.JoinCode, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	return m.orgs[id].code, m.err
+	return m.orgs[id].code, m.Err
 }
 
-func (m *memoryStore) RotateJoinCode(_ context.Context, actor authcore.AuthContext, expected int32, next authcore.JoinCode) (authcore.JoinCode, error) {
+func (m *Store) RotateJoinCode(_ context.Context, actor authcore.AuthContext, expected int32, next authcore.JoinCode) (authcore.JoinCode, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.err != nil {
-		return authcore.JoinCode{}, m.err
+	if m.Err != nil {
+		return authcore.JoinCode{}, m.Err
 	}
 
 	record := m.orgs[actor.OrganizationID]

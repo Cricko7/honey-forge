@@ -3,13 +3,14 @@ package service
 import (
 	"context"
 	"errors"
-	profilecore "honey-forge/modules/profiles"
 	"math"
 	"strings"
 	"sync"
 	"testing"
 
-	"github.com/jackc/pgx/v5"
+	profilecore "honey-forge/modules/profiles"
+	"honey-forge/modules/profiles/internal/teststore"
+
 	"honey-forge/modules/auth"
 )
 
@@ -34,8 +35,8 @@ func request() profilecore.CreateRequest {
 	}
 }
 
-func testService() (*Service, *fakeStore) {
-	store := &fakeStore{profiles: map[string]profilecore.Profile{}, keys: map[string]fakeKey{}, snapshots: map[string]profilecore.Profile{}}
+func testService() (*Service, *teststore.Store) {
+	store := teststore.New()
 	deps := profilecore.Dependencies{
 		LookupType: func(ctx context.Context, id string, version int32) (profilecore.Type, error) {
 			if err := ctx.Err(); err != nil {
@@ -62,7 +63,6 @@ func testService() (*Service, *fakeStore) {
 				},
 			}, nil
 		},
-		HasLiveBindings: func(ctx context.Context, org, id string, tx pgx.Tx) (bool, error) { return false, ctx.Err() },
 	}
 
 	return NewService(store, deps), store
@@ -84,7 +84,7 @@ func TestServiceCreate(t *testing.T) {
 		t.Fatal("secret leaked")
 	}
 
-	if store.writes != 1 {
+	if store.Writes != 1 {
 		t.Fatal("missing mutation")
 	}
 
@@ -96,7 +96,7 @@ func TestServiceCreate(t *testing.T) {
 
 	replay, err := s.Create(t.Context(), admin, request())
 	if err != nil || !replay.Replayed || replay.Current || replay.Profile.Name != "Demo" ||
-		replay.Profile.Revision != 1 || store.writes != 2 {
+		replay.Profile.Revision != 1 || store.Writes != 2 {
 		t.Fatalf("replay: %#v %v", replay, err)
 	}
 
@@ -143,7 +143,7 @@ func TestServicePatchSecretsAndNoop(t *testing.T) {
 	}
 
 	noop, err := s.Patch(t.Context(), admin, p.ID, profilecore.ETag(updated), profilecore.PatchRequest{Config: profilecore.Object{"visible": "two"}})
-	if err != nil || noop.Revision != 2 || store.writes != 2 {
+	if err != nil || noop.Revision != 2 || store.Writes != 2 {
 		t.Fatalf("noop: %#v %v", noop, err)
 	}
 
@@ -227,7 +227,7 @@ func TestServiceFailures(t *testing.T) {
 				t.Fatalf("error=%v want=%v", e, tc.want)
 			}
 
-			if store.writes != 1 {
+			if store.Writes != 1 {
 				t.Fatal("failed request changed state")
 			}
 		})
@@ -241,12 +241,12 @@ func TestServiceDependenciesAndConcurrency(t *testing.T) {
 		t.Fatal(e)
 	}
 
-	s.deps.HasLiveBindings = func(context.Context, string, string, pgx.Tx) (bool, error) { return true, nil }
+	store.Bindings = func(context.Context) (bool, error) { return true, nil }
 	if e := s.Delete(t.Context(), admin, c.Profile.ID, profilecore.ETag(c.Profile)); !errors.Is(e, profilecore.ErrInUse) {
 		t.Fatalf("binding=%v", e)
 	}
 
-	s.deps.HasLiveBindings = func(context.Context, string, string, pgx.Tx) (bool, error) {
+	store.Bindings = func(context.Context) (bool, error) {
 		return false, errors.New("bindings offline")
 	}
 
@@ -254,9 +254,9 @@ func TestServiceDependenciesAndConcurrency(t *testing.T) {
 		t.Fatal("dependency failure accepted")
 	}
 
-	store.profiles[c.Profile.ID] = func() profilecore.Profile { p := store.profiles[c.Profile.ID]; p.Revision = math.MaxInt32; return p }()
+	store.Profiles[c.Profile.ID] = func() profilecore.Profile { p := store.Profiles[c.Profile.ID]; p.Revision = math.MaxInt32; return p }()
 	if _, e := s.Patch(t.Context(), admin, c.Profile.ID,
-		profilecore.ETag(store.profiles[c.Profile.ID]), profilecore.PatchRequest{Name: ptr("X")}); !errors.Is(e, profilecore.ErrRevisionExhausted) {
+		profilecore.ETag(store.Profiles[c.Profile.ID]), profilecore.PatchRequest{Name: ptr("X")}); !errors.Is(e, profilecore.ErrRevisionExhausted) {
 		t.Fatalf("overflow=%v", e)
 	}
 
@@ -275,7 +275,7 @@ func TestServiceDependenciesAndConcurrency(t *testing.T) {
 		}
 	}
 
-	if len(store.profiles) != 1 || store.writes != 1 {
+	if len(store.Profiles) != 1 || store.Writes != 1 {
 		t.Fatal("duplicate concurrent creates")
 	}
 }

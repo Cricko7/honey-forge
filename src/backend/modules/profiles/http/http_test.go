@@ -3,7 +3,6 @@ package http
 import (
 	"context"
 	"encoding/json"
-	"github.com/jackc/pgx/v5"
 	"io"
 	"log/slog"
 	"net/http"
@@ -11,7 +10,10 @@ import (
 	"strings"
 	"testing"
 
+	"honey-forge/modules/profiles/internal/teststore"
+
 	"github.com/gin-gonic/gin"
+
 	"honey-forge/modules/auth"
 	profilecore "honey-forge/modules/profiles"
 	profileservice "honey-forge/modules/profiles/service"
@@ -208,10 +210,10 @@ var admin = auth.AuthContext{UserID: userID, OrganizationID: orgID, Role: auth.R
 func request() profilecore.CreateRequest {
 	return profilecore.CreateRequest{RequestID: requestID, Name: "Demo", TypeID: "demo", TypeVersion: 1, Config: profilecore.Object{"visible": "one", "credentials": profilecore.Object{"password": "private"}}}
 }
-func testService() (*profileservice.Service, *fakeStore) {
-	store := &fakeStore{profiles: map[string]profilecore.Profile{}, keys: map[string]fakeKey{}, snapshots: map[string]profilecore.Profile{}}
+func testService() (*profileservice.Service, *teststore.Store) {
+	store := teststore.New()
 	deps := profilecore.Dependencies{LookupType: func(ctx context.Context, id string, version int32) (profilecore.Type, error) {
 		return profilecore.Type{InteractionLevel: "low", AvailableForNewProfiles: true, SecretPaths: func(profilecore.Object) []string { return []string{"/credentials/password"} }, IsSecretPath: func(p string) bool { return p == "/credentials/password" }, CheckConfig: func(ctx context.Context, _ profilecore.Object) error { return ctx.Err() }}, nil
-	}, HasLiveBindings: func(ctx context.Context, _, _ string, _ pgx.Tx) (bool, error) { return false, ctx.Err() }}
+	}}
 	return profileservice.NewService(store, deps), store
 }

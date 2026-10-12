@@ -15,6 +15,9 @@ import type {
 import { registrationOrganization, type RegistrationMode } from '@/lib/auth'
 import { mockApi } from './mock'
 import { subscribeDashboardStream } from './stream'
+import { ApiError, createHTTPClient } from './http'
+
+export { ApiError } from './http'
 
 // Переключатель источника данных. Пусто → mock-слой (демо хакатона).
 // Для реального backend: VITE_API_BASE=https://api.example.org
@@ -27,38 +30,7 @@ const delay = (ms = 220) => new Promise((r) => setTimeout(r, ms))
 let csrfToken = ''
 let mockSignedOut = false
 
-async function real<T>(path: string, init?: RequestInit): Promise<T> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(init?.headers as Record<string, string>),
-  }
-  const method = init?.method ?? 'GET'
-  if (method !== 'GET' && csrfToken) {
-    headers['X-CSRF-Token'] = csrfToken
-    headers['Origin'] = window.location.origin
-  }
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers,
-    credentials: 'include',
-  })
-  if (!res.ok) {
-    const body = await res.json().catch(() => null)
-    throw new ApiError(res.status, body?.error?.code ?? 'unknown', body?.error?.message ?? res.statusText)
-  }
-  if (res.status === 204) return undefined as T
-  return res.json() as Promise<T>
-}
-
-export class ApiError extends Error {
-  constructor(
-    public status: number,
-    public code: string,
-    message: string,
-  ) {
-    super(message)
-  }
-}
+const real = createHTTPClient(API_BASE, () => csrfToken)
 
 export const api = {
   async listTrapLinks(): Promise<{ items: TrapLink[] }> {

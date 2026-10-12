@@ -3,13 +3,12 @@
 package repository
 
 import (
-	"context"
-	authcore "honey-forge/modules/auth"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
+
+	"honey-forge/internal/testpostgres"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -18,49 +17,7 @@ import (
 func integrationPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 
-	dsn := os.Getenv("TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("TEST_DATABASE_URL is required for PostgreSQL integration tests")
-	}
-
-	ctx := t.Context()
-	root, err := pgxpool.New(ctx, dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	schema := "auth_test_" + strings.ReplaceAll(authcore.NewUUID(), "-", "")
-	if _, err := root.Exec(ctx, "CREATE SCHEMA "+pgx.Identifier{schema}.Sanitize()); err != nil {
-		root.Close()
-		t.Fatal(err)
-	}
-
-	config, err := pgxpool.ParseConfig(dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	config.ConnConfig.RuntimeParams["search_path"] = schema
-	config.MaxConns = 16
-
-	pool, err := pgxpool.NewWithConfig(ctx, config)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Cleanup(func() {
-		pool.Close()
-		cleanup, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		if _, err := root.Exec(cleanup, "DROP SCHEMA "+pgx.Identifier{schema}.Sanitize()+" CASCADE"); err != nil {
-			t.Errorf("cleanup schema: %v", err)
-		}
-		root.Close()
-	})
-
-	applyMigrations(t, pool, "Up")
-
-	return pool
+	return testpostgres.New(t).Migrate(t, "../../../../../migrations")
 }
 
 func applyMigrations(t *testing.T, pool *pgxpool.Pool, direction string) {

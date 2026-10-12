@@ -1,13 +1,13 @@
-package service
+// Package teststore provides the shared in-memory fixture for this feature's tests.
+package teststore
 
 import (
 	"context"
-	"encoding/json"
-	profilecore "honey-forge/modules/profiles"
 	"sort"
 	"sync"
 
-	"github.com/jackc/pgx/v5"
+	profilecore "honey-forge/modules/profiles"
+
 	"honey-forge/modules/auth"
 )
 
@@ -16,15 +16,16 @@ type fakeKey struct {
 	initial profilecore.Profile
 }
 
-type fakeStore struct {
+type Store struct {
 	mu        sync.Mutex
-	profiles  map[string]profilecore.Profile
+	Profiles  map[string]profilecore.Profile
 	keys      map[string]fakeKey
 	snapshots map[string]profilecore.Profile
-	writes    int
+	Writes    int
+	Bindings  profilecore.BindingCheck
 }
 
-func (f *fakeStore) Create(ctx context.Context, a auth.AuthContext, key string, hash [32]byte, build func() (profilecore.Profile, error)) (profilecore.CreateResult, error) {
+func (f *Store) Create(ctx context.Context, a auth.AuthContext, key string, hash [32]byte, build func() (profilecore.Profile, error)) (profilecore.CreateResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if err := ctx.Err(); err != nil {
@@ -37,7 +38,7 @@ func (f *fakeStore) Create(ctx context.Context, a auth.AuthContext, key string, 
 			return profilecore.CreateResult{}, profilecore.ErrIdempotencyConflict
 		}
 
-		p, ok := f.profiles[k.initial.ID]
+		p, ok := f.Profiles[k.initial.ID]
 		if !ok {
 			return profilecore.CreateResult{}, profilecore.ErrRequestUsed
 		}
@@ -52,21 +53,21 @@ func (f *fakeStore) Create(ctx context.Context, a auth.AuthContext, key string, 
 
 	p.OrganizationID = a.OrganizationID
 	p.Sequence = int64(len(f.keys) + 1)
-	f.profiles[p.ID] = clone(p)
+	f.Profiles[p.ID] = clone(p)
 	f.keys[key] = fakeKey{hash, clone(p)}
 	f.snapshots[profilecore.ETag(p)] = clone(p)
-	f.writes++
+	f.Writes++
 	return profilecore.CreateResult{Profile: clone(p), Current: true}, nil
 }
 
-func (f *fakeStore) ReadProfile(ctx context.Context, org, id string) (profilecore.Profile, error) {
+func (f *Store) ReadProfile(ctx context.Context, org, id string) (profilecore.Profile, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if e := ctx.Err(); e != nil {
 		return profilecore.Profile{}, e
 	}
 
-	p, ok := f.profiles[id]
+	p, ok := f.Profiles[id]
 	if !ok || p.OrganizationID != org {
 		return profilecore.Profile{}, profilecore.ErrNotFound
 	}
@@ -74,14 +75,14 @@ func (f *fakeStore) ReadProfile(ctx context.Context, org, id string) (profilecor
 	return clone(p), nil
 }
 
-func (f *fakeStore) Update(ctx context.Context, a auth.AuthContext, id string, update func(profilecore.Profile) (profilecore.Profile, []string, error)) (profilecore.Profile, error) {
+func (f *Store) Update(ctx context.Context, a auth.AuthContext, id string, update func(profilecore.Profile) (profilecore.Profile, []string, error)) (profilecore.Profile, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if e := ctx.Err(); e != nil {
 		return profilecore.Profile{}, e
 	}
 
-	p, ok := f.profiles[id]
+	p, ok := f.Profiles[id]
 	if !ok || p.OrganizationID != a.OrganizationID {
 		return profilecore.Profile{}, profilecore.ErrNotFound
 	}
@@ -92,36 +93,36 @@ func (f *fakeStore) Update(ctx context.Context, a auth.AuthContext, id string, u
 	}
 
 	if len(fields) > 0 {
-		f.profiles[id] = clone(n)
+		f.Profiles[id] = clone(n)
 		f.snapshots[profilecore.ETag(n)] = clone(n)
-		f.writes++
+		f.Writes++
 	}
 
 	return clone(n), nil
 }
 
-func (f *fakeStore) Delete(ctx context.Context, a auth.AuthContext, id string, check func(profilecore.Profile, pgx.Tx) error) error {
+func (f *Store) Delete(ctx context.Context, a auth.AuthContext, id string, check func(profilecore.Profile, profilecore.BindingCheck) error) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if e := ctx.Err(); e != nil {
 		return e
 	}
 
-	p, ok := f.profiles[id]
+	p, ok := f.Profiles[id]
 	if !ok || p.OrganizationID != a.OrganizationID {
 		return profilecore.ErrNotFound
 	}
 
-	if e := check(clone(p), nil); e != nil {
+	if e := check(clone(p), f.Bindings); e != nil {
 		return e
 	}
 
-	delete(f.profiles, id)
-	f.writes++
+	delete(f.Profiles, id)
+	f.Writes++
 	return nil
 }
 
-func (f *fakeStore) ReadSnapshot(ctx context.Context, org, id string, revision int32) (profilecore.Snapshot, error) {
+func (f *Store) ReadSnapshot(ctx context.Context, org, id string, revision int32) (profilecore.Snapshot, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if e := ctx.Err(); e != nil {
@@ -136,7 +137,7 @@ func (f *fakeStore) ReadSnapshot(ctx context.Context, org, id string, revision i
 	return profilecore.SnapshotOf(clone(p)), nil
 }
 
-func (f *fakeStore) List(ctx context.Context, org string, q profilecore.ListQuery) ([]profilecore.Profile, int64, error) {
+func (f *Store) List(ctx context.Context, org string, q profilecore.ListQuery) ([]profilecore.Profile, int64, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if e := ctx.Err(); e != nil {
@@ -148,7 +149,7 @@ func (f *fakeStore) List(ctx context.Context, org string, q profilecore.ListQuer
 	}
 
 	items := []profilecore.Profile{}
-	for _, p := range f.profiles {
+	for _, p := range f.Profiles {
 		if p.OrganizationID != org || p.Sequence > q.Boundary || q.TypeID != "" && p.TypeID != q.TypeID {
 			continue
 		}
@@ -170,17 +171,12 @@ func (f *fakeStore) List(ctx context.Context, org string, q profilecore.ListQuer
 	return items[:min(len(items), q.Limit+1)], q.Boundary, nil
 }
 
-func mustJSON(v any) string {
-	b, e := json.Marshal(v)
-	if e != nil {
-		panic(e)
-	}
-
-	return string(b)
-}
-
 func clone(p profilecore.Profile) profilecore.Profile {
 	p.Config = profilecore.CloneObject(p.Config)
 	p.SecretFieldsSet = append([]string{}, p.SecretFieldsSet...)
 	return p
+}
+
+func New() *Store {
+	return &Store{Profiles: map[string]profilecore.Profile{}, keys: map[string]fakeKey{}, snapshots: map[string]profilecore.Profile{}, Bindings: func(ctx context.Context) (bool, error) { return false, ctx.Err() }}
 }

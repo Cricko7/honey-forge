@@ -96,8 +96,6 @@ func testRouter(t *testing.T, store *testStore, role string) *gin.Engine {
 }
 
 func TestHTTPCreateReadAndReplay(t *testing.T) {
-	store := &testStore{}
-	r := testRouter(t, store, auth.RoleAdmin)
 	body := `{"request_id":"` + httpKey + `","action":"stop","params":{}}`
 
 	for _, tt := range []struct {
@@ -111,6 +109,17 @@ func TestHTTPCreateReadAndReplay(t *testing.T) {
 		{"wrong command", "GET", "/api/traps/" + httpTrap + "/commands/66666666-6666-4666-8666-666666666666", "", 404},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			store := &testStore{}
+			r := testRouter(t, store, auth.RoleAdmin)
+			if tt.name != "create" {
+				setup := httptest.NewRequest("POST", "/api/traps/"+httpTrap+"/commands", strings.NewReader(body))
+				setup.Header.Set("Content-Type", "application/json")
+				created := httptest.NewRecorder()
+				r.ServeHTTP(created, setup)
+				if created.Code != 201 {
+					t.Fatalf("setup: %d %s", created.Code, created.Body.String())
+				}
+			}
 			w := httptest.NewRecorder()
 			req := httptest.NewRequest(tt.method, tt.path, strings.NewReader(tt.body))
 			if tt.body != "" {

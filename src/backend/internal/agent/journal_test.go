@@ -68,3 +68,53 @@ func TestJournalRefusesWrongAckAndIdentity(t *testing.T) {
 		t.Fatal("accepted another trap's journal")
 	}
 }
+
+func TestJournalReadResultsDoNotAliasPendingEvents(t *testing.T) {
+	for _, name := range []string{"pending", "replayed enqueue"} {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "journal")
+			j, err := OpenJournal(path, "test-trap", 1<<20)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := j.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			event := events.AgentEvent{EventID: string(contract.NewID()), SessionID: string(contract.NewID()), EventType: "tcp.connection_opened", Data: json.RawMessage(`{"listener_name":"demo"}`)}
+			batch, err := j.Enqueue(event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var read Batch
+			if name == "pending" {
+				read = j.Pending()[0]
+			} else {
+				read, err = j.Enqueue(event)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			read.Events[0].EventID = "changed"
+			read.Events[0].Data[0] = '['
+			pending := j.Pending()
+			if pending[0].Events[0].EventID != event.EventID || string(pending[0].Events[0].Data) != string(event.Data) {
+				t.Fatal("reader changed committed telemetry")
+			}
+			if err := j.Close(); err != nil {
+				t.Fatal(err)
+			}
+			j, err = OpenJournal(path, "test-trap", 1<<20)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := j.Pending()[0]; got.BatchID != batch.BatchID || got.Events[0].EventID != event.EventID || string(got.Events[0].Data) != string(event.Data) {
+				t.Fatal("journal replay differs from committed telemetry")
+			}
+			if err := j.Ack(batch.BatchID, []string{event.EventID}); err != nil {
+				t.Fatalf("original acknowledgement no longer accepted: %v", err)
+			}
+		})
+	}
+}

@@ -11,7 +11,8 @@ import (
 
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
-	"honey-forge/internal/platform/httpx"
+
+	"honey-forge/internal/platform/validation"
 )
 
 var typePattern = regexp.MustCompile(`^[a-z][a-z0-9_.-]{0,63}$`)
@@ -68,7 +69,7 @@ func ValidateRequest(req any) error {
 	if err := requestValidator.Struct(req); err != nil {
 		var fields validator.ValidationErrors
 		if errors.As(err, &fields) {
-			return &ValidationError{ErrValidation, httpx.ValidationFields(fields, reflect.TypeOf(req), "")}
+			return &ValidationError{ErrValidation, validation.Fields(fields, reflect.TypeOf(req), "")}
 		}
 
 		return fmt.Errorf("validating profile request: %w", err)

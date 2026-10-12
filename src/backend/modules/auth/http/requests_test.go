@@ -2,11 +2,13 @@ package http
 
 import (
 	"encoding/json"
-	authcore "honey-forge/modules/auth"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	authcore "honey-forge/modules/auth"
+	"honey-forge/modules/auth/internal/teststore"
 
 	"github.com/gin-gonic/gin"
 
@@ -127,7 +129,7 @@ func TestRevisionValidationBoundaries(t *testing.T) {
 }
 
 func TestMediaTypeAndBodySize(t *testing.T) {
-	router := authRouter(t, newMemoryStore())
+	router := authRouter(t, teststore.New())
 	cases := []struct {
 		name, contentType, body string
 		chunked                 bool

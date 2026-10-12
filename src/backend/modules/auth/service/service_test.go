@@ -3,12 +3,14 @@ package service
 import (
 	"encoding/hex"
 	"errors"
-	authcore "honey-forge/modules/auth"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	authcore "honey-forge/modules/auth"
+	"honey-forge/modules/auth/internal/teststore"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -21,7 +23,7 @@ func createRequest(email string) authcore.RegisterRequest {
 }
 
 func TestCreateJoinAndSessionLifecycle(t *testing.T) {
-	repo := newMemoryStore()
+	repo := teststore.New()
 	service := NewService(repo)
 	ctx := t.Context()
 
@@ -113,7 +115,7 @@ func TestCreateJoinAndSessionLifecycle(t *testing.T) {
 }
 
 func TestCodeRotationConcurrentAndOldCodeRejected(t *testing.T) {
-	repo := newMemoryStore()
+	repo := teststore.New()
 	service := NewService(repo)
 	admin, raw, err := service.Register(t.Context(), createRequest("admin@example.com"), "")
 	if err != nil {
@@ -153,7 +155,7 @@ func TestCodeRotationConcurrentAndOldCodeRejected(t *testing.T) {
 }
 
 func TestSessionExpiryAndDatabaseFailures(t *testing.T) {
-	repo := newMemoryStore()
+	repo := teststore.New()
 	service := NewService(repo)
 	_, raw, err := service.Register(t.Context(), createRequest("a@example.com"), "")
 	if err != nil {
@@ -161,15 +163,15 @@ func TestSessionExpiryAndDatabaseFailures(t *testing.T) {
 	}
 
 	key := hex.EncodeToString(authcore.HashToken(raw))
-	sess := repo.sessions[key]
+	sess := repo.Sessions[key]
 	sess.ExpiresAt = time.Now().Add(-time.Second)
-	repo.sessions[key] = sess
+	repo.Sessions[key] = sess
 
 	if _, err := service.ResolveSession(t.Context(), raw); !errors.Is(err, authcore.ErrUnauthorized) {
 		t.Fatalf("expired session: %v", err)
 	}
 
-	repo.err = authcore.ErrUnavailable
+	repo.Err = authcore.ErrUnavailable
 	if _, err := service.ResolveSession(t.Context(), raw); !errors.Is(err, authcore.ErrUnavailable) {
 		t.Fatal("database outage must not turn into unauthorized")
 	}

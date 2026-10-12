@@ -5,17 +5,12 @@ package repository
 import (
 	"context"
 	"errors"
-	"net/url"
-	"os"
-	"strings"
 	"testing"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"honey-forge/internal/contract"
-	"honey-forge/internal/postgres"
+	"honey-forge/internal/testpostgres"
 	"honey-forge/modules/commands"
 )
 
@@ -62,48 +57,5 @@ func (t testTraps) Visible(ctx context.Context, org, id string) (bool, error) {
 func integrationPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 
-	dsn := os.Getenv("TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("TEST_DATABASE_URL required")
-	}
-
-	admin, err := pgxpool.New(t.Context(), dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(admin.Close)
-
-	schema := "commands_" + strings.ReplaceAll(string(contract.NewID()), "-", "")
-	quoted := pgx.Identifier{schema}.Sanitize()
-	if _, err := admin.Exec(t.Context(), "CREATE SCHEMA "+quoted); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		if _, err := admin.Exec(ctx, "DROP SCHEMA "+quoted+" CASCADE"); err != nil {
-			t.Errorf("drop integration schema: %v", err)
-		}
-	})
-
-	u, err := url.Parse(dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	query := u.Query()
-	query.Set("search_path", schema)
-	u.RawQuery = query.Encode()
-
-	pool, err := postgres.Open(t.Context(), u.String())
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(pool.Close)
-
-	if err := postgres.Migrate(t.Context(), pool, os.DirFS("../../../../../migrations")); err != nil {
-		t.Fatal(err)
-	}
-
-	return pool
+	return testpostgres.New(t).Migrate(t, "../../../../../migrations")
 }

@@ -5,14 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
 	profilecore "honey-forge/modules/profiles"
-	"net"
-	"strings"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"honey-forge/internal/platform/httpx"
+
+	"honey-forge/internal/platform/jsonvalue"
+	"honey-forge/internal/postgres"
 )
 
 type Repository struct {
@@ -42,7 +42,7 @@ func scanProfile(row pgx.Row) (profilecore.Profile, error) {
 		return p, err
 	}
 
-	p.Config, err = httpx.DecodeObject([]byte(config))
+	p.Config, err = jsonvalue.DecodeObject([]byte(config))
 	if err != nil {
 		return p, fmt.Errorf("decoding stored config: %w", err)
 	}
@@ -81,15 +81,7 @@ func databaseError(op string, err error) error {
 		return nil
 	}
 
-	var pgErr *pgconn.PgError
-	var connection *pgconn.ConnectError
-	var network net.Error
-	unavailable := errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || errors.As(err, &connection) || errors.As(err, &network) || pgconn.SafeToRetry(err)
-	if errors.As(err, &pgErr) {
-		unavailable = unavailable || strings.HasPrefix(pgErr.Code, "08") || pgErr.Code == "53300" || pgErr.Code == "57014" || strings.HasPrefix(pgErr.Code, "57P0")
-	}
-
-	if unavailable {
+	if postgres.IsUnavailable(err) {
 		return fmt.Errorf("%s: %w", op, errors.Join(profilecore.ErrDatabaseUnavailable, err))
 	}
 

@@ -14,3 +14,5 @@ type Type = profiletypes.Type
 type Dependencies = profiletypes.Dependencies
 
 type ListQuery = profiletypes.ListQuery
+
+type BindingCheck = profiletypes.BindingCheck

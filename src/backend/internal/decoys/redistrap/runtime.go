@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	"sync"
 	"time"
 
 	"honey-forge/internal/contract"
+	"honey-forge/internal/decoys/internal/tcpserver"
 	"honey-forge/internal/platform/traffic"
 	"honey-forge/modules/events"
 	"honey-forge/modules/profiles"
@@ -18,15 +18,10 @@ import (
 
 type Sink func(context.Context, events.AgentEvent) error
 
-type Runtime struct {
-	cancel      context.CancelFunc
-	listener    net.Listener
-	wg          sync.WaitGroup
-	mu          sync.Mutex
-	connections map[net.Conn]bool
-	failure     error
-	done        chan struct{}
-}
+type Runtime struct{ server *tcpserver.Server }
+
+func (r *Runtime) Stop()      { r.server.Stop() }
+func (r *Runtime) Err() error { return r.server.Err() }
 
 func Start(ctx context.Context, snapshot profiles.Snapshot, host string, sink Sink) (*Runtime, error) {
 	config, err := ParseConfig(ctx, snapshot)
@@ -36,74 +31,17 @@ func Start(ctx context.Context, snapshot profiles.Snapshot, host string, sink Si
 	if sink == nil {
 		return nil, fmt.Errorf("telemetry sink is required")
 	}
-	ctx, cancel := context.WithCancel(ctx)
 	service := config.Services[0]
 	listener, err := traffic.Listen(ctx, "tcp", net.JoinHostPort(host, strconv.Itoa(service.Port)))
 	if err != nil {
-		cancel()
 		return nil, fmt.Errorf("bind Redis service: %w", err)
 	}
-	r := &Runtime{cancel: cancel, listener: listener, connections: map[net.Conn]bool{}, done: make(chan struct{})}
 	identity := newServerIdentity(service.Port)
-	stop := context.AfterFunc(ctx, r.closeConnections)
-	sessions := make(chan struct{}, 64)
-	r.wg.Go(func() {
-		for {
-			conn, err := listener.Accept()
-			if err != nil {
-				if ctx.Err() == nil {
-					r.fail(err)
-				}
-				return
-			}
-			select {
-			case sessions <- struct{}{}:
-			case <-ctx.Done():
-				conn.Close()
-				return
-			}
-			r.mu.Lock()
-			if ctx.Err() != nil {
-				r.mu.Unlock()
-				<-sessions
-				conn.Close()
-				return
-			}
-			r.connections[conn] = true
-			r.mu.Unlock()
-			r.wg.Go(func() {
-				defer func() { <-sessions }()
-				defer func() { conn.Close(); r.mu.Lock(); delete(r.connections, conn); r.mu.Unlock() }()
-				if err := serve(ctx, conn, service.Name, service.Port, service.Password, snapshot, sink, identity); err != nil {
-					r.fail(err)
-				}
-			})
-		}
-	})
-	go func() { r.wg.Wait(); stop(); close(r.done) }()
-	return r, nil
+	listeners := []tcpserver.Listener{{Listener: listener, Serve: func(ctx context.Context, conn net.Conn) error {
+		return serve(ctx, conn, service.Name, service.Port, service.Password, snapshot, sink, identity)
+	}}}
+	return &Runtime{tcpserver.Start(ctx, listeners, 64)}, nil
 }
-
-func (r *Runtime) closeConnections() {
-	r.listener.Close()
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	for conn := range r.connections {
-		conn.Close()
-	}
-}
-
-func (r *Runtime) fail(err error) {
-	r.mu.Lock()
-	if r.failure == nil {
-		r.failure = err
-	}
-	r.mu.Unlock()
-	r.cancel()
-}
-
-func (r *Runtime) Err() error { r.mu.Lock(); defer r.mu.Unlock(); return r.failure }
-func (r *Runtime) Stop()      { r.cancel(); <-r.done }
 
 type emitter struct {
 	ctx      context.Context

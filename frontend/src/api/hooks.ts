@@ -2,20 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import type { CommandAction, EventSummary } from '@/types'
 import { api, subscribeStream } from './client'
+import { qk } from './query-keys'
 import { canManage } from '@/lib/auth'
 import { applyStreamNotification, removeDeletedTrap } from './cache'
 
-export const qk = {
-  session: ['session'] as const,
-  catalog: ['catalog'] as const,
-  profiles: ['profiles'] as const,
-  traps: (f?: object) => ['traps', f ?? {}] as const,
-  trap: (id: string) => ['trap', id] as const,
-  commands: (trapId: string) => ['commands', trapId] as const,
-  events: (f?: object) => ['events', f ?? {}] as const,
-  event: (id: string) => ['event', id] as const,
-  trapLinks: ['trap-links'] as const,
-}
+export { qk } from './query-keys'
 
 export const useSession = () => useQuery({ queryKey: qk.session, queryFn: api.getSession })
 export const useCanManage = () => canManage(useSession().data)
@@ -65,7 +56,7 @@ export function useCreateTrap() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: api.createTrap,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['traps'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.trapLists }),
   })
 }
 
@@ -75,11 +66,11 @@ export function useDeleteTrap() {
     mutationFn: ({ id, revision }: { id: string; revision: number }) => api.deleteTrap(id, revision),
     onSuccess: async (_data, { id }) => {
       await Promise.all([
-        qc.cancelQueries({ queryKey: ['traps'] }),
+        qc.cancelQueries({ queryKey: qk.trapLists }),
         qc.cancelQueries({ queryKey: qk.trap(id), exact: true }),
       ])
       removeDeletedTrap(qc, id)
-      await qc.invalidateQueries({ queryKey: ['traps'] })
+      await qc.invalidateQueries({ queryKey: qk.trapLists })
     },
   })
 }

@@ -4,13 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	authcore "honey-forge/modules/auth"
-	"net"
 	"strings"
+
+	authcore "honey-forge/modules/auth"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"honey-forge/internal/postgres"
 )
 
 type Repository struct {
@@ -99,11 +101,7 @@ func databaseError(operation string, err error) error {
 	}
 
 	var pgErr *pgconn.PgError
-	var connectErr *pgconn.ConnectError
-	var netErr net.Error
-
-	unavailable := errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) ||
-		errors.As(err, &connectErr) || errors.As(err, &netErr) || pgconn.SafeToRetry(err)
+	unavailable := postgres.IsConnectionError(err)
 
 	if errors.As(err, &pgErr) {
 		unavailable = unavailable || strings.HasPrefix(pgErr.Code, "08") ||

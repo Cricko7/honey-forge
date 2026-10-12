@@ -3,9 +3,10 @@ package httpx
 import (
 	"bytes"
 	"encoding/json"
-	"io"
 	"reflect"
 	"strings"
+
+	"honey-forge/internal/platform/jsonvalue"
 )
 
 // StrictObject checks the envelope; dynamic objects are validated by their catalog.
@@ -95,15 +96,4 @@ func uniqueKeys(d *json.Decoder) bool {
 	return err == nil
 }
 
-func DecodeObject(raw []byte) (map[string]any, error) {
-	d := json.NewDecoder(bytes.NewReader(raw))
-	d.UseNumber()
-	var object map[string]any
-	if err := d.Decode(&object); err != nil {
-		return nil, err
-	}
-	if _, err := d.Token(); err != io.EOF {
-		return nil, &json.SyntaxError{}
-	}
-	return object, nil
-}
+func DecodeObject(raw []byte) (map[string]any, error) { return jsonvalue.DecodeObject(raw) }

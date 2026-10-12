@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 
 	"honey-forge/internal/contract"
+	"honey-forge/internal/platform/jsonvalue"
 )
 
 // Fingerprint receives values already normalized by the feature, not an unbound
@@ -21,7 +22,7 @@ func Fingerprint(normalized json.RawMessage) ([32]byte, error) {
 	if err := d.Decode(&v); err != nil || v == nil {
 		return [32]byte{}, contract.NewError("invalid_json")
 	}
-	b, err := json.Marshal(normalizeNumbers(v))
+	b, err := jsonvalue.Canonical(v)
 	if err != nil {
 		return [32]byte{}, contract.NewError("invalid_json")
 	}

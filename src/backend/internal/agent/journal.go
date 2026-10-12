@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -191,7 +192,7 @@ func (j *Journal) Enqueue(e events.AgentEvent) (Batch, error) {
 				if !bytes.Equal(a, v) {
 					return Batch{}, fmt.Errorf("event identifier conflict")
 				}
-				return b, nil
+				return cloneBatch(b), nil
 			}
 		}
 	}
@@ -212,7 +213,20 @@ func (j *Journal) Enqueue(e events.AgentEvent) (Batch, error) {
 func (j *Journal) Pending() []Batch {
 	j.mu.Lock()
 	defer j.mu.Unlock()
-	return append([]Batch(nil), j.pending...)
+	pending := slices.Clone(j.pending)
+	for i := range pending {
+		pending[i] = cloneBatch(pending[i])
+	}
+	return pending
+}
+
+// Readers own their snapshots; committed events must only change via the journal.
+func cloneBatch(batch Batch) Batch {
+	batch.Events = slices.Clone(batch.Events)
+	for i := range batch.Events {
+		batch.Events[i].Data = slices.Clone(batch.Events[i].Data)
+	}
+	return batch
 }
 
 func (j *Journal) Ack(batchID string, ids []string) error {

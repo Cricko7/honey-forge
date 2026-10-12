@@ -5,9 +5,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	profilecore "honey-forge/modules/profiles"
 
 	"github.com/jackc/pgx/v5"
+
 	"honey-forge/modules/auth"
 )
 
@@ -112,7 +114,7 @@ func (r *Repository) Update(ctx context.Context, a auth.AuthContext, id string, 
 	return result, databaseError("updating profile transaction", err)
 }
 
-func (r *Repository) Delete(ctx context.Context, a auth.AuthContext, id string, check func(profilecore.Profile, pgx.Tx) error) error {
+func (r *Repository) Delete(ctx context.Context, a auth.AuthContext, id string, check func(profilecore.Profile, profilecore.BindingCheck) error) error {
 	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
 		if err := lockStream(ctx, tx, a.OrganizationID); err != nil {
 			return err
@@ -122,7 +124,9 @@ func (r *Repository) Delete(ctx context.Context, a auth.AuthContext, id string, 
 			return err
 		}
 
-		if err := check(p, tx); err != nil {
+		if err := check(p, func(ctx context.Context) (bool, error) {
+			return CheckLiveBindings(ctx, a.OrganizationID, p.ID, tx)
+		}); err != nil {
 			return err
 		}
 

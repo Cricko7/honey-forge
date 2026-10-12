@@ -25,7 +25,12 @@ type Handler struct {
 	recordings *RecordingService
 }
 
-func NewHandler(repository *Repository, cursors *contract.CursorCodec, logger *slog.Logger) *Handler {
+type historyReader interface {
+	historyStore
+	recordingStore
+}
+
+func NewHandler(repository historyReader, cursors *contract.CursorCodec, logger *slog.Logger) *Handler {
 	return &Handler{service: NewHistoryService(repository), cursors: cursors, logger: logger, recordings: NewRecordingService(repository)}
 }
 func (h *Handler) RegisterRoutes(router *gin.Engine, session gin.HandlerFunc) {

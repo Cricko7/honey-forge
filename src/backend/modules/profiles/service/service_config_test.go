@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	profilecore "honey-forge/modules/profiles"
 	"strings"
 	"testing"
+
+	profilecore "honey-forge/modules/profiles"
 )
 
 func TestServiceCatalogAndEffectiveConfig(t *testing.T) {
@@ -68,7 +69,7 @@ func TestServiceCatalogAndEffectiveConfig(t *testing.T) {
 		t.Fatalf("required secret cleared: %v", e)
 	}
 
-	if store.writes != 2 {
+	if store.Writes != 2 {
 		t.Fatal("failed mutation wrote state")
 	}
 
@@ -130,7 +131,7 @@ func TestServiceNormalizationAndCancellation(t *testing.T) {
 		})
 	}
 
-	if store.writes != 1 {
+	if store.Writes != 1 {
 		t.Fatal("cancelled request wrote state")
 	}
 }

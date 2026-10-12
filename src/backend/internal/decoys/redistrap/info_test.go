@@ -31,7 +31,7 @@ func TestServerIdentityAcrossConcurrentConnections(t *testing.T) {
 	var workers sync.WaitGroup
 	for range 4 {
 		workers.Go(func() {
-			conn, err := net.Dial("tcp", r.listener.Addr().String())
+			conn, err := net.Dial("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
 			if err != nil {
 				t.Error(err)
 				return

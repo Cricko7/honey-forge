@@ -5,12 +5,12 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
-	profilecore "honey-forge/modules/profiles"
 	"math"
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5"
+	profilecore "honey-forge/modules/profiles"
+
 	"honey-forge/modules/auth"
 )
 
@@ -19,7 +19,7 @@ type store interface {
 	Create(context.Context, auth.AuthContext, string, [32]byte, func() (profilecore.Profile, error)) (profilecore.CreateResult, error)
 	ReadProfile(context.Context, string, string) (profilecore.Profile, error)
 	Update(context.Context, auth.AuthContext, string, func(profilecore.Profile) (profilecore.Profile, []string, error)) (profilecore.Profile, error)
-	Delete(context.Context, auth.AuthContext, string, func(profilecore.Profile, pgx.Tx) error) error
+	Delete(context.Context, auth.AuthContext, string, func(profilecore.Profile, profilecore.BindingCheck) error) error
 	ReadSnapshot(context.Context, string, string, int32) (profilecore.Snapshot, error)
 	List(context.Context, string, profilecore.ListQuery) ([]profilecore.Profile, int64, error)
 }
@@ -198,42 +198,6 @@ func (s *Service) Patch(ctx context.Context, a auth.AuthContext, id, etag string
 	}
 
 	return profilecore.Redacted(p), nil
-}
-
-func (s *Service) Delete(ctx context.Context, a auth.AuthContext, id, etag string) error {
-	if err := Authorize(a, true); err != nil {
-		return err
-	}
-
-	if s.store == nil {
-		return profilecore.ErrDatabaseUnavailable
-	}
-
-	err := s.store.Delete(ctx, a, strings.ToLower(id), func(p profilecore.Profile, tx pgx.Tx) error {
-		if err := profilecore.Precondition(p, etag); err != nil {
-			return err
-		}
-
-		if s.deps.HasLiveBindings == nil {
-			return profilecore.ErrUnavailable
-		}
-
-		used, err := s.deps.HasLiveBindings(ctx, a.OrganizationID, p.ID, tx)
-		if err != nil {
-			return fmt.Errorf("checking profile bindings: %w", err)
-		}
-
-		if used {
-			return profilecore.ErrInUse
-		}
-
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("deleting profile: %w", err)
-	}
-
-	return nil
 }
 
 func (s *Service) ReadSnapshot(ctx context.Context, org, id string, revision int32) (profilecore.Snapshot, error) {

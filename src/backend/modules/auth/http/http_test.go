@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	authcore "honey-forge/modules/auth"
-	authservice "honey-forge/modules/auth/service"
 	"io"
 	"log/slog"
 	"net/http"
@@ -13,11 +11,15 @@ import (
 	"strings"
 	"testing"
 
+	authcore "honey-forge/modules/auth"
+	"honey-forge/modules/auth/internal/teststore"
+	authservice "honey-forge/modules/auth/service"
+
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-func authRouter(t *testing.T, repo *memoryStore) http.Handler {
+func authRouter(t *testing.T, repo *teststore.Store) http.Handler {
 	t.Helper()
 
 	router := gin.New()
@@ -46,7 +48,7 @@ func authRequest(router http.Handler, method, path, body, cookie, csrf string) *
 }
 
 func TestHTTPRegistrationSessionOrganizationAndLogout(t *testing.T) {
-	repo := newMemoryStore()
+	repo := teststore.New()
 	router := authRouter(t, repo)
 	response := authRequest(router, "POST", "/api/registrations",
 		`{"email":" Admin@Example.com ","password":"demo-password-2026","organization":{"mode":"create","name":" Demo SOC "}}`, "", "")
@@ -130,7 +132,7 @@ func TestHTTPRegistrationSessionOrganizationAndLogout(t *testing.T) {
 }
 
 func TestHTTPViewerCannotReadOrRotateCode(t *testing.T) {
-	repo := newMemoryStore()
+	repo := teststore.New()
 	service := authservice.NewService(repo)
 	_, adminRaw, err := service.Register(t.Context(), createRequest("admin@example.com"), "")
 	if err != nil {

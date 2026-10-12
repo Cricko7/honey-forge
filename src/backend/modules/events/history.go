@@ -2,9 +2,14 @@ package events
 
 import "context"
 
-type HistoryService struct{ repository *Repository }
+type historyStore interface {
+	Read(context.Context, string) (Event, error)
+	List(context.Context, Query) ([]EventSummary, bool, int64, int64, error)
+}
 
-func NewHistoryService(repository *Repository) *HistoryService { return &HistoryService{repository} }
+type HistoryService struct{ repository historyStore }
+
+func NewHistoryService(repository historyStore) *HistoryService { return &HistoryService{repository} }
 
 func (s *HistoryService) Read(ctx context.Context, id string) (Event, error) {
 	if _, err := readAccess(ctx); err != nil {

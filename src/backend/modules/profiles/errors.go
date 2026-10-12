@@ -2,7 +2,8 @@ package profiles
 
 import (
 	"errors"
-	"honey-forge/internal/platform/httpx"
+
+	"honey-forge/internal/platform/validation"
 )
 
 var (
@@ -29,10 +30,10 @@ var (
 
 type ValidationError struct {
 	Cause  error
-	Fields []httpx.FieldError
+	Fields []validation.FieldError
 }
 
-type FieldError = httpx.FieldError
+type FieldError = validation.FieldError
 
 func (e *ValidationError) Error() string { return e.Cause.Error() }
 

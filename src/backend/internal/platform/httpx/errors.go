@@ -1,12 +1,12 @@
 package httpx
 
-import "github.com/gin-gonic/gin"
+import (
+	"github.com/gin-gonic/gin"
 
-type FieldError struct {
-	Path    string `json:"path"`
-	Code    string `json:"code"`
-	Message string `json:"message"`
-}
+	"honey-forge/internal/platform/validation"
+)
+
+type FieldError = validation.FieldError
 
 type Error struct {
 	Code    string       `json:"code"`

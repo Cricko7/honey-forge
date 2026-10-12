@@ -3,8 +3,6 @@ package types
 import (
 	"context"
 	"time"
-
-	"github.com/jackc/pgx/v5"
 )
 
 type Object = map[string]any
@@ -75,10 +73,9 @@ type Type struct {
 	MergeConfig             func(Object, Object, []string) (Object, error)
 }
 
-// Dependencies are functions, so absent neighboring modules can be faked in tests.
+// Dependencies contains the exact-version catalog lookup used by the service.
 type Dependencies struct {
-	LookupType      func(context.Context, string, int32) (Type, error)
-	HasLiveBindings func(context.Context, string, string, pgx.Tx) (bool, error)
+	LookupType func(context.Context, string, int32) (Type, error)
 }
 
 type ListQuery struct {
@@ -88,3 +85,7 @@ type ListQuery struct {
 	AfterTime time.Time
 	AfterID   string
 }
+
+// BindingCheck reads live bindings under the repository's deletion lock.
+// The callback is scoped to the current operation and must not escape it.
+type BindingCheck func(context.Context) (bool, error)

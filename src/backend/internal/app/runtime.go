@@ -93,22 +93,26 @@ func Open(ctx context.Context, config Config) (*Runtime, error) {
 	if err != nil {
 		return nil, fmt.Errorf("initialize database: %w", err)
 	}
+	// Transfer ownership only after the complete application is wired.
+	initialized := false
+	defer func() {
+		if !initialized {
+			pool.Close()
+		}
+	}()
 	directory := config.MigrationsPath
 	if directory == "" {
 		directory = "../../migrations"
 	}
 	if err := postgres.Migrate(ctx, pool, os.DirFS(directory)); err != nil {
-		pool.Close()
 		return nil, err
 	}
 	if err := catalog.NewRepository(pool).Install(ctx, catalogService); err != nil {
-		pool.Close()
 		return nil, fmt.Errorf("install catalog: %w", err)
 	}
 	router := NewRouter(telemetryHost(endpoint), browser.CORSMiddleware())
 	if len(config.TrustedProxies) > 0 {
 		if err := router.SetTrustedProxies(config.TrustedProxies); err != nil {
-			pool.Close()
 			return nil, fmt.Errorf("configure trusted proxies: %w", err)
 		}
 	}
@@ -116,10 +120,9 @@ func Open(ctx context.Context, config Config) (*Runtime, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	profileService := profileservice.NewService(profilerepo.NewRepository(pool), profiles.Dependencies{LookupType: ProfileTypeLookup(catalogService), HasLiveBindings: profilerepo.CheckLiveBindings})
+	profileService := profileservice.NewService(profilerepo.NewRepository(pool), profiles.Dependencies{LookupType: ProfileTypeLookup(catalogService)})
 	authService := authservice.NewService(authrepo.NewRepository(pool))
 	if err := RegisterServices(router, browser, authService, profileService, catalogService, logger); err != nil {
-		pool.Close()
 		return nil, err
 	}
 	trapRepository := traps.NewRepository(pool)
@@ -177,6 +180,7 @@ func Open(ctx context.Context, config Config) (*Runtime, error) {
 			}
 		}
 	}()
+	initialized = true
 	return &Runtime{Router: router, Mutations: mutation.NewStore(pool), Schemas: configschema.NewSchemaStore(pool), Cursors: cursors, Browser: browser, Catalog: catalogService, pool: pool, Traps: trapService, Agents: agents, Frontend: frontend, stop: stop, done: done}, nil
 }
 func (r *Runtime) Close() { r.stop(); r.Frontend.Wait(); <-r.done; r.pool.Close() }

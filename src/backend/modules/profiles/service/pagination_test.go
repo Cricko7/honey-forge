@@ -2,8 +2,9 @@ package service
 
 import (
 	"errors"
-	profilecore "honey-forge/modules/profiles"
 	"testing"
+
+	profilecore "honey-forge/modules/profiles"
 )
 
 func TestServicePaginationIsolationAndBoundary(t *testing.T) {
@@ -73,7 +74,7 @@ func TestServicePaginationIsolationAndBoundary(t *testing.T) {
 		t.Fatalf("empty: %#v %v", empty, e)
 	}
 
-	if store.writes != 5 {
+	if store.Writes != 5 {
 		t.Fatal("reads mutated state")
 	}
 }

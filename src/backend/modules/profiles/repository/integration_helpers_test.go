@@ -77,6 +77,6 @@ func integrationService(repo *Repository) *profileservice.Service {
 					return nil
 				},
 			}, nil
-		}, HasLiveBindings: CheckLiveBindings,
+		},
 	})
 }
