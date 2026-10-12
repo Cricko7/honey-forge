@@ -97,6 +97,7 @@ func (d DockerCLI) stateFromLabels(labels map[string]string, id, revision string
 	}
 
 	return ServiceState{
+		DeploymentNodeID:   labels["com.nodemetrics.node"],
 		Exists:             true,
 		Generation:         generation,
 		Ports:              ports,

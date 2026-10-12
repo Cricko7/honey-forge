@@ -1236,6 +1236,10 @@ components:
           default: ''
         profile_id:
           $ref: '#/components/schemas/ID'
+        deployment_node_id:
+          type: string
+          pattern: '^[a-zA-Z0-9]{25}$'
+          description: Assigned Swarm worker ID from GET /api/traps/deployment-nodes. Omit to use the platform manager. Placement is immutable.
       required:
       - request_id
       - name
@@ -1295,6 +1299,9 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/ID'
+        deployment_node_id:
+          type: string
+          description: Selected Swarm worker ID; empty for legacy or platform placement.
         name:
           $ref: '#/components/schemas/Name'
         description:
@@ -1860,6 +1867,45 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "503":
           $ref: "#/components/responses/Unavailable"
+  /api/traps/deployment-nodes:
+    get:
+      operationId: listDeploymentNodes
+      description: Lists workers explicitly assigned to the current organization. Ready requires an active worker and a Swarm observation within 30 seconds. Unknown and foreign workers are never returned.
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          description: Assigned workers; an empty list means no company server is assigned.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: [id, hostname, address, ready]
+                      properties:
+                        id:
+                          type: string
+                        hostname:
+                          type: string
+                        address:
+                          type: string
+                        ready:
+                          type: boolean
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/Unavailable'
   /api/traps:
     get:
       operationId: listTraps
@@ -1932,7 +1978,7 @@ paths:
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
         '409':
-          description: 'Conflict: idempotency_conflict, request_already_used, revision_exhausted, trap_type_unavailable, trap_port_conflict, agent_credentials_changed, command_in_progress, trap_offline, trap_not_stopped or trap_buffer_not_empty. Automatic deployment rejects TCP ports used by another live managed trap, including other organizations; manual registrations do not participate.'
+          description: 'Conflict: idempotency_conflict, request_already_used, revision_exhausted, trap_type_unavailable, deployment_node_unavailable, trap_port_conflict, agent_credentials_changed, command_in_progress, trap_offline, trap_not_stopped or trap_buffer_not_empty. Automatic deployment rejects TCP ports reserved on the same node, including other organizations. Unpinned traps reserve ports across all nodes; manual registrations do not participate. A foreign, unavailable or stale deployment node returns deployment_node_unavailable.'
           content:
             application/json:
               schema:

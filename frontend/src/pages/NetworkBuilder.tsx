@@ -15,10 +15,10 @@ import ReactFlow, {
   MarkerType,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
-import { Plus, Bug, Server, Database, Zap, RotateCcw, Trash2 } from 'lucide-react'
+import { Plus, Server, Database, Zap, RotateCcw, Trash2 } from 'lucide-react'
 import { TrapNode, type TrapNodeData } from './network/TrapNode'
 import { AddTrapModal, defaultConfig } from './network/AddTrapModal'
-import { useCanManage, useTraps, useCatalog, useCreateProfile, useCreateTrap, useLiveStream, useProfiles, useTrapLinks, useCreateTrapLink, useDeleteTrapLink } from '@/api/hooks'
+import { useDeploymentNodes, useCanManage, useTraps, useCatalog, useCreateProfile, useCreateTrap, useLiveStream, useProfiles, useTrapLinks, useCreateTrapLink, useDeleteTrapLink } from '@/api/hooks'
 import { configPorts } from '@/lib/profile-config'
 import { ApiError } from '@/api/client'
 import { canConnectTraps, trapLinkKey } from '@/lib/network-links'
@@ -42,6 +42,8 @@ export function NetworkBuilderPage() {
   const navigate = useNavigate()
   const c = useThemeColors()
   const { data: trapsPage } = useTraps()
+  const { data: deploymentNodes, error: deploymentNodesError } = useDeploymentNodes()
+  const [deploymentNodeId, setDeploymentNodeId] = useState('')
   const { data: catalogPage } = useCatalog()
   const { data: profilesPage } = useProfiles()
   const createProfile = useCreateProfile()
@@ -61,6 +63,7 @@ export function NetworkBuilderPage() {
     const byId = new Map(profiles.map((p) => [p.id, p]))
     const map = new Map<number, string>()
     for (const trap of traps) {
+      if (deploymentNodeId && trap.deployment_node_id && trap.deployment_node_id !== deploymentNodeId) continue
       const profile = byId.get(trap.profile_id)
       if (!profile) continue
       for (const port of configPorts(profile.config)) {
@@ -68,7 +71,7 @@ export function NetworkBuilderPage() {
       }
     }
     return map
-  }, [traps, profilesPage])
+  }, [traps, profilesPage, deploymentNodeId])
   const catalog = useMemo(
     () => (catalogPage?.items ?? []).filter((e) => e.available_for_new_profiles),
     [catalogPage],
@@ -290,6 +293,10 @@ export function NetworkBuilderPage() {
         onClose={() => setAddOpen(false)}
         catalog={catalog}
         usedPorts={usedPorts}
+        deploymentNodes={deploymentNodes?.items ?? []}
+        deploymentNodesError={!!deploymentNodesError}
+        deploymentNodeId={deploymentNodeId}
+        onDeploymentNodeChange={setDeploymentNodeId}
         creating={createProfile.isPending || createTrap.isPending}
         onCreate={async (name, entry, port) => {
           const config = defaultConfig(entry.type_id, port)
@@ -299,7 +306,7 @@ export function NetworkBuilderPage() {
             type_version: entry.type_version,
             config,
           })
-          await createTrap.mutateAsync({ name, profile_id: profile.id })
+          await createTrap.mutateAsync({ name, profile_id: profile.id, ...(deploymentNodeId ? { deployment_node_id: deploymentNodeId } : {}) })
           setAddOpen(false)
         }}
       />

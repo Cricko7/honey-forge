@@ -58,7 +58,7 @@ func (r *Repository) Activate(ctx context.Context, tx pgx.Tx, trap commands.Trap
 			return 0, fmt.Errorf("decode requested snapshot: %w", err)
 		}
 
-		if err := checkManagedPorts(ctx, tx, snapshot.Config, current.ID); err != nil {
+		if err := checkManagedPorts(ctx, tx, snapshot.Config, current.ID, current.DeploymentNodeID); err != nil {
 			return 0, err
 		}
 	}

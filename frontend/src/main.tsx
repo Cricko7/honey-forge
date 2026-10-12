@@ -5,6 +5,7 @@ import { RouterProvider, createBrowserRouter } from 'react-router-dom'
 import './index.css'
 import { SessionEntry } from '@/components/SessionEntry'
 import { OrganizationPage } from '@/pages/Organization'
+import { ServersPage } from '@/pages/Servers'
 import { ThemeProvider } from '@/lib/theme'
 import { Layout } from '@/components/Layout'
 import { LoginPage } from '@/pages/Login'
@@ -38,6 +39,7 @@ const router = createBrowserRouter([
       { path: 'events', element: <EventsPage /> },
       { path: 'profiles', element: <ProfilesPage /> },
       { path: 'organization', element: <OrganizationPage /> },
+      { path: 'servers', element: <ServersPage /> },
       { path: 'catalog', element: <CatalogPage /> },
     ],
   },

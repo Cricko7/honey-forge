@@ -85,6 +85,10 @@ func run() error {
 	controller := orchestrator.Controller{Store: store, Docker: docker}
 
 	return runLoop(ctx, docker.Prepare, func(cycle context.Context) error {
+		if err := store.SyncNodes(cycle, docker); err != nil {
+			return err
+		}
+
 		return orchestrator.ReconcileLocked(cycle, pool, controller)
 	}, func(cycle context.Context) error {
 		return docker.CleanupSandboxes(cycle, time.Now())

@@ -10,6 +10,7 @@ import (
 
 	"honey-forge/internal/agent"
 	"honey-forge/internal/decoys"
+	"honey-forge/internal/orchestrator"
 	"honey-forge/internal/platform/secrets"
 	"honey-forge/internal/platform/tlsconfig"
 )
@@ -67,6 +68,21 @@ func run() error {
 	supported, err := decoys.ForType(os.Getenv("NM_ROLE"))
 	if err != nil {
 		return err
+	}
+
+	if os.Getenv("NM_SANDBOX_IMAGE") != "" {
+		cleanupCtx, stopCleanup := context.WithCancel(ctx)
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+
+			sandboxCleanup(cleanupCtx, (orchestrator.DockerCLI{}).CleanupSandboxes)
+		}()
+
+		defer func() {
+			stopCleanup()
+			<-done
+		}()
 	}
 
 	return agent.Run(ctx, agent.Options{

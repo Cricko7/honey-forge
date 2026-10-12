@@ -357,9 +357,10 @@ export const mockApi = {
   getTrap(id: string) {
     return traps.find((t) => t.id === id)
   },
-  createTrap(input: { name: string; description?: string; profile_id: string }): Trap {
+  createTrap(input: { name: string; description?: string; profile_id: string; deployment_node_id?: string }): Trap {
     const profile = profiles.find((p) => p.id === input.profile_id)!
     const trap = mkTrap(input.name, profile, 'offline', 'unknown', 'pending')
+    trap.deployment_node_id = input.deployment_node_id ?? ''
     trap.description = input.description ?? ''
     trap.runtime_state = 'unknown'
     trap.desired_state = 'stopped'

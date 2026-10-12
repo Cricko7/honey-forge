@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Bug, Database, Server, KeyRound, TerminalSquare, AlertTriangle, Shuffle } from 'lucide-react'
 import { Modal } from '@/components/Modal'
 import { LevelBadge } from '@/components/ui'
 import { ApiError } from '@/api/client'
-import type { CatalogEntry } from '@/types'
+import type { CatalogEntry, DeploymentNode } from '@/types'
 
 // Случайный порт из «пользовательского» диапазона, не пересекающийся с занятыми.
 function randomFreePort(used: Set<number> | Map<number, unknown>): number {
@@ -54,12 +55,20 @@ export function AddTrapModal({
   onClose,
   catalog,
   usedPorts,
+  deploymentNodes,
+  deploymentNodesError,
+  deploymentNodeId,
+  onDeploymentNodeChange,
   onCreate,
   creating,
 }: {
   open: boolean
   onClose: () => void
   catalog: CatalogEntry[]
+  deploymentNodes: DeploymentNode[]
+  deploymentNodesError: boolean
+  deploymentNodeId: string
+  onDeploymentNodeChange: (id: string) => void
   usedPorts: Map<number, string>
   onCreate: (name: string, entry: CatalogEntry, port: number) => Promise<void>
   creating: boolean
@@ -91,11 +100,12 @@ export function AddTrapModal({
   const portValid = Number.isInteger(port) && port >= 1 && port <= 65535
   const conflictTrap = portValid ? usedPorts.get(port) : undefined
   const hasConflict = !!conflictTrap
-  const canSubmit = !!name.trim() && !!selected && portValid && !hasConflict && !creating
+  const nodeReady = !deploymentNodeId || deploymentNodes.some((node) => node.id === deploymentNodeId && node.ready)
+  const canSubmit = nodeReady && !!name.trim() && !!selected && portValid && !hasConflict && !creating
 
   async function submit() {
     setError(null)
-    if (!selected || !name.trim() || !portValid || hasConflict) return
+    if (!nodeReady || !selected || !name.trim() || !portValid || hasConflict) return
     try {
       await onCreate(name.trim(), selected, port)
       setName('')
@@ -142,6 +152,24 @@ export function AddTrapModal({
               )
             })}
           </div>
+        </div>
+
+        <div>
+          <label className="label" htmlFor="deployment-node">Где развернуть ловушку</label>
+          <select id="deployment-node" className="input" value={deploymentNodeId} onChange={(e) => onDeploymentNodeChange(e.target.value)}>
+            <option value="">Сервер платформы</option>
+            {deploymentNodes.map((node) => (
+              <option key={node.id} value={node.id} disabled={!node.ready}>
+                {node.hostname} ({node.address}){!node.ready ? ' — недоступен' : ''}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-muted mt-2">
+            Сервер компании появится после подключения к Docker Swarm и назначения вашей организации администратором платформы.
+          </p>
+          <Link to="/app/servers" className="text-xs text-brand inline-block mt-2">Подключить сервер компании →</Link>
+          {deploymentNodesError && <p role="alert" className="text-xs text-danger mt-2">Не удалось загрузить серверы. Повторная попытка выполняется автоматически.</p>}
+          {!nodeReady && <p role="alert" className="text-xs text-danger mt-2">Выбранный сервер недоступен. Дождитесь подключения или выберите другой.</p>}
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -208,7 +236,7 @@ export function AddTrapModal({
         ) : (
           <div className="flex items-start gap-2 text-xs text-muted bg-brand/5 border border-brand/15 rounded-xl p-3">
             <Bug size={14} className="text-brand mt-0.5 shrink-0" />
-            Панель сама создаст профиль по дефолт-конфигу типа, поднимет контейнер приманки и
+            Панель создаст профиль, поднимет контейнер приманки на выбранном сервере и
             запустит listener на порту {port}. Тонкую настройку конфига можно сделать на странице
             «Профили».
           </div>

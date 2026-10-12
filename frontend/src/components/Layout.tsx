@@ -2,6 +2,7 @@ import { NavLink, Outlet, Navigate, useNavigate, useLocation } from 'react-route
 import {
   LayoutDashboard,
   Network,
+  Server,
   Bug,
   ScrollText,
   Boxes,
@@ -23,6 +24,7 @@ import { ApiError } from '@/api/client'
 const nav = [
   { to: '/app', end: true, icon: LayoutDashboard, label: 'Дашборд' },
   { to: '/app/network', icon: Network, label: 'Конструктор сети' },
+  { to: '/app/servers', icon: Server, label: 'Серверы' },
   { to: '/app/traps', icon: Bug, label: 'Ловушки' },
   { to: '/app/events', icon: ScrollText, label: 'События' },
   { to: '/app/profiles', icon: FileSliders, label: 'Профили' },

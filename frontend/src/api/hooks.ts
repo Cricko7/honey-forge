@@ -10,6 +10,7 @@ export { qk } from './query-keys'
 
 export const useSession = () => useQuery({ queryKey: qk.session, queryFn: api.getSession })
 export const useCanManage = () => canManage(useSession().data)
+export const useDeploymentNodes = () => useQuery({ queryKey: ["deployment-nodes"], queryFn: api.listDeploymentNodes, refetchInterval: 5000 })
 export const useCatalog = () => useQuery({ queryKey: qk.catalog, queryFn: api.listCatalog })
 export const useProfiles = () => useQuery({ queryKey: qk.profiles, queryFn: api.listProfiles })
 export const useTrapLinks = () => useQuery({ queryKey: qk.trapLinks, queryFn: api.listTrapLinks, refetchInterval: 3000 })

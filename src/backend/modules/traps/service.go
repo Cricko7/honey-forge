@@ -99,6 +99,10 @@ func (s *Service) Create(ctx context.Context, req CreateRequest) (CreateResult, 
 	req.Name = strings.TrimSpace(req.Name)
 	req.RequestID = strings.ToLower(req.RequestID)
 	req.ProfileID = strings.ToLower(req.ProfileID)
+	if req.DeploymentNodeID != "" && !s.autoDeploy {
+		return CreateResult{}, contract.NewError("service_unavailable")
+	}
+
 	req.AutoDeploy = s.autoDeploy
 	if req.AutoDeploy {
 		principal, _ := contract.PrincipalFrom(ctx)

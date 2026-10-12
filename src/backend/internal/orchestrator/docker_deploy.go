@@ -76,6 +76,12 @@ func (d DockerCLI) Deploy(ctx context.Context, target Target, token string, gene
 		"--env", "NM_TOKEN_FILE=/run/secrets/nm_token",
 		"--env", "NM_STORE_URL_FILE=/run/secrets/store_url",
 		"--env", "NM_WS_URL=" + d.WSURL}
+	if target.DeploymentNodeID != "" {
+		args = append(args, "--constraint", "node.id=="+target.DeploymentNodeID, "--constraint", "node.role==worker", "--constraint", "node.labels.honeyforge.organization=="+target.OrganizationID, "--label", "com.nodemetrics.node="+target.DeploymentNodeID)
+	} else {
+		args = append(args, "--constraint", "node.role==manager")
+	}
+
 	if d.ClientCAFile != "" {
 		revision, err := d.trustRevision()
 		if err != nil {
@@ -145,11 +151,13 @@ func (d DockerCLI) Deploy(ctx context.Context, target Target, token string, gene
 	// this socket nor management credentials, and communicate through a TLS pipe.
 	args = append(args, "--mount", "type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock")
 	if target.Snapshot.TypeID == "ssh-high-interaction" {
-		args = append(args, "--constraint", "node.role==manager", "--env", "NM_SANDBOX_IMAGE="+d.SandboxImage,
+		args = append(args, "--env", "NM_SANDBOX_IMAGE="+d.SandboxImage,
 			"--limit-cpu", "1")
 	} else {
 		args = append(args, "--env", "NM_WORKER_IMAGE="+image, "--env", "NM_WORKER_NETWORK="+d.Network)
-		if d.WorkerBindIP != "" {
+		if target.DeploymentNodeID != "" {
+			args = append(args, "--env", "NM_BIND_IP=0.0.0.0")
+		} else if d.WorkerBindIP != "" {
 			args = append(args, "--env", "NM_BIND_IP="+d.WorkerBindIP)
 		}
 	}

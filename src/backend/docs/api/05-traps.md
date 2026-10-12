@@ -11,14 +11,14 @@
 
 | Схема | Поля |
 |---|---|
-| CreateTrapRequest | `request_id: ID`, `name: Name`, `description?: Description` (default ""), `profile_id: ID` |
+| CreateTrapRequest | `request_id: ID`, `name: Name`, `description?: Description` (default ""), `profile_id: ID`, `deployment_node_id?: string` (Swarm ID, 25 alphanumeric) |
 | PatchTrapRequest | `name?: Name`, `description?: Description` |
 | Trap | `id: ID`, `name: Name`, `description: Description`, `profile_id: ID`, `type_id: TypeID`, `type_version: TypeVersion`, `interaction_level: string`, `revision: Revision`, `state_version: Revision`, `created_at: Timestamp`, `updated_at: Timestamp`, `connectivity: "online" | "offline"`, `last_seen_at: Timestamp|null`, `runtime_state: "unknown" | "running" | "stopped" | "error"`, `desired_state: "running" | "stopped"`, `desired_profile_revision: Revision|null`, `applied_profile_revision: Revision|null`, `agent: AgentStatus|null`, `active_command_id: ID|null` |
 | AgentStatus | `agent_version: string` (1..64), `hostname: string` (1..255), `buffered_events: integer` (>=0), `buffer_bytes: integer` (>=0), `buffer_capacity_bytes: integer` (>0), `buffer_state: "ok" | "full" | "unavailable"`, `last_error: RuntimeError|null` |
 | RuntimeError | `code: string` (1..64), `message: string` (1..200, безопасный текст) |
 | AgentCredentials | `trap_id: ID`, `token: string` (opaque, один показ), `generation: Revision`, `agent_ws_url: string` (wss URL), `issued_at: Timestamp` |
 
-Новая ловушка revision=1, state_version=1, offline, last_seen_at=null, runtime_state=unknown, desired_state=stopped, desired/applied_profile_revision=null, agent=null, active_command_id=null. Регистрация ловушки сама по себе не запускает сервис и не применяет профиль. Для первого запуска используются apply_config и затем start.
+Новая ловушка revision=1, state_version=1, offline, last_seen_at=null, runtime_state=unknown, desired_state=stopped, desired/applied_profile_revision=null, agent=null, active_command_id=null. При AUTO_DEPLOY_TRAPS=true оркестратор асинхронно разворачивает сервис и ставит apply_config/start; иначе регистрацию обслуживает вручную подключённый агент.
 
 online: есть активное прошедшее hello WSS и не более 30 секунд с последнего принятого heartbeat/hello по серверному времени. Разрыв WSS сразу означает offline. Трафик телеметрии не заменяет heartbeat. last_seen_at — последний принятый hello/heartbeat, а не часы агента. offline не означает stopped: runtime_state — последнее подтверждённое наблюдение. Ловушка без агента имеет unknown.
 
@@ -32,11 +32,12 @@ state_version увеличивается при любом изменении п
 |---|---|---|---|
 | POST /api/traps | admin, CSRF | CreateTrapRequest | 201 Trap, Location `/api/traps/{id}` |
 | GET /api/traps | admin/viewer | limit/cursor, `profile_id?`, `connectivity?` (online/offline) | 200 Page<Trap>, created_at DESC/id DESC |
+| GET /api/traps/deployment-nodes | admin/viewer | Без тела | 200 {items: [{id, hostname, address, ready}]} |
 | GET /api/traps/{id} | admin/viewer | ID | 200 Trap |
 | PATCH /api/traps/{id} | admin, CSRF, X-Expected-Revision | PatchTrapRequest, хотя бы одно поле | 200 Trap |
 | DELETE /api/traps/{id} | admin, CSRF, X-Expected-Revision | Без тела; условия безопасного удаления ниже | 204 |
 
-profile_id должен существовать в своей организации; чужой/отсутствующий — 404. Тип должен быть available_for_new_profiles, иначе `409 trap_type_unavailable`. profile_id, type и статусы не меняются PATCH; нельзя подменить профиль после появления истории. Для нового типа регистрируется новая ловушка с новым профилем. Сервер не подключается к клиентскому hostname и не разворачивает агент автоматически.
+profile_id должен существовать в своей организации; чужой/отсутствующий — 404. Тип должен быть available_for_new_profiles, иначе `409 trap_type_unavailable`. profile_id, type и статусы не меняются PATCH; нельзя подменить профиль после появления истории. Для нового типа регистрируется новая ловушка с новым профилем. Сервер не подключается к произвольному клиентскому hostname. Для автоматического развёртывания можно передать deployment_node_id из GET /api/traps/deployment-nodes: это назначенный организации worker общего Swarm. Неизвестный, чужой, недоступный или не наблюдавшийся 30 секунд узел — 409 deployment_node_unavailable. Выбор сервера после создания неизменяемый.
 
 Повтор создания возвращает первоначальный Trap со `Idempotency-Replayed: true`; актуальное состояние читается GET. Секрет агента не выдаётся при создании Trap. Смена привязки и массовые операции не определены. Остановленная ловушка и её история остаются доступными; stop/start определены в модуле 06.
 

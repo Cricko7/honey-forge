@@ -154,6 +154,7 @@ export function TrapDetailPage() {
         <Card>
           <SectionTitle>Параметры</SectionTitle>
           <dl className="space-y-2.5 text-sm">
+            <Row label="Сервер развёртывания" value={trap.deployment_node_id || 'Сервер платформы'} mono />
             <Row label="Revision" value={String(trap.revision)} mono />
             <Row label="State version" value={String(trap.state_version)} mono />
             <Row label="Desired state" value={trap.desired_state} />

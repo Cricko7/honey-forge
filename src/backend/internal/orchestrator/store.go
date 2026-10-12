@@ -25,7 +25,7 @@ type PGStore struct {
 }
 
 func (s PGStore) List(ctx context.Context) ([]Target, error) {
-	rows, err := s.Pool.Query(ctx, `SELECT t.id::text,t.organization_id::text,t.auto_deploy_actor_id::text,t.generation,t.deleted_at IS NOT NULL,
+	rows, err := s.Pool.Query(ctx, `SELECT t.id::text,t.organization_id::text,t.auto_deploy_actor_id::text,t.generation,t.deleted_at IS NOT NULL,t.deployment_node_id,
 		t.profile_id::text,t.type_id,t.type_version,p.revision,r.config::text,t.applied_configuration::text,
 		t.applied_profile_revision,t.active_command_id::text,
 		EXISTS(SELECT 1 FROM commands c WHERE c.trap_id=t.id AND c.action='start' AND c.status='succeeded')
@@ -46,7 +46,7 @@ func (s PGStore) List(ctx context.Context) ([]Target, error) {
 		var typeVersion int32
 		var revision *int32
 		var config, applied *string
-		if err := rows.Scan(&target.ID, &target.OrganizationID, &target.ActorID, &target.Generation, &target.Deleted, &profileID, &typeID, &typeVersion, &revision, &config, &applied, &target.AppliedProfileRevision, &target.ActiveCommandID, &target.HasStarted); err != nil {
+		if err := rows.Scan(&target.ID, &target.OrganizationID, &target.ActorID, &target.Generation, &target.Deleted, &target.DeploymentNodeID, &profileID, &typeID, &typeVersion, &revision, &config, &applied, &target.AppliedProfileRevision, &target.ActiveCommandID, &target.HasStarted); err != nil {
 			return nil, fmt.Errorf("scan managed trap: %w", err)
 		}
 

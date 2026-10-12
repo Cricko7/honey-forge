@@ -82,6 +82,8 @@ var errorsByCode = map[string]struct {
 	"internal_error":            {500, "Internal server error"},
 	"database_unavailable":      {503, "Database is temporarily unavailable"},
 	"service_unavailable":       {503, "Service is temporarily unavailable"},
+
+	"deployment_node_unavailable": {409, "Deployment node is unavailable or not assigned to this organization"},
 }
 
 func NewError(code string) *Error {

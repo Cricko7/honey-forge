@@ -9,6 +9,7 @@ import (
 )
 
 type CreateRequest struct {
+	DeploymentNodeID  string `json:"deployment_node_id,omitempty" validate:"omitempty,len=25,alphanum"`
 	RequestID         string `json:"request_id" validate:"required,uuid"`
 	Name              string `json:"name" validate:"required,name"`
 	Description       string `json:"description" validate:"max=1000"`
@@ -39,6 +40,7 @@ type AgentStatus struct {
 }
 
 type Trap struct {
+	DeploymentNodeID       string       `json:"deployment_node_id"`
 	ID                     string       `json:"id"`
 	Name                   string       `json:"name"`
 	Description            string       `json:"description"`

@@ -13,6 +13,29 @@ async function client(base) {
   return import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 }
 
+test('deployment nodes and selected placement use the REST contract', async () => {
+  const { api } = await client('https://operator.example')
+  const originalFetch = globalThis.fetch
+  const originalWindow = globalThis.window
+  const requests = []
+  globalThis.window = { location: { origin: 'https://operator.example' } }
+  globalThis.fetch = async (url, init) => {
+    requests.push({ url, ...init })
+    return new Response(JSON.stringify({ csrf_token: 'csrf', items: [] }), { status: 200 })
+  }
+  try {
+    await api.getSession()
+    assert.deepEqual((await api.listDeploymentNodes()).items, [])
+    assert.equal(requests.at(-1).url, 'https://operator.example/api/traps/deployment-nodes')
+    await api.createTrap({ name: 'Company', profile_id: 'profile', deployment_node_id: 'aaaaaaaaaaaaaaaaaaaaaaaaa' })
+    assert.equal(JSON.parse(requests.at(-1).body).deployment_node_id, 'aaaaaaaaaaaaaaaaaaaaaaaaa')
+    assert.equal(requests.at(-1).headers['X-CSRF-Token'], 'csrf')
+  } finally {
+    globalThis.fetch = originalFetch
+    globalThis.window = originalWindow
+  }
+})
+
 test('restored cookies recover CSRF and invite registration uses the existing contract', async () => {
   const { api, ApiError } = await client('https://operator.example')
   const originalFetch = globalThis.fetch

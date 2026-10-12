@@ -1,4 +1,5 @@
 import type {
+  DeploymentNode,
   SessionRecording,
   CatalogEntry,
   Command,
@@ -181,7 +182,12 @@ export const api = {
     return real(`/api/traps/${id}`)
   },
 
-  async createTrap(input: { name: string; description?: string; profile_id: string }): Promise<Trap> {
+  async listDeploymentNodes(): Promise<{ items: DeploymentNode[] }> {
+    if (USE_MOCK) return { items: [] }
+    return real("/api/traps/deployment-nodes")
+  },
+
+  async createTrap(input: { name: string; description?: string; profile_id: string; deployment_node_id?: string }): Promise<Trap> {
     if (USE_MOCK) {
       await delay(300)
       return mockApi.createTrap(input)

@@ -34,6 +34,7 @@ func (h *Handler) RegisterRoutes(router *gin.Engine, session gin.HandlerFunc) {
 	group := router.Group("/api/traps", session, h.authorize, contract.RESTBody())
 	group.POST("", h.create)
 	group.GET("", h.list)
+	group.GET("/deployment-nodes", h.deploymentNodes)
 	group.GET("/:id", h.read)
 	group.PATCH("/:id", h.patch)
 	group.DELETE("/:id", h.delete)

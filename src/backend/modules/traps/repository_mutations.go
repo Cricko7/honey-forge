@@ -30,14 +30,26 @@ func (r *Repository) Create(ctx context.Context, org string, req CreateRequest, 
 		if err := check(ctx, p); err != nil {
 			return mutation.Outcome{}, err
 		}
+		if req.DeploymentNodeID != "" {
+			var allowed bool
+			if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM deployment_nodes WHERE id=$1 AND organization_id=$2 AND ready AND observed_at > clock_timestamp()-interval '30 seconds')`, req.DeploymentNodeID, org).Scan(&allowed); err != nil {
+				return mutation.Outcome{}, fmt.Errorf("check deployment node: %w", err)
+			}
+
+			if !allowed {
+				return mutation.Outcome{}, contract.NewError("deployment_node_unavailable")
+			}
+		}
+
 		if req.AutoDeploy {
-			if err := checkManagedPorts(ctx, tx, p.Config, ""); err != nil {
+			if err := checkManagedPorts(ctx, tx, p.Config, "", req.DeploymentNodeID); err != nil {
 				return mutation.Outcome{}, err
 			}
 		}
 
 		now := time.Now().UTC().Truncate(time.Microsecond)
 		created = Record{OrganizationID: org, Trap: Trap{
+			DeploymentNodeID: req.DeploymentNodeID,
 			ID:               string(contract.NewID()),
 			Name:             req.Name,
 			Description:      req.Description,
@@ -58,7 +70,7 @@ func (r *Repository) Create(ctx context.Context, org string, req CreateRequest, 
 			return mutation.Outcome{}, fmt.Errorf("encode initial trap: %w", err)
 		}
 
-		_, err = tx.Exec(ctx, `INSERT INTO traps(id,organization_id,profile_id,type_id,type_version,interaction_level,name,description,created_at,updated_at,initial_trap,auto_deploy,auto_deploy_actor_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$9,$10::jsonb,$11,NULLIF($12,'')::uuid)`, created.ID, org, p.ID, p.TypeID, p.TypeVersion, p.InteractionLevel, req.Name, req.Description, now, string(initial), req.AutoDeploy, req.AutoDeployActorID)
+		_, err = tx.Exec(ctx, `INSERT INTO traps(id,organization_id,profile_id,type_id,type_version,interaction_level,name,description,created_at,updated_at,initial_trap,auto_deploy,auto_deploy_actor_id,deployment_node_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$9,$10::jsonb,$11,NULLIF($12,'')::uuid,$13)`, created.ID, org, p.ID, p.TypeID, p.TypeVersion, p.InteractionLevel, req.Name, req.Description, now, string(initial), req.AutoDeploy, req.AutoDeployActorID, req.DeploymentNodeID)
 		if err != nil {
 			return mutation.Outcome{}, fmt.Errorf("insert trap: %w", err)
 		}

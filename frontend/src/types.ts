@@ -47,7 +47,15 @@ export interface AgentStatus {
   last_error: RuntimeError | null
 }
 
+export interface DeploymentNode {
+  id: string
+  hostname: string
+  address: string
+  ready: boolean
+}
+
 export interface Trap {
+  deployment_node_id?: string
   id: UUID
   name: string
   description: string
