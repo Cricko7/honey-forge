@@ -20,6 +20,8 @@ import { useState } from 'react'
 import { replaceSessionCache } from '@/api/cache'
 import { canManage, sessionDestination } from '@/lib/auth'
 import { ApiError } from '@/api/client'
+import { AlertsProvider, AlertsBell, useAlerts } from '@/components/Alerts'
+import type { SessionView } from '@/types'
 
 const nav = [
   { to: '/app', end: true, icon: LayoutDashboard, label: 'Дашборд' },
@@ -32,14 +34,22 @@ const nav = [
 ]
 
 export function Layout() {
+  const { data: session, isLoading, error, refetch } = useSession()
+  if (isLoading) return <div className="h-screen grid place-items-center text-muted text-sm"><span className="h-5 w-5 rounded-full border-2 border-brand/30 border-t-brand animate-spin" /></div>
+  if (sessionDestination(session, isLoading, error) === 'guest') return <Navigate to="/login" replace />
+  if (error || !session) return <div className="p-8">Не удалось проверить сессию. <button className="btn-primary" onClick={() => refetch()}>Повторить</button></div>
+  return <AlertsProvider key={`${session.organization.id}:${session.user.id}`}><AuthenticatedLayout session={session} /></AlertsProvider>
+}
+
+function AuthenticatedLayout({ session }: { session: SessionView }) {
   const qc = useQueryClient()
   const [logoutError, setLogoutError] = useState('')
   const [loggingOut, setLoggingOut] = useState(false)
-  const { data: session, isLoading, error, refetch } = useSession()
+  const { onStream, notify } = useAlerts()
   const navigate = useNavigate()
   const location = useLocation()
   // Глобальная подписка на live-стрим: держит кэш свежим на всех экранах.
-  useLiveStream()
+  useLiveStream(undefined, onStream)
 
   async function logout() {
     setLoggingOut(true)
@@ -54,21 +64,11 @@ export function Layout() {
       navigate('/login')
     } catch {
       setLogoutError('Не удалось выйти. Попробуйте ещё раз.')
+      notify({ id: crypto.randomUUID(), title: 'Не удалось выйти', message: 'Попробуйте ещё раз.', level: 'error' })
     } finally {
       setLoggingOut(false)
     }
   }
-
-  // Auth-гард: без активной сессии (401) уводим на вход вместо «сломанной» оболочки.
-  if (isLoading) {
-    return (
-      <div className="h-screen grid place-items-center text-muted text-sm">
-        <span className="h-5 w-5 rounded-full border-2 border-brand/30 border-t-brand animate-spin" />
-      </div>
-    )
-  }
-  if (sessionDestination(session, isLoading, error) === 'guest') return <Navigate to="/login" replace />
-  if (error || !session) return <div className="p-8">Не удалось проверить сессию. <button className="btn-primary" onClick={() => refetch()}>Повторить</button></div>
 
   // Активный раздел для контекстной шапки: самое длинное совпадение пути.
   const sections = canManage(session)
@@ -164,6 +164,7 @@ export function Layout() {
               <span className="chip bg-warn/10 text-warn ring-1 ring-warn/20">demo · mock</span>
             )}
             <div className="h-5 w-px bg-line mx-1" />
+            <AlertsBell />
             <ThemeToggle />
           </div>
         </header>

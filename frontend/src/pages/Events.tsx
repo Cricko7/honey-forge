@@ -1,14 +1,19 @@
 import { Select } from '@/components/Select'
 import { DateTimePicker } from '@/components/DateTimePicker'
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Card, EventTypeBadge, Spinner, EmptyState } from '@/components/ui'
 import { EventDetailModal } from '@/components/EventDetailModal'
 import { useCatalog, useEvents, useTraps } from '@/api/hooks'
 import { api } from '@/api/client'
 import { journalFilter } from '@/api/event-filters'
 import { formatDateTime } from '@/lib/utils'
+import { useAlerts } from '@/components/Alerts'
+import { actionErrorMessage } from '@/lib/alerts'
 
 export function EventsPage() {
+  const { notify } = useAlerts()
+  const [searchParams, setSearchParams] = useSearchParams()
   const empty = { trap_id: '', type_id: '', event_type: '', from: '', to: '' }
   const [filters, setFilters] = useState(empty)
   const [cursors, setCursors] = useState<string[]>([])
@@ -20,7 +25,15 @@ export function EventsPage() {
   let validationError = ''
   try { filter = journalFilter(filters) } catch (e) { validationError = (e as Error).message }
   const { data, isLoading, error } = useEvents({ ...filter, limit: 100, cursor: cursors.at(-1) }, !validationError)
-  const [selected, setSelected] = useState<string | null>(null)
+  const selected = searchParams.get('event')
+  const setSelected = (id: string | null) => {
+    setSearchParams((previous) => {
+      const next = new URLSearchParams(previous)
+      if (id) next.set('event', id)
+      else next.delete('event')
+      return next
+    })
+  }
   const events = data?.items ?? []
   const types = [...new Set((catalog?.items ?? []).map((entry) => entry.type_id))].sort()
   const eventTypes = [...new Set((catalog?.items ?? []).flatMap((entry) => entry.event_schemas.map((event) => event.event_type)))].sort()
@@ -42,7 +55,11 @@ export function EventsPage() {
       link.click()
       link.remove()
       setTimeout(() => URL.revokeObjectURL(url), 1000)
-    } catch (e) { setDownloadError(e instanceof Error ? e.message : 'Не удалось скачать файл') }
+      notify({ id: crypto.randomUUID(), title: 'Экспорт событий готов', message: `Файл ${format.toUpperCase()} подготовлен.`, level: 'success' })
+    } catch (e) {
+      setDownloadError(e instanceof Error ? e.message : 'Не удалось скачать файл')
+      notify({ id: crypto.randomUUID(), title: 'Не удалось экспортировать события', message: actionErrorMessage(e), level: 'error' })
+    }
     finally { setExporting(false) }
   }
 

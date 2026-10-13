@@ -21,6 +21,7 @@ export function OrganizationPage() {
   const code = useQuery({ queryKey: key, queryFn: api.getJoinCode, enabled: canManage })
   const rotation = useMutation({
     mutationFn: api.rotateJoinCode,
+    meta: { alertSuccess: 'Код приглашения обновлён', alertError: 'Не удалось обновить код приглашения' },
     onSuccess: (next) => {
       qc.setQueryData(key, next)
       setCopied(false)

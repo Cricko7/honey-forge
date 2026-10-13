@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect } from 'react'
-import type { CommandAction, EventSummary } from '@/types'
+import { useEffect, useRef } from 'react'
+import type { CommandAction, EventSummary, StreamNotification } from '@/types'
 import type { EventFilter } from './event-filters'
 import { api, subscribeStream } from './client'
 import { qk } from './query-keys'
@@ -18,12 +18,16 @@ export const useTrapLinks = () => useQuery({ queryKey: qk.trapLinks, queryFn: ap
 
 export function useCreateTrapLink() {
   const qc = useQueryClient()
-  return useMutation({ mutationFn: api.createTrapLink, onSuccess: () => qc.invalidateQueries({ queryKey: qk.trapLinks }) })
+  return useMutation({ mutationFn: api.createTrapLink,
+    meta: { alertSuccess: 'Связь создана', alertError: 'Не удалось создать связь' },
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.trapLinks }) })
 }
 
 export function useDeleteTrapLink() {
   const qc = useQueryClient()
-  return useMutation({ mutationFn: api.deleteTrapLink, onSuccess: () => qc.invalidateQueries({ queryKey: qk.trapLinks }) })
+  return useMutation({ mutationFn: api.deleteTrapLink,
+    meta: { alertSuccess: 'Связь удалена', alertError: 'Не удалось удалить связь' },
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.trapLinks }) })
 }
 
 export const useTraps = (filter?: { connectivity?: string; profile_id?: string }) =>
@@ -50,6 +54,7 @@ export function useCreateProfile() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: api.createProfile,
+    meta: { alertSuccess: 'Профиль создан', alertError: 'Не удалось создать профиль' },
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.profiles }),
   })
 }
@@ -58,6 +63,7 @@ export function useCreateTrap() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: api.createTrap,
+    meta: { alertSuccess: 'Ловушка создана', alertError: 'Не удалось создать ловушку' },
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.trapLists }),
   })
 }
@@ -66,6 +72,7 @@ export function useDeleteTrap() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ id, revision }: { id: string; revision: number }) => api.deleteTrap(id, revision),
+    meta: { alertSuccess: 'Ловушка удалена', alertError: 'Не удалось удалить ловушку', alertTrapDeletion: true },
     onSuccess: async (_data, { id }) => {
       await Promise.all([
         qc.cancelQueries({ queryKey: qk.trapLists }),
@@ -89,6 +96,7 @@ export function useSendCommand() {
       action: CommandAction
       params?: Record<string, unknown>
     }) => api.createCommand(trapId, action, params),
+    meta: { alertSuccess: 'Команда отправлена', alertError: 'Не удалось отправить команду' },
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: qk.commands(v.trapId) })
       qc.invalidateQueries({ queryKey: qk.trap(v.trapId) })
@@ -98,14 +106,17 @@ export function useSendCommand() {
 
 // Подписка на live-стрим: пушит новые события/изменения ловушек прямо в кэш
 // React Query, чтобы дашборд и конструктор обновлялись в реальном времени.
-export function useLiveStream(onEvent?: (e: EventSummary) => void) {
+export function useLiveStream(onEvent?: (e: EventSummary) => void, onNotification?: (n: StreamNotification) => void) {
   const qc = useQueryClient()
   const { data: session } = useSession()
+  const callbacks = useRef({ onEvent, onNotification })
+  callbacks.current = { onEvent, onNotification }
   useEffect(() => {
     if (!session) return
     return subscribeStream((n) => {
       applyStreamNotification(qc, n)
-      if (n.kind === 'event.created') onEvent?.(n.event)
+      callbacks.current.onNotification?.(n)
+      if (n.kind === 'event.created') callbacks.current.onEvent?.(n.event)
     }, {
       onSynchronize: () => qc.invalidateQueries({
         predicate: (q) => ['events', 'traps', 'trap', 'commands', 'profiles', 'catalog'].includes(String(q.queryKey[0])),

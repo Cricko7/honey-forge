@@ -1,17 +1,25 @@
 import { ShieldAlert } from 'lucide-react'
 import { Modal } from './Modal'
-import { EventTypeBadge, Spinner } from './ui'
+import { EmptyState, EventTypeBadge, Spinner } from './ui'
 import { useEvent } from '@/api/hooks'
 import { formatDateTime, flag, decodeBase64 } from '@/lib/utils'
 import { RecordingView } from './RecordingView'
+import { actionErrorMessage } from '@/lib/alerts'
 
 export function EventDetailModal({ id, onClose }: { id: string | null; onClose: () => void }) {
-  const { data: event, isLoading } = useEvent(id ?? '')
+  const { data: event, isLoading, error, refetch } = useEvent(id ?? '')
 
   return (
     <Modal open={!!id} onClose={onClose} title="Детали события" width="max-w-xl">
-      {isLoading || !event ? (
+      {error ? (
+        <div role="alert" className="space-y-3 text-sm">
+          <p className="text-danger">{actionErrorMessage(error)}</p>
+          <button type="button" className="btn-ghost" onClick={() => refetch()}>Повторить</button>
+        </div>
+      ) : isLoading ? (
         <Spinner />
+      ) : !event ? (
+        <EmptyState title="Событие недоступно" />
       ) : (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
