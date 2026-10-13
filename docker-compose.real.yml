@@ -131,6 +131,7 @@ services:
       AGENT_WS_URL: wss://resources.localhost:8443/assets/stream
       AUTO_DEPLOY_TRAPS: "true"
       HISTORY_RETENTION: ${HISTORY_RETENTION:-24h}
+      API_KEY_RATE_LIMIT_PER_MINUTE: ${API_KEY_RATE_LIMIT_PER_MINUTE:-60}
       TLS_CERT_FILE: /certs/localhost.crt
       TLS_KEY_FILE: /certs/localhost.key
       AGENT_CLIENT_CA_FILE: /certs/agents-ca.crt

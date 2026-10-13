@@ -35,11 +35,14 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) error {
 	limiter := newAuthLimiter()
 	group.POST("/registrations", limiter.middleware, rejectQuery, h.register)
 	group.POST("/sessions", limiter.middleware, rejectQuery, h.login)
-	group.GET("/session", h.RequireSession(), rejectQuery, h.current)
+	group.GET("/session", h.requireBrowserSession(), rejectQuery, h.current)
 	group.DELETE("/session", rejectQuery, h.logout)
 	group.GET("/organization", h.RequireSession(), rejectQuery, h.organization)
-	group.GET("/organization/join-code", h.RequireSession(), rejectQuery, h.joinCode)
-	group.POST("/organization/join-code/rotations", h.RequireSession(), rejectQuery, h.rotateJoinCode)
+	group.GET("/organization/join-code", h.requireBrowserSession(), rejectQuery, h.joinCode)
+	group.POST("/organization/join-code/rotations", h.requireBrowserSession(), rejectQuery, h.rotateJoinCode)
+	group.POST("/api-keys", h.requireBrowserSession(), rejectQuery, h.createAPIKey)
+	group.GET("/api-keys", h.requireBrowserSession(), rejectQuery, h.listAPIKeys)
+	group.DELETE("/api-keys/:id", h.requireBrowserSession(), rejectQuery, h.revokeAPIKey)
 
 	return nil
 }
@@ -118,7 +121,8 @@ func (h *Handler) logout(c *gin.Context) {
 }
 
 func (h *Handler) organization(c *gin.Context) {
-	org, err := h.service.Organization(c.Request.Context(), resolvedSession(c).AuthContext())
+	actor, _ := Context(c)
+	org, err := h.service.Organization(c.Request.Context(), actor)
 	if err != nil {
 		h.fail(c, "organization lookup failed", err)
 		return

@@ -35,6 +35,11 @@ func run() error {
 		return err
 	}
 
+	apiKeyLimit, err := apiKeyRateLimit()
+	if err != nil {
+		return err
+	}
+
 	cert, key := os.Getenv("TLS_CERT_FILE"), os.Getenv("TLS_KEY_FILE")
 	if cert == "" || key == "" {
 		return fmt.Errorf("TLS_CERT_FILE and TLS_KEY_FILE are required")
@@ -119,6 +124,7 @@ func run() error {
 		AgentWSURL:        os.Getenv("AGENT_WS_URL"),
 		AgentClientCAFile: clientCA,
 		AutoDeployTraps:   os.Getenv("AUTO_DEPLOY_TRAPS") == "true",
+		APIKeyRateLimit:   apiKeyLimit,
 		HistoryRetention:  retention,
 		EventPublisher:    publisher,
 		TrustedProxies:    trustedProxies,

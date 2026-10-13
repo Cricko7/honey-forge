@@ -28,6 +28,8 @@ type Store struct {
 	orgs     map[string]storedOrg
 	Sessions map[string]authcore.Session
 	Err      error
+	Keys     map[string]authcore.APIKey
+	KeyQuota map[string]int
 }
 
 func New() *Store {
@@ -35,6 +37,8 @@ func New() *Store {
 		users:    make(map[string]storedUser),
 		orgs:     make(map[string]storedOrg),
 		Sessions: make(map[string]authcore.Session),
+		Keys:     make(map[string]authcore.APIKey),
+		KeyQuota: make(map[string]int),
 	}
 }
 

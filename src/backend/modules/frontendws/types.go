@@ -19,6 +19,11 @@ type sessions interface {
 	ResolveSession(context.Context, string) (auth.ResolvedSession, error)
 }
 
+type apiKeys interface {
+	ResolveAPIKey(context.Context, string) (auth.ResolvedSession, error)
+	AuthenticateAPIKey(context.Context, string) (auth.ResolvedSession, error)
+}
+
 func subscribe(request contract.Envelope) (*string, error) {
 	if request.Type != "stream.subscribe" || request.ReplyTo != nil || len(request.Payload) != 1 {
 		return nil, contract.NewError("invalid_message")

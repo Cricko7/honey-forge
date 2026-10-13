@@ -5,6 +5,7 @@ import { Users, KeyRound, Copy, Check, RefreshCw, Share2, UserPlus, Eye } from '
 import { api, ApiError } from '@/api/client'
 import { useCanManage } from '@/api/hooks'
 import { Spinner } from '@/components/ui'
+import { APIKeys } from './organization/APIKeys'
 
 const steps = [
   { icon: Share2, title: 'Поделитесь кодом', text: 'Передайте код приглашения коллеге любым надёжным каналом.' },
@@ -52,7 +53,7 @@ export function OrganizationPage() {
         <span className="chip bg-brand/10 text-brand mb-3">
           <Users size={13} /> Управление доступом
         </span>
-        <h1 className="text-2xl font-semibold tracking-tight text-fg">Приглашения в организацию</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-fg">Доступ к организации</h1>
         <p className="text-sm text-muted mt-2 max-w-xl leading-relaxed">
           Выдайте код доступа коллеге. Он зарегистрируется с этим кодом и получит роль
           наблюдателя — только просмотр данных организации, без управления ловушками.
@@ -147,6 +148,8 @@ export function OrganizationPage() {
           </p>
         )}
       </section>
+
+      <APIKeys />
 
       {/* Как это работает */}
       <section className="grid sm:grid-cols-3 gap-4">

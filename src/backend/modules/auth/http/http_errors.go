@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -15,8 +16,12 @@ import (
 
 func (h *Handler) fail(c *gin.Context, event string, err error) {
 	status, code, message := http.StatusInternalServerError, "internal_error", "Internal server error"
+	var rateError *authcore.APIKeyRateError
 
 	switch {
+	case errors.As(err, &rateError):
+		status, code, message = 429, "rate_limited", "API key rate limit exceeded"
+		c.Header("Retry-After", strconv.Itoa(rateError.RetryAfter))
 	case errors.Is(err, authcore.ErrEmailTaken):
 		status, code, message = 409, "email_in_use", "Email is already registered"
 	case errors.Is(err, authcore.ErrAlreadyAuthenticated):

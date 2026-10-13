@@ -44,6 +44,7 @@ type Config struct {
 	AgentWSURL         string
 	PublicOrigin       string
 	AutoDeployTraps    bool
+	APIKeyRateLimit    int
 	HistoryRetention   time.Duration
 	Ingester           traps.Ingester
 	EventPublisher     events.BatchPublisher
@@ -138,7 +139,7 @@ func Open(ctx context.Context, config Config) (*Runtime, error) {
 	}
 
 	profileService := profileservice.NewService(profilerepo.NewRepository(pool), profiles.Dependencies{LookupType: ProfileTypeLookup(catalogService)})
-	authService := authservice.NewService(authrepo.NewRepository(pool))
+	authService := authservice.NewService(authrepo.NewRepository(pool)).WithAPIKeyRateLimit(config.APIKeyRateLimit)
 	if err := RegisterServices(router, browser, authService, profileService, catalogService, logger); err != nil {
 		return nil, err
 	}

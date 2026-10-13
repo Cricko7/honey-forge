@@ -19,14 +19,20 @@ type store interface {
 	Organization(context.Context, string) (authcore.Organization, error)
 	JoinCode(context.Context, string) (authcore.JoinCode, error)
 	RotateJoinCode(context.Context, authcore.AuthContext, int32, authcore.JoinCode) (authcore.JoinCode, error)
+	CreateAPIKey(context.Context, authcore.APIKey) error
+	ListAPIKeys(context.Context, string) ([]authcore.APIKey, error)
+	RevokeAPIKey(context.Context, authcore.AuthContext, string) error
+	ResolveAPIKey(context.Context, []byte) (authcore.ResolvedSession, error)
+	ConsumeAPIKey(context.Context, string, int) error
 }
 
 type Service struct {
-	store store
+	store       store
+	apiKeyLimit int
 }
 
 func NewService(repository store) *Service {
-	return &Service{store: repository}
+	return &Service{store: repository, apiKeyLimit: 60}
 }
 
 func (s *Service) Register(ctx context.Context, req authcore.RegisterRequest, currentCookie string) (authcore.SessionView, string, error) {

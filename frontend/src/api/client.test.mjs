@@ -13,6 +13,39 @@ async function client(base) {
   return import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 }
 
+test('API key management uses authenticated browser requests and sends only the name on creation', async () => {
+  const { api } = await client('https://operator.example')
+  const originalFetch = globalThis.fetch
+  const originalWindow = globalThis.window
+  const requests = []
+  globalThis.window = { location: { origin: 'https://operator.example' } }
+  globalThis.fetch = async (url, init) => {
+    requests.push({ url, ...init })
+    if (init?.method === 'DELETE') return new Response(null, { status: 204 })
+    return new Response(JSON.stringify({ csrf_token: 'csrf', items: [], id: 'key-id', token: 'one-time-secret' }))
+  }
+
+  try {
+    await api.getSession()
+    await api.listAPIKeys()
+    assert.equal(requests.at(-1).url, 'https://operator.example/api/api-keys')
+    assert.equal(requests.at(-1).credentials, 'include')
+
+    const created = await api.createAPIKey('SOC integration')
+    assert.equal(created.token, 'one-time-secret')
+    assert.deepEqual(JSON.parse(requests.at(-1).body), { name: 'SOC integration' })
+    assert.equal(requests.at(-1).headers['X-CSRF-Token'], 'csrf')
+
+    await api.revokeAPIKey('key-id')
+    assert.equal(requests.at(-1).method, 'DELETE')
+    assert.equal(requests.at(-1).url, 'https://operator.example/api/api-keys/key-id')
+    assert.equal(requests.at(-1).headers['X-CSRF-Token'], 'csrf')
+  } finally {
+    globalThis.fetch = originalFetch
+    globalThis.window = originalWindow
+  }
+})
+
 test('event filters reach the backend and export returns an authenticated file', async () => {
   const { api } = await client('https://operator.example')
   const originalFetch = globalThis.fetch

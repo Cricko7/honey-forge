@@ -59,7 +59,7 @@ func Upgrade(c *gin.Context, capability contract.Capability, policies ...*contra
 
 	if capability == contract.FrontendStream {
 		origins := c.Request.Header.Values("Origin")
-		if len(origins) != 1 {
+		if len(origins) != 1 && !(len(origins) == 0 && c.GetBool("api_key_authenticated")) {
 			return nil, fail(c, "origin_not_allowed")
 		}
 
@@ -70,7 +70,8 @@ func Upgrade(c *gin.Context, capability contract.Capability, policies ...*contra
 	}
 
 	if len(policies) > 0 && policies[0] != nil {
-		if !policies[0].CheckOrigin(c) {
+		serverKey := capability == contract.FrontendStream && c.GetBool("api_key_authenticated") && len(c.Request.Header.Values("Origin")) == 0
+		if !serverKey && !policies[0].CheckOrigin(c) {
 			return nil, contract.NewError("origin_not_allowed")
 		}
 	} else {

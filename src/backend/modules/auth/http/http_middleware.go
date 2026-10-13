@@ -12,6 +12,25 @@ import (
 // RequireSession passes a verified identity to other operator feature handlers.
 func (h *Handler) RequireSession() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if len(c.Request.Header.Values("Authorization")) > 0 {
+			raw, err := authcore.BearerToken(c.Request.Header)
+			if err != nil {
+				h.fail(c, "API key authentication failed", err)
+				return
+			}
+
+			sess, err := h.service.AuthenticateAPIKey(c.Request.Context(), raw)
+			if err != nil {
+				h.fail(c, "API key authentication failed", err)
+				return
+			}
+
+			c.Set("auth_context", sess.AuthContext())
+			c.Next()
+
+			return
+		}
+
 		sess, err := h.service.ResolveSession(c.Request.Context(), readSessionCookie(c))
 		if err != nil {
 			h.fail(c, "session authentication failed", err)
@@ -33,6 +52,18 @@ func (h *Handler) RequireSession() gin.HandlerFunc {
 		c.Set("resolved_session", sess)
 		c.Set("auth_context", sess.AuthContext())
 		c.Next()
+	}
+}
+
+// Credential management stays protected by the browser session and CSRF.
+func (h *Handler) requireBrowserSession() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if len(c.Request.Header.Values("Authorization")) > 0 {
+			h.fail(c, "browser session required", authcore.ErrForbidden)
+			return
+		}
+
+		h.RequireSession()(c)
 	}
 }
 

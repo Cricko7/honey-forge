@@ -18,6 +18,20 @@ components:
         minimum: 1
         type: integer
   parameters:
+    CSRFOrBearer:
+      name: X-CSRF-Token
+      in: header
+      required: false
+      description: Required for cookie-authenticated mutations; omitted for Bearer API keys.
+      schema:
+        type: string
+    OriginOrBearer:
+      name: Origin
+      in: header
+      required: false
+      description: Required and allowlisted for browser sessions. Server Bearer clients may omit it; supplied values must be allowlisted on mutations and realtime.
+      schema:
+        type: string
     CSRF:
       description: CSRF token from SessionView for the active session.
       in: header
@@ -91,6 +105,15 @@ components:
         pattern: ^[a-z][a-z0-9_.-]{0,63}$
         type: string
   responses:
+    APIKeyRateLimited:
+      description: 429 rate_limited; shared per-key REST and realtime handshake quota. Default 60 requests per minute; configured with optional API_KEY_RATE_LIMIT_PER_MINUTE. Notifications and revalidation consume no quota.
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
     BadRequest:
       content:
         application/json:
@@ -462,6 +485,41 @@ components:
         X-Request-ID:
           $ref: "#/components/headers/RequestID"
   schemas:
+    APIKey:
+      type: object
+      additionalProperties: false
+      required: [id, name, prefix, created_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/ID'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        prefix:
+          type: string
+          description: Non-secret prefix for identification; never the full key.
+        created_at:
+          type: string
+          format: date-time
+    IssuedAPIKey:
+      type: object
+      additionalProperties: false
+      required: [id, name, prefix, created_at, token]
+      properties:
+        id:
+          $ref: '#/components/schemas/ID'
+        name:
+          type: string
+        prefix:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        token:
+          type: string
+          pattern: '^hf_[A-Za-z0-9_-]{43}$'
+          description: Secret shown only at creation. Store securely; the database stores only its SHA-256 hash.
     TrapLink:
       type: object
       additionalProperties: false
@@ -1715,6 +1773,11 @@ components:
       - next_cursor
       - stream_cursor
   securitySchemes:
+    apiKeyBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: hf_opaque
+      description: API key issued by an organization administrator. Uses the owner's current role and organization. Revoked keys return 401. No cookie or CSRF is required. Do not send the key in a query string.
     OperatorSession:
       description: Module 02 must resolve the active server session; client roles/organization IDs are never trusted.
       in: cookie
@@ -1726,11 +1789,118 @@ components:
       name: __Host-session
       type: apiKey
 info:
-  description: Integrated operator authentication, catalog, profiles, traps, agent credentials, commands, agent WSS and durable event history. Authenticated mutations require Origin and X-CSRF-Token.
+  description: >-
+    Integrated operator API and durable realtime notifications. Cookie-authenticated mutations
+    require Origin and X-CSRF-Token. Organization resources and /api/stream also accept
+    Authorization Bearer API keys; server integrations do not require cookie, Origin or CSRF.
+    If Origin is supplied on a mutation or stream handshake it must be allowlisted.
+    A per-key quota is shared by REST requests and realtime handshakes across API replicas;
+    default 60 requests per one-minute window, configured at startup with optional
+    API_KEY_RATE_LIMIT_PER_MINUTE. Excess requests return 429 rate_limited with Retry-After
+    in seconds. Stream notifications and credential revalidation consume no quota.
+    Keys inherit current owner permissions, are organization-scoped and remain active until revoked.
+    Key management, browser sessions and invitation codes require a browser session.
   title: HoneyForge API
   version: 0.1.0
 openapi: 3.1.0
 paths:
+  /api/api-keys:
+    get:
+      operationId: listAPIKeys
+      summary: List active organization API keys without secrets
+      description: Administrator browser session required; returns all active keys, newest first. No query parameters or request body.
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Active keys; items is empty when none exist.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/APIKey'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createAPIKey
+      summary: Issue an API key and show its secret once
+      description: Administrator browser session, Origin and CSRF required. API keys cannot issue other keys. Creation and audit history commit atomically.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CSRF'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 120
+      responses:
+        '201':
+          description: New key; the secret cannot be retrieved again.
+          headers:
+            Location:
+              schema:
+                type: string
+              description: /api/api-keys/{id}, used for revocation.
+            Cache-Control:
+              schema:
+                const: no-store
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IssuedAPIKey'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+  /api/api-keys/{id}:
+    delete:
+      operationId: revokeAPIKey
+      summary: Revoke an organization API key
+      description: Administrator browser session, Origin and CSRF required; empty body and no query. Foreign or already-revoked keys return 404. Existing realtime connections revalidate before notifications and every 15 seconds and close with 4401 after revocation.
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ID'
+        - $ref: '#/components/parameters/Origin'
+        - $ref: '#/components/parameters/CSRF'
+      responses:
+        '204':
+          description: Key revoked; no content.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /api/trap-links:
     get:
       operationId: listTrapLinks
@@ -1738,7 +1908,10 @@ paths:
       description: Admin and viewer access. Returns all links ordered by source_id then target_id; no query parameters, pagination or request body.
       security:
       - sessionCookie: []
+      - apiKeyBearer: []
       responses:
+        '429':
+          $ref: '#/components/responses/APIKeyRateLimited'
         '200':
           description: Organization links, with an empty array when there are none
           content:
@@ -1765,9 +1938,10 @@ paths:
       description: Admin only. Unknown/deleted/cross-organization endpoints return 404. Self links return 422; an existing direction returns 409 trap_link_exists. Reverse links are independent. Takes effect on subsequent mirrored frames, including active connections; buffered frames already accepted may still arrive after deletion. Neither trap revision changes.
       security:
       - sessionCookie: []
+      - apiKeyBearer: []
       parameters:
-      - $ref: '#/components/parameters/Origin'
-      - $ref: '#/components/parameters/CSRF'
+      - $ref: '#/components/parameters/OriginOrBearer'
+      - $ref: '#/components/parameters/CSRFOrBearer'
       requestBody:
         required: true
         content:
@@ -1775,6 +1949,8 @@ paths:
             schema:
               $ref: '#/components/schemas/TrapLink'
       responses:
+        '429':
+          $ref: '#/components/responses/APIKeyRateLimited'
         '201':
           description: Link persisted
           headers:
@@ -1817,10 +1993,13 @@ paths:
       summary: Remove one direction of traffic mirroring
       security:
       - sessionCookie: []
+      - apiKeyBearer: []
       parameters:
-      - $ref: '#/components/parameters/Origin'
-      - $ref: '#/components/parameters/CSRF'
+      - $ref: '#/components/parameters/OriginOrBearer'
+      - $ref: '#/components/parameters/CSRFOrBearer'
       responses:
+        '429':
+          $ref: '#/components/responses/APIKeyRateLimited'
         '204':
           description: Link removed; reverse links are unaffected
         '400':
@@ -1835,13 +2014,15 @@ paths:
     get:
       operationId: subscribeFrontendStream
       summary: Upgrade the current organization's dashboard notification stream
-      description: Exact configured HTTPS Origin, __Host-session and dashboard-stream.v1 are mandatory. Commands use REST with CSRF. Text JSON only, no compression, 256 KiB maximum. First stream.subscribe within 5 seconds; replay then correlated ready then live. Replay retention 24 hours. No changes to subscription; reconnect with a new after. Session/role checked before every delivery and every server ping.
+      description: Browser clients require configured HTTPS Origin and __Host-session. Server integrations use Authorization Bearer API keys and may omit Origin; supplied Origin must be allowlisted. Both require dashboard-stream.v1. Commands use REST; CSRF is required only with a browser session. Text JSON only, no compression, 256 KiB maximum. First stream.subscribe within 5 seconds; replay then correlated ready then live. Replay retention 24 hours. No changes to subscription; reconnect with a new after. Credentials and current role checked before every delivery and every server ping. Revoked keys close with 4401. Handshakes share the per-key REST quota; notifications and revalidation consume no quota.
       security:
       - OperatorSession: []
+      - apiKeyBearer: []
       parameters:
       - in: header
         name: Origin
-        required: true
+        required: false
+        description: Required for browser sessions; optional for Bearer API key clients. Supplied values must be allowlisted.
         schema:
           type: string
           format: uri
@@ -1852,6 +2033,8 @@ paths:
           type: string
           const: dashboard-stream.v1
       responses:
+        '429':
+          $ref: '#/components/responses/APIKeyRateLimited'
         "101":
           description: WebSocket established using dashboard-stream.v1
           headers:
@@ -1873,7 +2056,10 @@ paths:
       description: Lists workers explicitly assigned to the current organization. Ready requires an active worker and a Swarm observation within 30 seconds. Unknown and foreign workers are never returned.
       security:
       - sessionCookie: []
+      - apiKeyBearer: []
       responses:
+        '429':
+          $ref: '#/components/responses/APIKeyRateLimited'
         '200':
           description: Assigned workers; an empty list means no company server is assigned.
           content:
@@ -1911,6 +2097,7 @@ paths:
       operationId: listTraps
       security:
       - sessionCookie: []
+      - apiKeyBearer: []
       parameters:
       - $ref: '#/components/parameters/Limit'
       - $ref: '#/components/parameters/Cursor'
@@ -1926,6 +2113,8 @@ paths:
           - online
           - offline
       responses:
+        '429':
+          $ref: '#/components/responses/APIKeyRateLimited'
         '200':
           description: Live registrations ordered by created_at DESC/id DESC. Cursor retains the first-page creation boundary and is scoped to organization and filters.
           content:
@@ -1946,10 +2135,13 @@ paths:
       operationId: createTrap
       security:
       - sessionCookie: []
+      - apiKeyBearer: []
       parameters:
-      - $ref: '#/components/parameters/Origin'
-      - $ref: '#/components/parameters/CSRF'
+      - $ref: '#/components/parameters/OriginOrBearer'
+      - $ref: '#/components/parameters/CSRFOrBearer'
       responses:
+        '429':
+          $ref: '#/components/responses/APIKeyRateLimited'
         '201':
           description: Registers an offline/unknown/stopped trap at revision=state_version=1. In the main Docker Compose installation, an isolated agent container is scheduled asynchronously and apply_config/start commands are queued automatically; the response does not wait for the listener to open.
           content:
@@ -2010,8 +2202,11 @@ paths:
       operationId: readTrap
       security:
       - sessionCookie: []
+      - apiKeyBearer: []
       parameters: []
       responses:
+        '429':
+          $ref: '#/components/responses/APIKeyRateLimited'
         '200':
           description: Current trap. No ETag; state_version orders full DTO changes. last_seen_at is accepted hello/heartbeat server time. Offline does not imply stopped.
           content:
@@ -2032,11 +2227,14 @@ paths:
       operationId: patchTrap
       security:
       - sessionCookie: []
+      - apiKeyBearer: []
       parameters:
-      - $ref: '#/components/parameters/Origin'
-      - $ref: '#/components/parameters/CSRF'
+      - $ref: '#/components/parameters/OriginOrBearer'
+      - $ref: '#/components/parameters/CSRFOrBearer'
       - $ref: '#/components/parameters/ExpectedRevision'
       responses:
+        '429':
+          $ref: '#/components/responses/APIKeyRateLimited'
         '200':
           description: Only name/description. No-op preserves revision/updated_at; heartbeat and commands do not conflict with editable revision.
           content:
@@ -2079,11 +2277,14 @@ paths:
       operationId: deleteTrap
       security:
       - sessionCookie: []
+      - apiKeyBearer: []
       parameters:
-      - $ref: '#/components/parameters/Origin'
-      - $ref: '#/components/parameters/CSRF'
+      - $ref: '#/components/parameters/OriginOrBearer'
+      - $ref: '#/components/parameters/CSRFOrBearer'
       - $ref: '#/components/parameters/ExpectedRevision'
       responses:
+        '429':
+          $ref: '#/components/responses/APIKeyRateLimited'
         '204':
           description: Tombstones registration and revokes token/WSS. Deletes the associated profile when no other non-deleted trap uses it, retaining profile revisions and request IDs and publishing profile.deleted. Offline deletion closes queued/running commands as failed with trap_deleted and may discard agent-buffered events. Online deletion requires no active command, stopped desired/runtime and empty healthy buffer. In-progress ingestion blocks both modes. History remains readable; repeated DELETE is 404.
         '400':
@@ -2119,8 +2320,11 @@ paths:
       operationId: readAgentCredentials
       security:
       - sessionCookie: []
+      - apiKeyBearer: []
       parameters: []
       responses:
+        '429':
+          $ref: '#/components/responses/APIKeyRateLimited'
         '200':
           description: Admin only. Generation 0/active false/issued_at null before first issue. Token is never returned.
           content:
@@ -2146,10 +2350,13 @@ paths:
       operationId: issueAgentCredentials
       security:
       - sessionCookie: []
+      - apiKeyBearer: []
       parameters:
-      - $ref: '#/components/parameters/Origin'
-      - $ref: '#/components/parameters/CSRF'
+      - $ref: '#/components/parameters/OriginOrBearer'
+      - $ref: '#/components/parameters/CSRFOrBearer'
       responses:
+        '429':
+          $ref: '#/components/responses/APIKeyRateLimited'
         '200':
           description: Admin only. Atomically compares expected_generation, issues one secret and immediately revokes previous token/WSS (4401). Lost-response retry is 409 agent_credentials_changed.
           content:
@@ -2193,9 +2400,10 @@ paths:
       operationId: revokeAgentCredentials
       security:
       - sessionCookie: []
+      - apiKeyBearer: []
       parameters:
-      - $ref: '#/components/parameters/Origin'
-      - $ref: '#/components/parameters/CSRF'
+      - $ref: '#/components/parameters/OriginOrBearer'
+      - $ref: '#/components/parameters/CSRFOrBearer'
       - name: If-Match
         in: header
         required: true
@@ -2203,6 +2411,8 @@ paths:
           type: string
           pattern: ^"agent-credentials:[0-9a-f-]+:[0-9]+"$
       responses:
+        '429':
+          $ref: '#/components/responses/APIKeyRateLimited'
         '204':
           description: Admin only. Exact current ETag; increments generation on actual revocation, current inactive generation is a no-op. Closes WSS 4401; does not stop the service.
         '400':
@@ -2235,6 +2445,7 @@ paths:
       description: Immutable operator history for admin and viewer in their organization. Entries are automatically removed after HISTORY_RETENTION (default 24 hours); cleanup runs every minute in bounded batches. Filters AND; occurred_at DESC/id DESC. Unknown valid actions or actor IDs return an empty page. Cursor binds organization, normalized filters and first-page commit sequence. Reads do not create audit. Old mutation entries created before actor snapshots were introduced have a one-time identity backfill from the migration; later changes never rewrite them.
       security:
       - sessionCookie: []
+      - apiKeyBearer: []
       parameters:
       - $ref: '#/components/parameters/Limit'
       - $ref: '#/components/parameters/Cursor'
@@ -2261,6 +2472,8 @@ paths:
         schema:
           $ref: '#/components/schemas/ID'
       responses:
+        '429':
+          $ref: '#/components/responses/APIKeyRateLimited'
         '200':
           description: Own audit history with safe metadata and actor snapshots.
           content:
@@ -2280,6 +2493,7 @@ paths:
       operationId: readAuditEntry
       security:
       - sessionCookie: []
+      - apiKeyBearer: []
       parameters:
       - in: path
         name: audit_id
@@ -2287,6 +2501,8 @@ paths:
         schema:
           $ref: '#/components/schemas/ID'
       responses:
+        '429':
+          $ref: '#/components/responses/APIKeyRateLimited'
         '200':
           description: Immutable entry, including history of deleted resources. No credentials, configuration values or attacker input.
           content:
@@ -2308,6 +2524,7 @@ paths:
       operationId: listEvents
       security:
       - sessionCookie: []
+      - apiKeyBearer: []
       parameters:
       - $ref: '#/components/parameters/Limit'
       - $ref: '#/components/parameters/Cursor'
@@ -2340,6 +2557,8 @@ paths:
         schema:
           $ref: '#/components/schemas/ID'
       responses:
+        '429':
+          $ref: '#/components/responses/APIKeyRateLimited'
         '200':
           description: Own summaries including tombstone traps. All filters AND; from inclusive, to exclusive on occurred_at; order occurred_at DESC/event_id DESC. Late events stay outside original page boundary. stream_cursor is retained across pagination.
           content:
@@ -2379,6 +2598,7 @@ paths:
         No agent credentials or configuration snapshots are included.
       security:
       - sessionCookie: []
+      - apiKeyBearer: []
       parameters:
       - in: query
         name: format
@@ -2415,6 +2635,8 @@ paths:
         schema:
           $ref: '#/components/schemas/ID'
       responses:
+        '429':
+          $ref: '#/components/responses/APIKeyRateLimited'
         '200':
           description: Complete export, including a header-only CSV or empty STIX bundle for no matches.
           headers:
@@ -2470,6 +2692,7 @@ paths:
         by this endpoint. Schemas are published in the trap-type descriptor.
       security:
         - sessionCookie: []
+        - apiKeyBearer: []
       parameters:
         - in: path
           name: session_id
@@ -2482,6 +2705,8 @@ paths:
           schema:
             $ref: '#/components/schemas/ID'
       responses:
+        '429':
+          $ref: '#/components/responses/APIKeyRateLimited'
         '200':
           description: Recording snapshot
           content:
@@ -2503,6 +2728,7 @@ paths:
       operationId: readEvent
       security:
       - sessionCookie: []
+      - apiKeyBearer: []
       parameters:
       - in: path
         name: event_id
@@ -2510,6 +2736,8 @@ paths:
         schema:
           $ref: '#/components/schemas/ID'
       responses:
+        '429':
+          $ref: '#/components/responses/APIKeyRateLimited'
         '200':
           description: Immutable own details including original captured data and tombstone history. Events are automatically removed HISTORY_RETENTION after server receipt (default 24 hours); removed event IDs return 404.
           content:
@@ -2539,6 +2767,8 @@ paths:
           enum: [queued, running, succeeded, failed, expired]
           type: string
       responses:
+        '429':
+          $ref: '#/components/responses/APIKeyRateLimited'
         "200":
           description: Commands ordered by created_at DESC, id DESC; own tombstone history remains readable until retention expires. Terminal commands are removed HISTORY_RETENTION after completion (default 24 hours), only after their dispatch deadline; active commands stay.
           content:
@@ -2557,13 +2787,14 @@ paths:
           $ref: "#/components/responses/Unavailable"
       security:
       - sessionCookie: []
+      - apiKeyBearer: []
     post:
       operationId: createTrapCommand
       description: Queues a command for up to 24 hours. A queued command expires after five minutes with error code agent_not_connected when its offline agent has never connected; this also releases pre-existing queued commands after an upgrade. Previously connected agents and running commands retain the normal deadline. Exactly one queued or running command per trap. Repeating request_id with the same content returns the initial queued command while retained, including after execution; read GET for current status. Changed content returns idempotency_conflict.
       parameters:
       - $ref: "#/components/parameters/TrapID"
-      - $ref: "#/components/parameters/Origin"
-      - $ref: "#/components/parameters/CSRF"
+      - $ref: "#/components/parameters/OriginOrBearer"
+      - $ref: "#/components/parameters/CSRFOrBearer"
       requestBody:
         required: true
         content:
@@ -2571,6 +2802,8 @@ paths:
             schema:
               $ref: "#/components/schemas/CreateCommandRequest"
       responses:
+        '429':
+          $ref: '#/components/responses/APIKeyRateLimited'
         "200":
           description: Original command for an idempotent replay.
           headers:
@@ -2613,6 +2846,7 @@ paths:
           $ref: "#/components/responses/Unavailable"
       security:
       - sessionCookie: []
+      - apiKeyBearer: []
   /api/traps/{id}/commands/{command_id}:
     get:
       operationId: readTrapCommand
@@ -2620,6 +2854,8 @@ paths:
       - $ref: "#/components/parameters/TrapID"
       - $ref: "#/components/parameters/CommandID"
       responses:
+        '429':
+          $ref: '#/components/responses/APIKeyRateLimited'
         "200":
           description: One command, including its terminal runtime result if available.
           content:
@@ -2638,10 +2874,13 @@ paths:
           $ref: "#/components/responses/Unavailable"
       security:
       - sessionCookie: []
+      - apiKeyBearer: []
   /api/organization:
     get:
       operationId: getOrganization
       responses:
+        '429':
+          $ref: '#/components/responses/APIKeyRateLimited'
         "200":
           $ref: "#/components/responses/Organization"
         "400":
@@ -2658,6 +2897,7 @@ paths:
           $ref: "#/components/responses/Unavailable"
       security:
       - sessionCookie: []
+      - apiKeyBearer: []
       summary: getOrganization
   /api/organization/join-code:
     get:
@@ -2728,6 +2968,8 @@ paths:
       - $ref: "#/components/parameters/Cursor"
       - $ref: "#/components/parameters/TypeID"
       responses:
+        '429':
+          $ref: '#/components/responses/APIKeyRateLimited'
         "200":
           $ref: "#/components/responses/ProfilePage"
         "400":
@@ -2744,11 +2986,12 @@ paths:
           $ref: "#/components/responses/Unavailable"
       security:
       - sessionCookie: []
+      - apiKeyBearer: []
     post:
       operationId: createProfile
       parameters:
-      - $ref: "#/components/parameters/Origin"
-      - $ref: "#/components/parameters/CSRF"
+      - $ref: "#/components/parameters/OriginOrBearer"
+      - $ref: "#/components/parameters/CSRFOrBearer"
       requestBody:
         content:
           application/json:
@@ -2756,6 +2999,8 @@ paths:
               $ref: "#/components/schemas/CreateProfileRequest"
         required: true
       responses:
+        '429':
+          $ref: '#/components/responses/APIKeyRateLimited'
         "200":
           $ref: "#/components/responses/ProfileReplayed"
         "201":
@@ -2780,15 +3025,18 @@ paths:
           $ref: "#/components/responses/Unavailable"
       security:
       - sessionCookie: []
+      - apiKeyBearer: []
   /api/profiles/{id}:
     delete:
       operationId: deleteProfile
       parameters:
       - $ref: "#/components/parameters/ProfileID"
-      - $ref: "#/components/parameters/Origin"
-      - $ref: "#/components/parameters/CSRF"
+      - $ref: "#/components/parameters/OriginOrBearer"
+      - $ref: "#/components/parameters/CSRFOrBearer"
       - $ref: "#/components/parameters/IfMatch"
       responses:
+        '429':
+          $ref: '#/components/responses/APIKeyRateLimited'
         "204":
           $ref: "#/components/responses/ProfileDeleted"
         "400":
@@ -2813,11 +3061,14 @@ paths:
           $ref: "#/components/responses/Unavailable"
       security:
       - sessionCookie: []
+      - apiKeyBearer: []
     get:
       operationId: readProfile
       parameters:
       - $ref: "#/components/parameters/ProfileID"
       responses:
+        '429':
+          $ref: '#/components/responses/APIKeyRateLimited'
         "200":
           $ref: "#/components/responses/Profile"
         "400":
@@ -2836,12 +3087,13 @@ paths:
           $ref: "#/components/responses/Unavailable"
       security:
       - sessionCookie: []
+      - apiKeyBearer: []
     patch:
       operationId: patchProfile
       parameters:
       - $ref: "#/components/parameters/ProfileID"
-      - $ref: "#/components/parameters/Origin"
-      - $ref: "#/components/parameters/CSRF"
+      - $ref: "#/components/parameters/OriginOrBearer"
+      - $ref: "#/components/parameters/CSRFOrBearer"
       - $ref: "#/components/parameters/IfMatch"
       requestBody:
         content:
@@ -2850,6 +3102,8 @@ paths:
               $ref: "#/components/schemas/PatchProfileRequest"
         required: true
       responses:
+        '429':
+          $ref: '#/components/responses/APIKeyRateLimited'
         "200":
           $ref: "#/components/responses/Profile"
         "400":
@@ -2878,6 +3132,7 @@ paths:
           $ref: "#/components/responses/Unavailable"
       security:
       - sessionCookie: []
+      - apiKeyBearer: []
   /api/registrations:
     post:
       operationId: registerOperator
@@ -3006,6 +3261,8 @@ paths:
         schema:
           type: string
       responses:
+        '429':
+          $ref: '#/components/responses/APIKeyRateLimited'
         "200":
           $ref: "#/components/responses/Catalog200"
         "304":
@@ -3022,6 +3279,7 @@ paths:
           $ref: "#/components/responses/Error"
       security:
       - OperatorSession: []
+      - apiKeyBearer: []
       summary: Read the installed type catalog (admin or viewer)
   /api/trap-types/{type_id}/versions/{type_version}:
     get:
@@ -3042,6 +3300,8 @@ paths:
         schema:
           type: string
       responses:
+        '429':
+          $ref: '#/components/responses/APIKeyRateLimited'
         "200":
           $ref: "#/components/responses/Catalog200Detail"
         "304":
@@ -3060,6 +3320,7 @@ paths:
           $ref: "#/components/responses/Error"
       security:
       - OperatorSession: []
+      - apiKeyBearer: []
       summary: Read one exact immutable type version (admin or viewer)
   /:
     servers:

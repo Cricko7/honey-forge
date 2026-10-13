@@ -11,10 +11,10 @@ import (
 	"honey-forge/internal/stream"
 )
 
-func (h *Handler) connected(ctx context.Context, socket *stream.Socket, cookie string, principal contract.Principal, request contract.Envelope, after, boundary int64, replayed bool, closeConnection func(int, string)) {
+func (h *Handler) connected(ctx context.Context, socket *stream.Socket, cookie string, bearer bool, principal contract.Principal, request contract.Envelope, after, boundary int64, replayed bool, closeConnection func(int, string)) {
 	verify := func() bool {
 		work, cancel := context.WithTimeout(ctx, 5*time.Second)
-		current, err := h.authenticate(work, cookie)
+		current, err := h.authenticate(work, cookie, bearer)
 		cancel()
 		if err != nil {
 			var api *contract.Error

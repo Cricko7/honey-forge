@@ -72,7 +72,10 @@ func operatorMiddleware(browser *contract.BrowserPolicy, logger *slog.Logger) gi
 		switch c.Request.Method {
 		case http.MethodGet, http.MethodHead, http.MethodOptions:
 		default:
-			if !browser.CheckOrigin(c) {
+			path := c.Request.URL.Path
+			browserRequest := len(c.Request.Header.Values("Authorization")) == 0 || len(c.Request.Header.Values("Origin")) > 0 ||
+				path == "/api/registrations" || path == "/api/sessions" || path == "/api/session"
+			if browserRequest && !browser.CheckOrigin(c) {
 				return
 			}
 		}

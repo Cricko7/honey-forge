@@ -21,6 +21,13 @@ import { ApiError, createHTTPClient } from './http'
 
 export { ApiError } from './http'
 
+export interface APIKey {
+  id: string
+  name: string
+  prefix: string
+  created_at: string
+}
+
 // Переключатель источника данных. Пусто → mock-слой (демо хакатона).
 // Для реального backend: VITE_API_BASE=https://api.example.org
 const API_BASE = import.meta.env.VITE_API_BASE ?? ''
@@ -35,6 +42,21 @@ let mockSignedOut = false
 const real = createHTTPClient(API_BASE, () => csrfToken)
 
 export const api = {
+  async listAPIKeys(): Promise<{ items: APIKey[] }> {
+    if (USE_MOCK) throw new ApiError(503, 'demo_unavailable', 'API-ключи доступны с подключённым сервером')
+    return real('/api/api-keys')
+  },
+
+  async createAPIKey(name: string): Promise<APIKey & { token: string }> {
+    if (USE_MOCK) throw new ApiError(503, 'demo_unavailable', 'API-ключи доступны с подключённым сервером')
+    return real('/api/api-keys', { method: 'POST', body: JSON.stringify({ name }) })
+  },
+
+  async revokeAPIKey(id: string): Promise<void> {
+    if (USE_MOCK) throw new ApiError(503, 'demo_unavailable', 'API-ключи доступны с подключённым сервером')
+    await real(`/api/api-keys/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  },
+
   async listTrapLinks(): Promise<{ items: TrapLink[] }> {
     if (USE_MOCK) { await delay(); return mockApi.listTrapLinks() }
     return real('/api/trap-links')
