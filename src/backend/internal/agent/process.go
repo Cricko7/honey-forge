@@ -10,7 +10,6 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"strings"
 	"time"
 
 	"honey-forge/modules/profiles"
@@ -63,13 +62,8 @@ func (p *Process) Start(ctx context.Context, snapshot profiles.Snapshot) error {
 		isolateChild(cmd)
 	}
 
-	for _, entry := range os.Environ() {
-		key, _, _ := strings.Cut(entry, "=")
-		if strings.HasPrefix(strings.ToUpper(key), "AGENT_") || strings.HasPrefix(strings.ToUpper(key), "TRAP_") {
-			continue
-		}
-
-		cmd.Env = append(cmd.Env, entry)
+	if p.WorkerImage == "" {
+		cmd.Env = childEnvironment(os.Environ(), snapshot.TypeID == "ssh-high-interaction")
 	}
 
 	stdin, err := cmd.StdinPipe()

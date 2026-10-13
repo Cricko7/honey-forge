@@ -8,4 +8,5 @@ RUN CGO_ENABLED=0 go build -p 1 -trimpath -o /out/orchestrator ./cmd/orchestrato
 FROM alpine:3.20
 RUN apk add --no-cache ca-certificates docker-cli
 COPY --from=build /out/orchestrator /orchestrator
+COPY deploy/verify-isolation.sh /opt/honeyforge/verify-isolation.sh
 ENTRYPOINT ["/orchestrator"]

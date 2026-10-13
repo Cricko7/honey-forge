@@ -94,7 +94,7 @@ func TestMASK3DeploymentBoundaries(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for _, want := range []string{"set -eu", "iptables -P OUTPUT DROP", "--ctstate ESTABLISHED,RELATED", "su-exec 65532:65532"} {
+	for _, want := range []string{"set -eu", "iptables -P OUTPUT DROP", "--ctstate ESTABLISHED --ctdir REPLY", "su-exec 65532:65532"} {
 		if !strings.Contains(string(raw), want) {
 			t.Fatalf("worker entrypoint is missing %s", want)
 		}

@@ -46,15 +46,6 @@ jobs:
           TEST_REDIS_CA_FILE: ${{ github.workspace }}/certs/ca.crt
           TEST_NGINX_PROXY: "1"
         run: go test -race -tags=integration ./... -count=1
-      - name: Optional SSH sandbox acceptance
-        if: vars.ENABLE_SSH_ACCEPTANCE == 'true'
-        env:
-          TEST_SSH_DOCKER: "1"
-          SSH_SANDBOX_IMAGE: honeyforge/ssh-sandbox:test
-        run: |
-          docker build -f deploy/decoys/Dockerfile.sandbox -t "$SSH_SANDBOX_IMAGE" .
-          cd src/backend
-          go test -race -tags=integration ./internal/decoys/sshtrap -run TestDockerRealLinuxShellSFTPAndIsolation -count=1 -timeout=120s
       - name: MASK-3 worker isolation acceptance
         env:
           TEST_MASK3_DOCKER: "1"
@@ -63,6 +54,15 @@ jobs:
           docker build -f deploy/decoys/Dockerfile --target tcp -t "$DECOY_TCP_IMAGE" .
           cd src/backend
           go test -race -tags=integration ./internal/agent -run TestDockerWorkerMASK3Isolation -count=1 -timeout=120s
+      - name: SSH sandbox isolation acceptance
+        env:
+          TEST_SSH_DOCKER: "1"
+          NM_SANDBOX_IMAGE: honeyforge/ssh-sandbox:test
+          DECOY_TCP_IMAGE: honeyforge/tcp-decoy:test
+        run: |
+          docker build -f deploy/decoys/Dockerfile.sandbox -t "$NM_SANDBOX_IMAGE" .
+          cd src/backend
+          go test -race -tags=integration ./internal/decoys/sshtrap -run TestDockerRealLinuxShellSFTPAndIsolation -count=1 -timeout=120s
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -142,8 +142,6 @@ jobs:
           npm run build
 
       - name: Build and package versioned Docker images
-        env:
-          ENABLE_SSH: ${{ vars.ENABLE_SSH_ACCEPTANCE }}
         run: |
           tag="$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           mkdir -p release
@@ -157,12 +155,17 @@ jobs:
             images+=("honeyforge/$image:$tag")
             printf '%s=%s\n' "$key" "honeyforge/$image:$tag" >> release/release.env
           done
-          if [ "$ENABLE_SSH" = true ]; then
-            docker build -f deploy/decoys/Dockerfile --target ssh -t "honeyforge/ssh-decoy:$tag" .
-            docker build -f deploy/decoys/Dockerfile.sandbox -t "honeyforge/ssh-sandbox:$tag" .
-            images+=("honeyforge/ssh-decoy:$tag" "honeyforge/ssh-sandbox:$tag")
-            printf 'DECOY_SSH_IMAGE=honeyforge/ssh-decoy:%s\nSSH_SANDBOX_IMAGE=honeyforge/ssh-sandbox:%s\n' "$tag" "$tag" >> release/release.env
-          fi
+          docker build -f deploy/decoys/Dockerfile --target ssh -t "honeyforge/ssh-decoy:$tag" .
+          docker build -f deploy/decoys/Dockerfile.sandbox -t "honeyforge/ssh-sandbox:$tag" .
+          images+=("honeyforge/ssh-decoy:$tag" "honeyforge/ssh-sandbox:$tag")
+          printf 'DECOY_SSH_IMAGE=honeyforge/ssh-decoy:%s\nSSH_SANDBOX_IMAGE=honeyforge/ssh-sandbox:%s\n' "$tag" "$tag" >> release/release.env
+          cat > release/compose.ssh.yml <<'YAML'
+          services:
+            orchestrator:
+              environment:
+                DECOY_SSH_IMAGE: ${DECOY_SSH_IMAGE:?SSH gateway image is required}
+                SSH_SANDBOX_IMAGE: ${SSH_SANDBOX_IMAGE:?SSH sandbox image is required}
+          YAML
           docker save "${images[@]}" | gzip > release/images.tar.gz
           cp -R frontend/dist release/frontend
 
@@ -219,7 +222,16 @@ jobs:
             docker info >/dev/null
             docker compose version
             compose() {
-              docker compose --project-name honeyforge --env-file "$CONFIG" --env-file "$1" -f "$MANIFEST" "${@:2}"
+              local release_env="$1"
+              shift
+
+              local manifests=(-f "$MANIFEST")
+              local ssh_override="${release_env%/*}/compose.ssh.yml"
+              if [ -f "$ssh_override" ]; then
+                manifests+=(-f "$ssh_override")
+              fi
+
+              docker compose --project-name honeyforge --env-file "$CONFIG" --env-file "$release_env" "${manifests[@]}" "$@"
             }
             test -n "${BASH_VERSION:-}" || { echo 'SSH login shell must be bash'; exit 1; }
             compose "$INCOMING/release.env" config --quiet
@@ -309,9 +321,17 @@ jobs:
                 honeyforge/tcp-decoy:*) image="$DECOY_TCP_IMAGE";;
                 honeyforge/redis-decoy:*) image="$DECOY_REDIS_IMAGE";;
                 honeyforge/honeytoken-decoy:*) image="$DECOY_HONEYTOKEN_IMAGE";;
+                honeyforge/ssh-decoy:*) image="$DECOY_SSH_IMAGE";;
                 *) echo "Unchanged service $service: $old_image"; continue;;
               esac
-              if docker service update --detach=false --no-resolve-image --image "$image" --env-add "NM_WORKER_IMAGE=$image" --update-order stop-first --update-parallelism 1 --update-failure-action rollback "$service"; then
+
+              update_args=(--image "$image")
+              case "$old_image" in
+                honeyforge/ssh-decoy:*) update_args+=(--env-add "NM_SANDBOX_IMAGE=$SSH_SANDBOX_IMAGE" --env-rm NM_WORKER_IMAGE --env-rm NM_WORKER_NETWORK);;
+                *) update_args+=(--env-add "NM_WORKER_IMAGE=$image");;
+              esac
+
+              if docker service update --detach=false --no-resolve-image "${update_args[@]}" --update-order stop-first --update-parallelism 1 --update-failure-action rollback "$service"; then
                 :
               else
                 update_status=$?
@@ -337,7 +357,7 @@ jobs:
             mv -Tf "$ROOT/current.next" "$ROOT/current"
             if [ "$OLD_SYSTEMD" -eq 1 ]; then sudo -n systemctl disable honeyforge; fi
             trap - EXIT
-            echo 'Docker API, orchestrator, TCP/Redis agents and frontend updated'
+            echo 'Docker API, orchestrator, TCP/Redis/HTTP/SSH traps and frontend updated'
 
       - name: Management API, WSS and frontend smoke tests over SSH
         uses: appleboy/ssh-action@v1

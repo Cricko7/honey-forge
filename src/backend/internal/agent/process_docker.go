@@ -44,7 +44,9 @@ func (p *Process) workerArgs(ctx context.Context, snapshot profiles.Snapshot) ([
 	args := []string{"run", "--rm", "--interactive", "--init", "--pull=never", "--name", p.workerName(),
 		"--log-driver", "local", "--log-opt", "max-size=10m", "--log-opt", "max-file=3",
 		"--label", "com.nodemetrics.worker=" + p.TrapID,
-		"--network", p.WorkerNetwork, "--read-only", "--cap-drop", "ALL",
+		"--network", p.WorkerNetwork, "--hostname", "service", "--dns", "127.0.0.1", "--dns-search", ".",
+		"--ipc", "private", "--cgroupns", "private",
+		"--ulimit", "core=0:0", "--read-only", "--cap-drop", "ALL",
 		"--tmpfs", "/run:rw,nosuid,nodev,noexec,size=1m,mode=0755",
 		// The entrypoint installs an egress firewall, then drops to UID 65532.
 		// SETUID clears capabilities; no-new-privileges prevents regaining them.

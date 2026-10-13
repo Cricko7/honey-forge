@@ -12,7 +12,7 @@ func TestSandboxArgumentsNeverExposeHostOrControlPlane(t *testing.T) {
 	}
 
 	joined := strings.Join(args, " ")
-	for _, flag := range []string{"--log-driver local", "--log-opt max-size=10m", "--log-opt max-file=3", "--network none", "--read-only", "--cap-drop ALL", "--security-opt no-new-privileges", "--memory 128m", "--cpus 0.5", "--pids-limit 64", "--user 1000:1000", "--tmpfs /home/sandbox:", "--label com.nodemetrics.sandbox=true"} {
+	for _, flag := range []string{"--log-driver local", "--log-opt max-size=10m", "--log-opt max-file=3", "--network none", "--hostname server", "--dns 127.0.0.1", "--dns-search .", "--ipc private", "--cgroupns private", "--ulimit core=0:0", "--read-only", "--cap-drop ALL", "--security-opt no-new-privileges", "--memory 128m", "--cpus 0.5", "--pids-limit 64", "--user 1000:1000", "--tmpfs /home/sandbox:", "--label com.nodemetrics.sandbox=true"} {
 		if !strings.Contains(joined, flag) {
 			t.Fatalf("missing isolation %s: %s", flag, joined)
 		}

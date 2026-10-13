@@ -69,7 +69,7 @@ func TestDockerRealLinuxShellSFTPAndIsolation(t *testing.T) {
 
 		defer s.Close()
 
-		output, err := s.CombinedOutput(command)
+		output, err := s.CombinedOutput("set -e\n" + command)
 		if err != nil {
 			t.Fatalf("shell command failed: %v: %s", err, output)
 		}
@@ -80,6 +80,16 @@ func TestDockerRealLinuxShellSFTPAndIsolation(t *testing.T) {
 	if string(output) != "Linux\n1000\n" {
 		t.Fatalf("sandbox isolation: %s", output)
 	}
+
+	if output := run("hostname; ulimit -c; awk -F: '$3 != \"/\" {exit 1}' /proc/self/cgroup"); string(output) != "server\n0\n" {
+		t.Fatalf("sandbox exposes host identity or permits core dumps: %s", output)
+	}
+
+	run(`test ! -e /run/secrets/nm_token && test ! -e /run/secrets/store_url
+	grep -qx 'nameserver 127.0.0.1' /etc/resolv.conf
+	if grep -Eq '^(search|domain)[[:space:]]' /etc/resolv.conf; then exit 1; fi
+	if env | grep -Eq '^(NM_|AGENT_|TRAP_|DOCKER_|POSTGRES_)'; then exit 1; fi
+	if grep -El '^(node-metrics|orchestrator|redis-server)$' /proc/[0-9]*/comm 2>/dev/null; then exit 1; fi`)
 
 	// Docker Desktop may create inactive tunnel devices even with --network none.
 	run(`test -z "$(tail -n +2 /proc/net/route)" || exit 1
@@ -118,6 +128,28 @@ func TestDockerRealLinuxShellSFTPAndIsolation(t *testing.T) {
 	}
 
 	remote.Close()
+
+	if image := os.Getenv("DECOY_TCP_IMAGE"); image != "" {
+		script, err := os.ReadFile("../../../../../deploy/verify-isolation.sh")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		mu.Lock()
+		name := "node-metrics-session-" + captured[0].SessionID
+		mu.Unlock()
+
+		cmd := exec.CommandContext(t.Context(), "docker", "run", "--rm", "--interactive", "--network", "none",
+			"--mount", "type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock",
+			"--entrypoint", "/bin/sh", image, "-s", "--", name)
+		cmd.Stdin = bytes.NewReader(script)
+
+		output, err := cmd.CombinedOutput()
+		if err != nil || !strings.Contains(string(output), "PASS: SSH sandbox") {
+			t.Fatalf("sandbox verifier: %v %s", err, output)
+		}
+	}
+
 	client.Close()
 	r.Stop()
 	if err := r.Err(); err != nil {

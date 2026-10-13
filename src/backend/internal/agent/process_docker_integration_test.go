@@ -3,6 +3,7 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"net"
 	"net/http/httptest"
@@ -129,13 +130,47 @@ func TestDockerWorkerMASK3Isolation(t *testing.T) {
 			t.Fatalf("worker retained root: %s", user)
 		}
 
-		output, err := exec.CommandContext(t.Context(), "docker", "exec", "--user", "65532:65532", p.workerName(), "/bin/sh", "-c", `printf 'PING\r\n' | nc -w 1 probe 6379`).CombinedOutput()
+		output, err := exec.CommandContext(t.Context(), "docker", "exec", "--user", "65532:65532", p.workerName(), "/bin/sh", "-c", `timeout 2 nslookup probe 127.0.0.11`).CombinedOutput()
+		if err == nil {
+			t.Fatalf("worker can query Docker DNS: %s", output)
+		}
+
+		peerIP := docker("inspect", "--format", `{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}`, probeName)
+		output, err = exec.CommandContext(t.Context(), "docker", "exec", "--user", "65532:65532", p.workerName(), "/bin/sh", "-c", `printf 'PING\r\n' | nc -w 1 "$1" 6379`, "probe", peerIP).CombinedOutput()
 		if err == nil || strings.Contains(string(output), "PONG") {
 			t.Fatalf("worker opened an outbound connection: %v %s", err, output)
 		}
 
 		if _, err := exec.CommandContext(t.Context(), "docker", "exec", "--user", "65532:65532", p.workerName(), "iptables", "-P", "OUTPUT", "ACCEPT").CombinedOutput(); err == nil {
 			t.Fatal("worker can remove its egress firewall")
+		}
+
+		if cycle == 0 {
+			script, err := os.ReadFile("../../../../deploy/verify-isolation.sh")
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			verify := func() ([]byte, error) {
+				cmd := exec.CommandContext(t.Context(), "docker", "run", "--rm", "--interactive", "--network", "none",
+					"--mount", "type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock",
+					"--entrypoint", "/bin/sh", image, "-s", "--", p.workerName())
+				cmd.Stdin = bytes.NewReader(script)
+
+				return cmd.CombinedOutput()
+			}
+
+			if output, err := verify(); err != nil || !strings.Contains(string(output), "PASS: service worker") {
+				t.Fatalf("isolation verifier did not inspect worker: %v %s", err, output)
+			}
+
+			docker("exec", "--user", "0:0", p.workerName(), "iptables", "-A", "OUTPUT", "-o", "lo", "-j", "ACCEPT")
+			output, err := verify()
+
+			docker("exec", "--user", "0:0", p.workerName(), "iptables", "-D", "OUTPUT", "-o", "lo", "-j", "ACCEPT")
+			if err == nil || !strings.Contains(string(output), "FAIL: Worker permits") {
+				t.Fatalf("verifier accepted an open loopback channel: %v %s", err, output)
+			}
 		}
 
 		conn, err := net.DialTimeout("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)), 2*time.Second)
