@@ -18,6 +18,7 @@ func TestSelect(t *testing.T) {
 		{name: "Redis", typeID: "redis-emulator", version: 1},
 		{name: "Honeytokens", typeID: "honeytoken-http", version: 1},
 		{name: "SSH", typeID: "ssh-high-interaction", version: 1},
+		{name: "SSH host telemetry", typeID: "ssh-high-interaction", version: 2},
 		{name: "unknown type", typeID: "unknown", version: 1, wantErr: true},
 		{name: "unknown version", typeID: "tcp-banner", version: 2, wantErr: true},
 	} {
@@ -35,7 +36,7 @@ func TestSupportedTypesAreStableAndDetached(t *testing.T) {
 	var ids []string
 	for _, entry := range types {
 		ids = append(ids, entry.TypeID)
-		if entry.TypeVersion != 1 || !reflect.DeepEqual(entry.Actions, []string{"start", "stop", "apply_config"}) {
+		if (entry.TypeVersion != 1 && !(entry.TypeID == "ssh-high-interaction" && entry.TypeVersion == 2)) || !reflect.DeepEqual(entry.Actions, []string{"start", "stop", "apply_config"}) {
 			t.Fatalf("changed agent capabilities: %+v", entry)
 		}
 
@@ -44,7 +45,7 @@ func TestSupportedTypesAreStableAndDetached(t *testing.T) {
 		}
 	}
 
-	if !reflect.DeepEqual(ids, []string{"tcp-banner", "redis-emulator", "honeytoken-http", "ssh-high-interaction"}) {
+	if !reflect.DeepEqual(ids, []string{"tcp-banner", "redis-emulator", "honeytoken-http", "ssh-high-interaction", "ssh-high-interaction"}) {
 		t.Fatal("capability ordering changed", ids)
 	}
 
@@ -60,11 +61,11 @@ func TestForType(t *testing.T) {
 		want  int
 		error bool
 	}{
-		{name: "", want: 4},
+		{name: "", want: 5},
 		{name: "tcp-banner", want: 1},
 		{name: "redis-emulator", want: 1},
 		{name: "honeytoken-http", want: 1},
-		{name: "ssh-high-interaction", want: 1},
+		{name: "ssh-high-interaction", want: 2},
 		{name: "unknown", error: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -22,10 +22,13 @@ func (d DockerCLI) Deploy(ctx context.Context, target Target, token string, gene
 		image = d.RedisImage
 	case target.Snapshot.TypeID == "honeytoken-http" && target.Snapshot.TypeVersion == 1:
 		image = d.HoneytokenImage
-	case target.Snapshot.TypeID == "ssh-high-interaction" && target.Snapshot.TypeVersion == 1:
+	case target.Snapshot.TypeID == "ssh-high-interaction" && (target.Snapshot.TypeVersion == 1 || target.Snapshot.TypeVersion == 2):
 		image = d.SSHImage
 		if d.SandboxImage == "" {
 			return fmt.Errorf("SSH sandbox image is required")
+		}
+		if target.Snapshot.TypeVersion == 2 && d.TetragonContainer == "" {
+			return fmt.Errorf("TETRAGON_CONTAINER is required for SSH host telemetry")
 		}
 	}
 
@@ -171,6 +174,10 @@ func (d DockerCLI) Deploy(ctx context.Context, target Target, token string, gene
 	if target.Snapshot.TypeID == "ssh-high-interaction" {
 		args = append(args, "--env", "NM_SANDBOX_IMAGE="+d.SandboxImage,
 			"--limit-cpu", "1")
+		if target.Snapshot.TypeVersion == 2 {
+			args = append(args, "--env", "NM_TETRAGON_CONTAINER="+d.TetragonContainer,
+				"--env", "NM_DEPLOYMENT_GENERATION="+strconv.FormatInt(generation, 10))
+		}
 	} else {
 		args = append(args, "--env", "NM_WORKER_IMAGE="+image, "--env", "NM_WORKER_NETWORK="+d.Network)
 		if target.DeploymentNodeID != "" {

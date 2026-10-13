@@ -17,10 +17,13 @@ var honeytokenHTTPJSON []byte
 //go:embed schemas/ssh-high-interaction-1.json
 var sshHighInteractionJSON []byte
 
+//go:embed schemas/ssh-high-interaction-2.json
+var sshHostTelemetryJSON []byte
+
 // BuiltinDefinitions returns fresh copies of the installed trap descriptors.
 func BuiltinDefinitions() []Definition {
 	var definitions []Definition
-	for _, raw := range [][]byte{tcpBannerJSON, redisEmulatorJSON, honeytokenHTTPJSON, sshHighInteractionJSON} {
+	for _, raw := range [][]byte{tcpBannerJSON, redisEmulatorJSON, honeytokenHTTPJSON, sshHighInteractionJSON, sshHostTelemetryJSON} {
 		var entry CatalogEntry
 		if err := json.Unmarshal(raw, &entry); err != nil {
 			panic("invalid embedded trap descriptor: " + err.Error())

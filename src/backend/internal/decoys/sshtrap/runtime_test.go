@@ -23,7 +23,7 @@ type fakeBackend struct {
 	onRequest      func(*ssh.Request)
 }
 
-func (b *fakeBackend) Open(ctx context.Context, id string, seconds int) (*ssh.Client, func() error, error) {
+func (b *fakeBackend) Open(ctx context.Context, record *recording, seconds int) (*ssh.Client, func() error, error) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, nil, err

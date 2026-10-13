@@ -10,7 +10,10 @@
 `tcp-banner/1` (`schemas/tcp-banner-1.json`) и
 `redis-emulator/1` (`schemas/redis-emulator-1.json`) и
 `honeytoken-http/1` (`schemas/honeytoken-http-1.json`) и
-`ssh-high-interaction/1` (`schemas/ssh-high-interaction-1.json`). Новую версию следует добавлять
+`ssh-high-interaction/1` (`schemas/ssh-high-interaction-1.json`) и
+`ssh-high-interaction/2` (`schemas/ssh-high-interaction-2.json`, host-side
+Tetragon `process.exec`; требует установленного оператором сенсора).
+Новую версию следует добавлять
 отдельным descriptor, не меняя уже опубликованную.
 
 Маршруты и публичный контракт описаны в [API 03](../../../../api/03-catalog.md)

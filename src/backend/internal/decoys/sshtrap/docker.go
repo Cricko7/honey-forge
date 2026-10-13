@@ -17,10 +17,14 @@ import (
 
 // backend is consumed by the gateway; tests supply a real SSH peer without Docker.
 type backend interface {
-	Open(context.Context, string, int) (*ssh.Client, func() error, error)
+	Open(context.Context, *recording, int) (*ssh.Client, func() error, error)
 }
 
-type dockerBackend struct{ image string }
+type dockerBackend struct {
+	image     string
+	telemetry *hostObserver
+	sensor    string
+}
 
 func sandboxArgs(id, image, publicKey string, seconds int) ([]string, error) {
 	if !contract.ValidID(id) || image == "" || seconds < 10 || seconds > 3600 {
@@ -48,7 +52,8 @@ func dockerCall(ctx context.Context, args ...string) ([]byte, error) {
 	return output, nil
 }
 
-func (d dockerBackend) Open(ctx context.Context, id string, seconds int) (*ssh.Client, func() error, error) {
+func (d dockerBackend) Open(ctx context.Context, record *recording, seconds int) (*ssh.Client, func() error, error) {
+	id := record.sessionID
 	startup, cancelStartup := context.WithTimeout(ctx, 10*time.Second)
 	defer cancelStartup()
 
@@ -67,12 +72,23 @@ func (d dockerBackend) Open(ctx context.Context, id string, seconds int) (*ssh.C
 		return nil, nil, err
 	}
 
+	if d.telemetry != nil {
+		tail := append([]string{}, args[len(args)-2:]...)
+		args = append(args[:len(args)-2], "--label", "com.nodemetrics.instance="+d.telemetry.trap,
+			"--label", "com.nodemetrics.session="+id,
+			"--label", "com.nodemetrics.generation="+strconv.FormatInt(d.telemetry.generation, 10))
+		args = append(args, tail...)
+	}
+
 	if _, err := dockerCall(startup, args...); err != nil {
 		return nil, nil, err
 	}
 
 	name := "node-metrics-session-" + id
 	cleanup := func() error {
+		if d.telemetry != nil {
+			d.telemetry.unbind(id)
+		}
 		removeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
@@ -89,6 +105,11 @@ func (d dockerBackend) Open(ctx context.Context, id string, seconds int) (*ssh.C
 		}
 
 		return nil, nil, err
+	}
+	if d.telemetry != nil {
+		if err := d.telemetry.inspectSandbox(startup, name, record); err != nil {
+			return fail(err)
+		}
 	}
 	// The image entrypoint creates an ephemeral host key before serving inetd SSH.
 	for {

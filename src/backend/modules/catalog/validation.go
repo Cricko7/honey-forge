@@ -28,7 +28,7 @@ func (s *Service) CheckRuntimeResult(ctx context.Context, id string, version con
 		return err
 	}
 
-	if (id == "tcp-banner" || id == "redis-emulator" || id == "honeytoken-http" || id == "ssh-high-interaction") && version == 1 && hasConfiguration {
+	if hasRuntimeRevision(id, version) && hasConfiguration {
 		var value struct {
 			Revision *schemaInteger `json:"applied_profile_revision"`
 		}
@@ -153,7 +153,7 @@ func (s *Service) CheckActionResult(ctx context.Context, id string, version cont
 		return validationError(err, "command_result_invalid")
 	}
 
-	if (id == "tcp-banner" || id == "redis-emulator" || id == "honeytoken-http" || id == "ssh-high-interaction") && version == 1 {
+	if hasRuntimeRevision(id, version) {
 		var value struct {
 			RuntimeState string         `json:"runtime_state"`
 			Revision     *schemaInteger `json:"applied_profile_revision"`
@@ -168,4 +168,8 @@ func (s *Service) CheckActionResult(ctx context.Context, id string, version cont
 	}
 
 	return nil
+}
+
+func hasRuntimeRevision(id string, version contract.TypeVersion) bool {
+	return version == 1 && (id == "tcp-banner" || id == "redis-emulator" || id == "honeytoken-http" || id == "ssh-high-interaction") || id == "ssh-high-interaction" && version == 2
 }

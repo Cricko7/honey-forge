@@ -249,6 +249,7 @@ services:
       DECOY_HONEYTOKEN_IMAGE: ${DECOY_HONEYTOKEN_IMAGE:-honeyforge/honeytoken-decoy:local}
       DECOY_SSH_IMAGE: ${DECOY_SSH_IMAGE:-honeyforge/ssh-decoy:local}
       SSH_SANDBOX_IMAGE: ${SSH_SANDBOX_IMAGE:-honeyforge/ssh-sandbox:local}
+      TETRAGON_CONTAINER: ${TETRAGON_CONTAINER:-}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - tls_orchestrator:/certs:ro

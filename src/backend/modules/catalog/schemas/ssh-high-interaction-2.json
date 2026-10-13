@@ -1,0 +1,572 @@
+{
+  "actions": [
+    {
+      "title": "start",
+      "result_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$ref": "#/$defs/RuntimeResult",
+        "$defs": {
+          "RuntimeResult": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "runtime_state",
+              "applied_profile_revision"
+            ],
+            "properties": {
+              "runtime_state": {
+                "type": "string",
+                "enum": [
+                  "running",
+                  "stopped"
+                ]
+              },
+              "applied_profile_revision": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1,
+                "maximum": 2147483647
+              }
+            }
+          }
+        }
+      },
+      "action": "start",
+      "params_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$ref": "#/$defs/EmptyObject",
+        "$defs": {
+          "EmptyObject": {
+            "type": "object",
+            "additionalProperties": false,
+            "maxProperties": 0
+          }
+        }
+      }
+    },
+    {
+      "title": "stop",
+      "result_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$ref": "#/$defs/RuntimeResult",
+        "$defs": {
+          "RuntimeResult": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "runtime_state",
+              "applied_profile_revision"
+            ],
+            "properties": {
+              "runtime_state": {
+                "type": "string",
+                "enum": [
+                  "running",
+                  "stopped"
+                ]
+              },
+              "applied_profile_revision": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1,
+                "maximum": 2147483647
+              }
+            }
+          }
+        }
+      },
+      "action": "stop",
+      "params_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$ref": "#/$defs/EmptyObject",
+        "$defs": {
+          "EmptyObject": {
+            "type": "object",
+            "additionalProperties": false,
+            "maxProperties": 0
+          }
+        }
+      }
+    },
+    {
+      "title": "apply_config",
+      "result_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$ref": "#/$defs/RuntimeResult",
+        "$defs": {
+          "RuntimeResult": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "runtime_state",
+              "applied_profile_revision"
+            ],
+            "properties": {
+              "runtime_state": {
+                "type": "string",
+                "enum": [
+                  "running",
+                  "stopped"
+                ]
+              },
+              "applied_profile_revision": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1,
+                "maximum": 2147483647
+              }
+            }
+          }
+        }
+      },
+      "action": "apply_config",
+      "params_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$ref": "#/$defs/ApplyConfigParams",
+        "$defs": {
+          "ApplyConfigParams": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "profile_revision"
+            ],
+            "properties": {
+              "profile_revision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2147483647
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "type_version": 2,
+  "title": "SSH High Interaction + Tetragon",
+  "interaction_level": "high",
+  "ui": {
+    "field_order": [
+      "/services",
+      "/session",
+      "/management"
+    ],
+    "widgets": {
+      "/session": "object",
+      "/services/0/password": "password",
+      "/management": "object",
+      "/services": "array"
+    }
+  },
+  "config_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "services",
+      "session",
+      "management"
+    ],
+    "properties": {
+      "services": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 1,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "port",
+            "username",
+            "password"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "username": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,32}$"
+            },
+            "password": {
+              "minLength": 1,
+              "type": "string",
+              "maxLength": 128,
+              "writeOnly": true
+            }
+          }
+        }
+      },
+      "management": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "heartbeat_interval_seconds",
+          "telemetry_flush_interval_ms"
+        ],
+        "properties": {
+          "heartbeat_interval_seconds": {
+            "type": "integer",
+            "minimum": 5,
+            "maximum": 10
+          },
+          "telemetry_flush_interval_ms": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 1000
+          }
+        }
+      },
+      "session": {
+        "type": "object",
+        "properties": {
+          "max_connections": {
+            "type": "integer",
+            "maximum": 16,
+            "minimum": 1
+          },
+          "max_recording_bytes": {
+            "type": "integer",
+            "maximum": 16777216,
+            "minimum": 4096
+          },
+          "max_seconds": {
+            "type": "integer",
+            "maximum": 3600,
+            "minimum": 10
+          },
+          "max_upload_bytes": {
+            "type": "integer",
+            "maximum": 16777216,
+            "minimum": 1
+          }
+        },
+        "required": [
+          "max_seconds",
+          "max_connections",
+          "max_recording_bytes",
+          "max_upload_bytes"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "type_id": "ssh-high-interaction",
+  "available_for_new_profiles": true,
+  "event_schemas": [
+    {
+      "event_type": "service.connection_opened",
+      "title": "Connection opened",
+      "data_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "service"
+        ],
+        "properties": {
+          "service": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+          }
+        }
+      }
+    },
+    {
+      "event_type": "service.connection_closed",
+      "title": "Connection closed",
+      "data_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "service",
+          "duration_ms",
+          "bytes_received",
+          "reason"
+        ],
+        "properties": {
+          "service": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "bytes_received": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "peer_closed",
+              "idle_timeout",
+              "service_stopped",
+              "network_error",
+              "quit",
+              "session_timeout",
+              "recording_limit",
+              "upload_limit"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "service.session_io",
+      "event_type": "service.session_io",
+      "data_schema": {
+        "type": "object",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "channel_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$"
+          },
+          "service": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+          },
+          "bytes": {
+            "type": "integer",
+            "maximum": 4096,
+            "minimum": 0
+          },
+          "stream": {
+            "type": "string",
+            "enum": [
+              "stdin",
+              "stdout",
+              "stderr",
+              "exec"
+            ]
+          },
+          "payload_base64": {
+            "type": "string",
+            "maxLength": 5464
+          }
+        },
+        "required": [
+          "channel_id",
+          "service",
+          "bytes",
+          "stream",
+          "payload_base64"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "title": "service.file_opened",
+      "event_type": "service.file_opened",
+      "data_schema": {
+        "type": "object",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "path": {
+            "minLength": 1,
+            "type": "string",
+            "maxLength": 4096
+          },
+          "file_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$"
+          },
+          "service": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+          }
+        },
+        "required": [
+          "path",
+          "file_id",
+          "service"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "title": "service.file_chunk",
+      "event_type": "service.file_chunk",
+      "data_schema": {
+        "type": "object",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "service": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+          },
+          "file_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$"
+          },
+          "bytes": {
+            "type": "integer",
+            "maximum": 4096,
+            "minimum": 0
+          },
+          "offset": {
+            "type": "integer",
+            "maximum": 16777216,
+            "minimum": 0
+          },
+          "payload_base64": {
+            "type": "string",
+            "maxLength": 5464
+          }
+        },
+        "required": [
+          "service",
+          "file_id",
+          "bytes",
+          "offset",
+          "payload_base64"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "title": "service.file_closed",
+      "event_type": "service.file_closed",
+      "data_schema": {
+        "type": "object",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "size": {
+            "type": "integer",
+            "maximum": 16777216,
+            "minimum": 0
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "file_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$"
+          },
+          "service": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+          },
+          "complete": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "size",
+          "sha256",
+          "file_id",
+          "service",
+          "complete"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "event_type": "process.exec",
+      "title": "Host process execution",
+      "data_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "service",
+          "schema_version",
+          "sensor",
+          "sensor_version",
+          "host_id",
+          "generation",
+          "container_id",
+          "container_started_at",
+          "pid",
+          "ppid",
+          "uid",
+          "binary",
+          "cwd",
+          "arguments_redacted"
+        ],
+        "properties": {
+          "service": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "schema_version": {
+            "const": 1
+          },
+          "sensor": {
+            "const": "tetragon"
+          },
+          "sensor_version": {
+            "const": "1.7.0"
+          },
+          "host_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "generation": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "container_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "container_started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "pid": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4294967295
+          },
+          "ppid": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 4294967295
+          },
+          "uid": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          },
+          "binary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "cwd": {
+            "type": "string",
+            "maxLength": 4096
+          },
+          "arguments_redacted": {
+            "const": true
+          }
+        }
+      }
+    }
+  ],
+  "description": "Isolated Linux shell and SFTP with host-side Tetragon process execution telemetry. Requires an operator-installed sensor on the same Docker host. Process arguments are omitted."
+}

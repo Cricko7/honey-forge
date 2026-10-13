@@ -27,6 +27,7 @@ type DockerCLI struct {
 	HoneytokenImage   string
 	SSHImage          string
 	SandboxImage      string
+	TetragonContainer string
 }
 
 func runDocker(ctx context.Context, input []byte, args ...string) ([]byte, error) {

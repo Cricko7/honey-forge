@@ -2,6 +2,7 @@ package events
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -56,6 +57,19 @@ func (s *Service) Ingest(ctx context.Context, identity agentws.Identity, connect
 
 		if err := s.catalog.CheckEvent(ctx, event.TypeID, contract.TypeVersion(event.TypeVersion), event.EventType, event.Data); err != nil {
 			return agentws.TelemetryAck{}, err
+		}
+		if event.EventType == "process.exec" {
+			var data struct {
+				Generation int64 `json:"generation"`
+			}
+			if err := json.Unmarshal(event.Data, &data); err != nil {
+				return agentws.TelemetryAck{}, contract.NewError("telemetry_invalid")
+			}
+			// Buffered events from an earlier credential generation remain valid.
+			// A machine cannot report a deployment newer than its own identity.
+			if data.Generation > identity.CredentialGeneration {
+				return agentws.TelemetryAck{}, contract.NewError("telemetry_invalid")
+			}
 		}
 
 		events = append(events, event)

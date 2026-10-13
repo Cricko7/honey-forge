@@ -81,9 +81,14 @@ var builtins = []definition{
 			return []int{config.Services[0].Port}, nil
 		},
 	},
-	{
+	sshDefinition(1),
+	sshDefinition(2),
+}
+
+func sshDefinition(version int32) definition {
+	return definition{
 		typeID:  "ssh-high-interaction",
-		version: 1,
+		version: version,
 		start: func(ctx context.Context, snapshot profiles.Snapshot, host string, sink func(context.Context, events.AgentEvent) error) (Runtime, error) {
 			return sshtrap.Start(ctx, snapshot, host, sshtrap.Sink(sink))
 		},
@@ -95,7 +100,7 @@ var builtins = []definition{
 
 			return []int{config.Services[0].Port}, nil
 		},
-	},
+	}
 }
 
 func lookup(snapshot profiles.Snapshot) (definition, error) {
@@ -128,10 +133,14 @@ func ForType(typeID string) ([]agentws.SupportedType, error) {
 		return all, nil
 	}
 
+	var matching []agentws.SupportedType
 	for _, supported := range all {
 		if supported.TypeID == typeID {
-			return []agentws.SupportedType{supported}, nil
+			matching = append(matching, supported)
 		}
+	}
+	if len(matching) > 0 {
+		return matching, nil
 	}
 
 	return nil, fmt.Errorf("unsupported decoy image type %q", typeID)

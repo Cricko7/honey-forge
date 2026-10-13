@@ -1577,6 +1577,11 @@ components:
       - received_at
     Event:
       type: object
+      description: >-
+        ssh-high-interaction/2 adds process.exec from the operator-installed
+        host Tetragon sensor. Source/destination refer to the correlated SSH
+        gateway connection; they are not eBPF network observations. occurred_at
+        is sensor time and received_at is collector time. Version 1 is retained.
       additionalProperties: false
       properties:
         event_id:
@@ -1632,7 +1637,14 @@ components:
           $ref: '#/components/schemas/Timestamp'
         data:
           type: object
-          description: Original captured values; exact type catalog validates data. honeytoken.triggered carries only service, token_id, kind and method; its fake values and HTTP headers are excluded. Supported service types preserve username/password/input without trimming or masking. Captured text must be displayed as text, never executed. UTF-8 limits are 1024 bytes per username/password and 4096 bytes per input; null credentials differ from empty strings.
+          description: Original captured values; exact type catalog validates data. process.exec on ssh-high-interaction/2 uses ProcessExecData; no arguments, environment, or raw sensor payload is retained. honeytoken.triggered carries only service, token_id, kind and method; its fake values and HTTP headers are excluded. Supported service types preserve username/password/input without trimming or masking. Captured text must be displayed as text, never executed. UTF-8 limits are 1024 bytes per username/password and 4096 bytes per input; null credentials differ from empty strings.
+          if:
+            properties:
+              sensor:
+                const: tetragon
+            required: [sensor]
+          then:
+            $ref: '#/components/schemas/ProcessExecData'
         source_enrichment:
           type: object
           additionalProperties: false
@@ -1666,6 +1678,62 @@ components:
       - received_at
       - data
       - source_enrichment
+    ProcessExecData:
+      type: object
+      additionalProperties: false
+      description: >-
+        Host-side execution metadata for ssh-high-interaction/2. Container ID
+        and start time come from trusted Docker inspection. generation is the
+        existing deployment/credential generation; older buffered generations
+        are accepted, future generations are rejected. ppid may be null when
+        Tetragon has no parent. Only the correlated gateway peer is used for
+        Event.source. Arguments are omitted, not reconstructed from a string.
+      required: [service, schema_version, sensor, sensor_version, host_id, generation, container_id, container_started_at, pid, ppid, uid, binary, cwd, arguments_redacted]
+      properties:
+        service:
+          type: string
+          minLength: 1
+          maxLength: 64
+        schema_version:
+          const: 1
+        sensor:
+          const: tetragon
+        sensor_version:
+          const: '1.7.0'
+        host_id:
+          type: string
+          minLength: 1
+          maxLength: 255
+        generation:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+        container_id:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        container_started_at:
+          $ref: '#/components/schemas/Timestamp'
+        pid:
+          type: integer
+          minimum: 1
+          maximum: 4294967295
+        ppid:
+          type: [integer, 'null']
+          minimum: 0
+          maximum: 4294967295
+        uid:
+          type: integer
+          minimum: 0
+          maximum: 4294967295
+        binary:
+          type: string
+          minLength: 1
+          maxLength: 4096
+        cwd:
+          type: string
+          maxLength: 4096
+        arguments_redacted:
+          const: true
     AuditActor:
       type: object
       additionalProperties: false
@@ -2681,7 +2749,7 @@ paths:
       summary: Read an SSH high-interaction recording and uploaded file blocks
       description: |
         Admin/viewer access within the owning organization. The trap_id query is
-        required. Only ssh-high-interaction/1 sessions are returned. Events are
+        required. Only ssh-high-interaction/1 and /2 sessions are returned. Events are
         ordered by session_sequence, including binary-safe base64 terminal and
         SFTP blocks. Runtime emits at most 8192 events plus connection_closed;
         active, interrupted or gapped recordings may have complete=false.

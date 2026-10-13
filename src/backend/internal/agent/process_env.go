@@ -12,7 +12,7 @@ func childEnvironment(parent []string, sshGateway bool) []string {
 		switch strings.ToUpper(key) {
 		case "PATH", "SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT", "TEMP", "TMP", "TMPDIR", "LANG", "LC_ALL", "TZ":
 			environment = append(environment, entry)
-		case "NM_ROLE", "NM_SANDBOX_IMAGE", "DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_CONFIG":
+		case "NM_ROLE", "NM_SANDBOX_IMAGE", "NM_TETRAGON_CONTAINER", "NM_INSTANCE_ID", "NM_DEPLOYMENT_GENERATION", "DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_CONFIG":
 			if sshGateway {
 				environment = append(environment, entry)
 			}

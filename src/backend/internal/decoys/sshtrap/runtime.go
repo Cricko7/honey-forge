@@ -22,15 +22,25 @@ import (
 )
 
 type Runtime struct {
-	listener net.Listener
-	ctx      context.Context
-	cancel   context.CancelFunc
-	done     chan struct{}
-	mu       sync.Mutex // protects the first runtime failure
-	failure  error
+	listener      net.Listener
+	ctx           context.Context
+	cancel        context.CancelFunc
+	done          chan struct{}
+	telemetryDone <-chan struct{}
+	mu            sync.Mutex // protects the first runtime failure
+	failure       error
 }
 
 func Start(ctx context.Context, snapshot profiles.Snapshot, host string, sink Sink) (*Runtime, error) {
+	var sensor string
+	var observer *hostObserver
+	if snapshot.TypeVersion == 2 {
+		var err error
+		sensor, observer, err = hostTelemetrySettings(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
 	image := os.Getenv("NM_SANDBOX_IMAGE")
 	if image == "" {
 		return nil, fmt.Errorf("NM_SANDBOX_IMAGE is required")
@@ -40,7 +50,7 @@ func Start(ctx context.Context, snapshot profiles.Snapshot, host string, sink Si
 		return nil, fmt.Errorf("SSH gateway requires Docker CLI: %w", err)
 	}
 
-	return start(ctx, snapshot, host, sink, dockerBackend{image: image})
+	return start(ctx, snapshot, host, sink, dockerBackend{image: image, telemetry: observer, sensor: sensor})
 }
 
 func start(ctx context.Context, snapshot profiles.Snapshot, host string, sink Sink, b backend) (*Runtime, error) {
@@ -86,6 +96,14 @@ func start(ctx context.Context, snapshot profiles.Snapshot, host string, sink Si
 	context.AfterFunc(ctx, func() {
 		listener.Close()
 	})
+	if docker, ok := b.(dockerBackend); ok && docker.telemetry != nil {
+		r.telemetryDone, err = docker.telemetry.start(ctx, docker.sensor, r.fail)
+		if err != nil {
+			cancel()
+			listener.Close()
+			return nil, err
+		}
+	}
 	slots := make(chan struct{}, config.Session.MaxConnections)
 	go func() {
 		var sessions sync.WaitGroup
@@ -189,7 +207,7 @@ func (r *Runtime) serve(raw net.Conn, serverConfig *ssh.ServerConfig, snapshot p
 		}
 	}()
 
-	client, cleanup, err := b.Open(ctx, record.sessionID, config.Session.MaxSeconds)
+	client, cleanup, err := b.Open(ctx, record, config.Session.MaxSeconds)
 	if err != nil {
 		r.fail(fmt.Errorf("open SSH sandbox: %w", err))
 		return
@@ -258,4 +276,7 @@ func (r *Runtime) Err() error {
 func (r *Runtime) Stop() {
 	r.cancel()
 	<-r.done
+	if r.telemetryDone != nil {
+		<-r.telemetryDone
+	}
 }

@@ -28,7 +28,7 @@ type Config struct {
 
 func ParseConfig(ctx context.Context, snapshot profiles.Snapshot) (Config, error) {
 	var config Config
-	if snapshot.TypeID != "ssh-high-interaction" || snapshot.TypeVersion != 1 || snapshot.ProfileRevision < 1 {
+	if snapshot.TypeID != "ssh-high-interaction" || (snapshot.TypeVersion != 1 && snapshot.TypeVersion != 2) || snapshot.ProfileRevision < 1 {
 		return config, fmt.Errorf("unsupported SSH snapshot")
 	}
 
@@ -47,7 +47,7 @@ func ParseConfig(ctx context.Context, snapshot profiles.Snapshot) (Config, error
 		return config, err
 	}
 
-	if err := service.CheckConfig(ctx, snapshot.TypeID, 1, raw); err != nil {
+	if err := service.CheckConfig(ctx, snapshot.TypeID, contract.TypeVersion(snapshot.TypeVersion), raw); err != nil {
 		return config, fmt.Errorf("validate SSH config: %w", err)
 	}
 

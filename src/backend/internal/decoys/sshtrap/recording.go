@@ -59,6 +59,10 @@ func (r *recording) event(kind string, fields map[string]any) error {
 
 // emit is called with mu held; counters advance only after durable acknowledgement.
 func (r *recording) emit(kind string, fields map[string]any) error {
+	return r.emitAt(kind, fields, time.Now().UTC(), string(contract.NewID()))
+}
+
+func (r *recording) emitAt(kind string, fields map[string]any, at time.Time, id string) error {
 	if r.sequence >= 8192 && kind != "service.connection_closed" {
 		r.reason = "recording_limit"
 		return ErrRecordingLimit
@@ -74,12 +78,12 @@ func (r *recording) emit(kind string, fields map[string]any) error {
 	defer cancel()
 
 	e := events.AgentEvent{
-		EventID:         string(contract.NewID()),
+		EventID:         id,
 		EventType:       kind,
 		TypeID:          r.snapshot.TypeID,
 		TypeVersion:     int64(r.snapshot.TypeVersion),
 		ProfileRevision: int64(r.snapshot.ProfileRevision),
-		OccurredAt:      time.Now().UTC().Format(time.RFC3339Nano),
+		OccurredAt:      at.UTC().Format(time.RFC3339Nano),
 		SessionID:       r.sessionID,
 		SessionSequence: r.sequence + 1,
 		Source:          r.source,

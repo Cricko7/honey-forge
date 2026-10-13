@@ -5,6 +5,7 @@ import { useEvent } from '@/api/hooks'
 import { formatDateTime, flag, decodeBase64 } from '@/lib/utils'
 import { RecordingView } from './RecordingView'
 import { actionErrorMessage } from '@/lib/alerts'
+import { ProcessExecutionDetails } from './ProcessExecutionDetails'
 
 export function EventDetailModal({ id, onClose }: { id: string | null; onClose: () => void }) {
   const { data: event, isLoading, error, refetch } = useEvent(id ?? '')
@@ -51,9 +52,9 @@ export function EventDetailModal({ id, onClose }: { id: string | null; onClose: 
           {/* Перехваченные данные атакующего */}
           <div>
             <div className="flex items-center gap-1.5 text-xs text-danger mb-2">
-              <ShieldAlert size={13} /> Перехваченные данные
+              <ShieldAlert size={13} /> {event.event_type === 'process.exec' ? 'Телеметрия процесса' : 'Перехваченные данные'}
             </div>
-            <CapturedData data={event.data} />
+            {event.event_type === 'process.exec' ? <ProcessExecutionDetails data={event.data} /> : <CapturedData data={event.data} />}
           </div>
           {event.type_id === 'ssh-high-interaction' && <RecordingView trapId={event.trap_id} sessionId={event.session_id} />}
         </div>

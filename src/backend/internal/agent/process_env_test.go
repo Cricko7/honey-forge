@@ -13,6 +13,7 @@ func TestChildEnvironmentContainsOnlyRuntimeSettings(t *testing.T) {
 		"AGENT_TOKEN=private", "TRAP_TOKEN=private", "HTTP_PROXY=http://private", "GODEBUG=private",
 		"DOCKER_HOST=unix:///var/run/docker.sock", "DOCKER_CONFIG=/private",
 		"NM_ROLE=ssh-high-interaction", "NM_SANDBOX_IMAGE=hf/sandbox:local",
+		"NM_TETRAGON_CONTAINER=tetragon", "NM_INSTANCE_ID=trap", "NM_DEPLOYMENT_GENERATION=3",
 	}
 
 	for _, tc := range []struct {
@@ -21,7 +22,7 @@ func TestChildEnvironmentContainsOnlyRuntimeSettings(t *testing.T) {
 		want    []string
 	}{
 		{"decoy", false, parent[:4]},
-		{"trusted SSH gateway", true, append(append([]string{}, parent[:4]...), parent[len(parent)-4:]...)},
+		{"trusted SSH gateway", true, append(append([]string{}, parent[:4]...), parent[len(parent)-7:]...)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := childEnvironment(parent, tc.gateway); !reflect.DeepEqual(got, tc.want) {

@@ -53,6 +53,7 @@ func run() error {
 		HoneytokenImage:   os.Getenv("DECOY_HONEYTOKEN_IMAGE"),
 		SSHImage:          os.Getenv("DECOY_SSH_IMAGE"),
 		SandboxImage:      os.Getenv("SSH_SANDBOX_IMAGE"),
+		TetragonContainer: os.Getenv("TETRAGON_CONTAINER"),
 	}
 	if docker.ClientCAFile == "" || docker.ClientCAKeyFile == "" || docker.ServerPinsFile == "" {
 		return fmt.Errorf("AGENT_CLIENT_CA_FILE, AGENT_CLIENT_CA_KEY_FILE and AGENT_SERVER_PINS_FILE are required")

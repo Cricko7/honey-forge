@@ -53,6 +53,12 @@ docker compose -f docker-compose.real.yml up --build -d
 
 
 ## Всё остальное по нашей разработке:
+
+[Хостовая телеметрия Tetragon: архитектура, интеграция и Linux-проверки](docs/stealth-telemetry.md).
+Тип `ssh-high-interaction/2` добавляет `process.exec` через сенсор вне sandbox;
+версия 1 сохраняется. Для версии 2 оператор отдельно устанавливает Tetragon
+на каждом Docker-хосте и задаёт `TETRAGON_CONTAINER`. Реальный eBPF-сценарий
+нужно подтвердить на Linux; mock-события не доказывают работу сенсора.
 [Порядок модулей 01–11 и состояние реализации](api/README.md) ·
 [Стиль кода и проверки](CONTRIBUTING.md)
 

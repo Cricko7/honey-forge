@@ -1,0 +1,17 @@
+{
+  "process_exec": {
+    "process": {
+      "exec_id": "bm9kZS1hOjEyMzQ1OjIzNDU=",
+      "pid": 2345,
+      "uid": 1000,
+      "binary": "/usr/bin/id",
+      "cwd": "/home/sandbox",
+      "arguments": "--token=super-secret",
+      "docker": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "start_time": "2026-10-13T12:00:01Z"
+    },
+    "parent": { "pid": 1 }
+  },
+  "node_name": "untrusted-node-name",
+  "time": "2026-10-13T12:00:01Z"
+}

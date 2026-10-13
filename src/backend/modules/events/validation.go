@@ -60,6 +60,23 @@ func checkSnapshot(e AgentEvent, snapshot profiles.Snapshot) error {
 			return checkHoneytokenSnapshot(e, snapshot)
 		}
 
+		if e.EventType == "process.exec" {
+			var data struct {
+				StartedAt string `json:"container_started_at"`
+			}
+			if json.Unmarshal(e.Data, &data) != nil {
+				return invalid
+			}
+			started, err := time.Parse(time.RFC3339Nano, data.StartedAt)
+			if err != nil {
+				return invalid
+			}
+			occurred, err := time.Parse(time.RFC3339Nano, e.OccurredAt)
+			if err != nil || occurred.Before(started) {
+				return invalid
+			}
+			return checkServiceSnapshot(e, snapshot)
+		}
 		if strings.HasPrefix(e.EventType, "service.") {
 			return checkServiceSnapshot(e, snapshot)
 		}

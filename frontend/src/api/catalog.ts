@@ -106,6 +106,16 @@ export const CATALOG: CatalogEntry[] = [
   },
 ]
 
+// The mock catalog advertises the schema; it does not simulate an eBPF sensor.
+const ssh = CATALOG.find((entry) => entry.type_id === 'ssh-high-interaction')!
+CATALOG.push({
+  ...ssh,
+  type_version: 2,
+  title: 'SSH High Interaction + Tetragon',
+  description: 'Linux shell и SFTP с процессной телеметрией. Требуется Tetragon на Docker-хосте; аргументы процессов не сохраняются.',
+  event_schemas: [...ssh.event_schemas, { event_type: 'process.exec', title: 'Запуск процесса на хосте', data_schema: {} }],
+})
+
 export function catalogKey(typeId: string, version: number): string {
   return `${typeId}/${version}`
 }

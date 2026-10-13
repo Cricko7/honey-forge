@@ -101,7 +101,7 @@ func (s *Service) Execute(ctx context.Context, dispatch commands.Dispatch) (comm
 		if wasRunning {
 			if err := s.runner.Start(ctx, *state.Configuration); err != nil {
 				state.Configuration = previous
-				fail("port_unavailable")
+				fail(startFailureCode(*dispatch.Configuration))
 				if previous != nil {
 					if rollbackErr := s.runner.Start(ctx, *previous); rollbackErr != nil {
 						s.failure = runtimeError("config_rollback_failed")
@@ -127,7 +127,7 @@ func (s *Service) Execute(ctx context.Context, dispatch commands.Dispatch) (comm
 
 		if !s.running {
 			if err := s.runner.Start(ctx, *state.Configuration); err != nil {
-				fail("port_unavailable")
+				fail(startFailureCode(*state.Configuration))
 			} else {
 				s.running = true
 			}
@@ -184,4 +184,13 @@ func (s *Service) Execute(ctx context.Context, dispatch commands.Dispatch) (comm
 	}
 
 	return result, nil
+}
+
+func startFailureCode(snapshot profiles.Snapshot) string {
+	// This runtime also depends on the host sensor. A failure is not evidence
+	// that its SSH port is occupied; keep the existing generic runtime code.
+	if snapshot.TypeID == "ssh-high-interaction" && snapshot.TypeVersion == 2 {
+		return "runtime_start_failed"
+	}
+	return "port_unavailable"
 }
