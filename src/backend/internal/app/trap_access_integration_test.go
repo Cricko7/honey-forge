@@ -57,8 +57,8 @@ func TestTrapAccessAndCredentialPreconditions(t *testing.T) {
 
 	sendOperator(t, r, "DELETE", path+"/agent-credentials", "", admin, 409, first.Header().Get("ETag"))
 	sendOperator(t, r, "DELETE", path+"/agent-credentials", "", admin, 204, traps.CredentialsETag(trap.ID, 2))
-	// credentials ever issued means the disconnected-new-trap exception is gone.
-	trapMutation(t, r, admin, "DELETE", path, "", 1, 409)
+	// A revoked, offline registration can now be deleted.
+	trapMutation(t, r, admin, "DELETE", path, "", 1, 204)
 	empty := sendOperator(t, r, "GET", "/api/traps?connectivity=online", "", viewer, 200)
 	if len(decodeIntegration[contract.Page[traps.Trap]](t, empty).Items) != 0 {
 		t.Fatal("revoked trap online")

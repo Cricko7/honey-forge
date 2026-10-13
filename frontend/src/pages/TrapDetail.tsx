@@ -119,7 +119,9 @@ export function TrapDetailPage() {
             disabled={deleteTrap.isPending}
             onClick={() => {
               if (deleteTrap.isPending) return
-              if (confirm('Удалить ловушку?')) deleteTrap.mutate(
+              if (confirm(trap.connectivity === 'offline'
+                ? 'Удалить offline-ловушку? Незавершённые команды будут закрыты, а несохранённые события агента могут быть потеряны.'
+                : 'Удалить ловушку?')) deleteTrap.mutate(
                 { id, revision: trap.revision },
                 { onSuccess: () => navigate('/app/traps', { replace: true }) },
               )

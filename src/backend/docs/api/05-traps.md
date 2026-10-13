@@ -63,16 +63,15 @@ Admin, CSRF; `If-Match: "agent-credentials:<trap_id>:<generation>"`, ETag выд
 
 ## DELETE /api/traps/{id}
 
-Admin, CSRF, X-Expected-Revision; тело отсутствует. `204` только после безопасного удаления регистрации; процесс/контейнер на хосте этим API не удаляется. DELETE не заменяет stop.
+Admin, CSRF, X-Expected-Revision; тело отсутствует. Удаление возвращает `204`, отзывает реквизиты и закрывает WSS. Оркестратор затем удаляет автоматически размещённый сервис; вручную запущенный процесс не останавливается этим API.
 
-Условия проверяются атомарно с командами и состоянием: нет queued/running команды; активное hello-соединение online; runtime_state=stopped и desired_state=stopped; агент подтвердил buffered_events=0, buffer_bytes=0 и buffer_state=ok; в центре нет незавершённого ingestion этой ловушки. Нулевой буфер включает карантин непринятых событий и сообщается только после ack всех событий, включая закрытие сессий при stop. Offline-удаление отвергается даже при ранее известном stopped.
+Условия проверяются атомарно с командами и состоянием. Для online-ловушки необходимы отсутствие queued/running команды, runtime_state=stopped и desired_state=stopped, buffered_events=0, buffer_bytes=0 и buffer_state=ok. Нулевой буфер включает карантин непринятых событий и сообщается только после ack всех событий.
 
-Исключение: новую ловушку, которой ни разу не выдавались agent credentials и у которой нет активных команд/ingestion, можно удалить без подключения. Выдача credentials и удаление сериализованы; удалённой ловушке credentials не выдаются.
+Offline-ловушка (включая устаревший heartbeat) удаляется без подтверждения остановки и пустого буфера. Незавершённые команды переходят в failed с кодом trap_deleted, active_command_id очищается. Накопленные на отключённом агенте события могут быть потеряны. В обоих режимах удаление блокируется незавершённым ingestion и неверной ревизией. Выдача реквизитов, команды, подключения и удаление сериализованы; после tombstone новые команды и реквизиты недоступны.
 
 | HTTP | code | message | Условие |
 |---|---|---|---|
-| 409 | command_in_progress | Another command is in progress | Есть queued/running команда |
-| 409 | trap_offline | Trap must be online before deletion | Нет подтверждённого активного агента |
+| 409 | command_in_progress | Another command is in progress | Есть queued/running команда у online-ловушки |
 | 409 | trap_not_stopped | Trap must be stopped before deletion | runtime_state/desired_state не stopped |
 | 409 | trap_buffer_not_empty | Trap telemetry buffer must be empty before deletion | Буфер не пуст/неисправен либо ingestion не завершён |
 

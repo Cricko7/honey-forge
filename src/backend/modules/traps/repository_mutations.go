@@ -112,7 +112,7 @@ func (r *Repository) Delete(ctx context.Context, org, id string, check func(Reco
 			return mutation.Outcome{}, fmt.Errorf("check active commands: %w", err)
 		}
 
-		if active {
+		if active && online(current, time.Now()) {
 			return mutation.Outcome{}, contract.NewError("command_in_progress")
 		}
 
@@ -120,10 +120,28 @@ func (r *Repository) Delete(ctx context.Context, org, id string, check func(Reco
 			return mutation.Outcome{}, err
 		}
 
-		if _, err := tx.Exec(ctx, `UPDATE traps SET deleted_at=clock_timestamp(),token_hash=NULL,connection_id=NULL,connectivity='offline' WHERE organization_id=$1 AND id=$2`, org, id); err != nil {
+		result := outcome(current, "trap.deleted")
+		rows, err := tx.Query(ctx, `UPDATE commands SET status='failed',finished_at=clock_timestamp(),error='{"code":"trap_deleted","message":"Trap deleted before command completion"}'::jsonb,lease_id=NULL,lease_expires_at=NULL WHERE organization_id=$1 AND trap_id=$2 AND status IN ('queued','running') RETURNING id::text`, org, id)
+		if err != nil {
+			return mutation.Outcome{}, fmt.Errorf("close deleted trap commands: %w", err)
+		}
+		for rows.Next() {
+			var commandID string
+			if err := rows.Scan(&commandID); err != nil {
+				rows.Close()
+				return mutation.Outcome{}, fmt.Errorf("read closed command: %w", err)
+			}
+			result.Changes = append(result.Changes, mutation.Change{Type: "command.changed", ResourceID: contract.ID(commandID)})
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return mutation.Outcome{}, fmt.Errorf("read deleted trap commands: %w", err)
+		}
+
+		if _, err := tx.Exec(ctx, `UPDATE traps SET deleted_at=clock_timestamp(),token_hash=NULL,connection_id=NULL,connectivity='offline',active_command_id=NULL WHERE organization_id=$1 AND id=$2`, org, id); err != nil {
 			return mutation.Outcome{}, fmt.Errorf("tombstone trap: %w", err)
 		}
 
-		return outcome(current, "trap.deleted"), nil
+		return result, nil
 	})
 }

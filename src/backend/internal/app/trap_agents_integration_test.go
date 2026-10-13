@@ -123,7 +123,7 @@ func TestTrapHeartbeatAndSafeDeletion(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	trapMutation(t, r, a, "DELETE", path, "", 2, 409) // offline is never inferred stopped
+	trapMutation(t, r, a, "DELETE", path, "", 2, 204) // offline deletion succeeds once ingestion completes
 }
 
 func TestTrapCommandsEventsAndTombstone(t *testing.T) {

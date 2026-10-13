@@ -62,20 +62,22 @@ func safeDelete(r Record, expected int64, now time.Time) error {
 		return contract.NewError("revision_mismatch")
 	}
 
+	if r.PendingIngestions > 0 {
+		return contract.NewError("trap_buffer_not_empty")
+	}
+
+	// An offline agent cannot acknowledge stop or flush its buffer. Explicit
+	// deletion revokes its credentials and closes pending commands atomically.
+	if !online(r, now) {
+		return nil
+	}
+
 	if r.ActiveCommandID != nil {
 		return contract.NewError("command_in_progress")
 	}
 
 	if r.Generation == 0 {
-		if r.PendingIngestions > 0 {
-			return contract.NewError("trap_buffer_not_empty")
-		}
-
 		return nil
-	}
-
-	if !online(r, now) {
-		return contract.NewError("trap_offline")
 	}
 
 	if r.RuntimeState != "stopped" || r.DesiredState != "stopped" {

@@ -23,7 +23,7 @@ func TestTrapCommandOfflineExpiryReleasesRegistration(t *testing.T) {
 	path := "/api/traps/" + trap.ID
 	command := decodeIntegration[commands.Command](t, sendOperator(t, r, "POST", path+"/commands", `{"request_id":"`+string(contract.NewID())+`","action":"stop","params":{}}`, a, 201))
 	before := decodeIntegration[traps.Trap](t, sendOperator(t, r, "GET", path, "", a, 200))
-	requireOperatorError(t, trapMutation(t, r, a, "DELETE", path, "", 1, 409), "command_in_progress")
+	requireOperatorError(t, trapMutation(t, r, a, "DELETE", path, "", 2, 412), "revision_mismatch")
 	repo := commandrepo.New(r.pool, traps.NewRepository(r.pool))
 	if err := repo.ExpireAllDue(t.Context(), command.ExpiresAt.Add(time.Second)); err != nil {
 		t.Fatal(err)

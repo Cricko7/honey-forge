@@ -2085,7 +2085,7 @@ paths:
       - $ref: '#/components/parameters/ExpectedRevision'
       responses:
         '204':
-          description: Tombstones registration and revokes token/WSS. Requires no active command/ingestion, current online hello, stopped desired/runtime and empty healthy buffer. Never-issued registrations can be deleted offline. History remains readable; repeated DELETE is 404.
+          description: Tombstones registration and revokes token/WSS. Offline deletion closes queued/running commands as failed with trap_deleted and may discard agent-buffered events. Online deletion requires no active command, stopped desired/runtime and empty healthy buffer. In-progress ingestion blocks both modes. History remains readable; repeated DELETE is 404.
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':

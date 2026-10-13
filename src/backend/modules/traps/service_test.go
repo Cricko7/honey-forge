@@ -77,13 +77,25 @@ func TestSafeDeletion(t *testing.T) {
 		}, "command_in_progress"},
 		{"offline", func(r *Record) {
 			r.Connectivity = "offline"
-		}, "trap_offline"},
+		}, ""},
 		{"no connection", func(r *Record) {
 			r.ConnectionID = nil
-		}, "trap_offline"},
+		}, ""},
 		{"stale heartbeat", func(r *Record) {
 			r.LastSeenAt = ptr(now.Add(-31 * time.Second))
-		}, "trap_offline"},
+		}, ""},
+		{"offline with active command and buffered events", func(r *Record) {
+			r.Connectivity = "offline"
+			r.ActiveCommandID = ptr("command")
+			r.RuntimeState = "running"
+			r.DesiredState = "running"
+			r.Agent.BufferedEvents = 10
+		}, ""},
+		{"offline ingestion", func(r *Record) {
+			r.Connectivity = "offline"
+			r.PendingIngestions = 1
+		}, "trap_buffer_not_empty"},
+
 		{"running", func(r *Record) {
 			r.RuntimeState = "running"
 		}, "trap_not_stopped"},
