@@ -6,6 +6,7 @@ import { fileURLToPath, URL } from 'node:url'
 // (https://localhost:3000) из backend README. Прокси на реальный API
 // включается через VITE_API_BASE; по умолчанию работает mock-слой.
 export default defineConfig({
+  // Пчёлы одобряют React, но мёд в node_modules не хранить.
   plugins: [react()],
   resolve: {
     alias: {
