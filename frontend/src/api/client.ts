@@ -14,6 +14,7 @@ import type {
   TrapLink,
 } from '@/types'
 import { registrationOrganization, type RegistrationMode } from '@/lib/auth'
+import { eventQuery, type EventFilter } from './event-filters'
 import { mockApi } from './mock'
 import { subscribeDashboardStream } from './stream'
 import { ApiError, createHTTPClient } from './http'
@@ -235,14 +236,21 @@ export const api = {
     return real(`/api/traps/${trapId}/commands?limit=50`)
   },
 
-  async listEvents(filter?: { trap_id?: string; limit?: number }): Promise<EventPage> {
+  async listEvents(filter?: EventFilter): Promise<EventPage> {
     if (USE_MOCK) {
       await delay()
       return mockApi.listEvents(filter)
     }
-    const qs = new URLSearchParams({ limit: String(filter?.limit ?? 50) })
-    if (filter?.trap_id) qs.set('trap_id', filter.trap_id)
+    const qs = eventQuery(filter)
     return real(`/api/events?${qs}`)
+  },
+
+  async exportEvents(format: 'csv' | 'stix', filter?: EventFilter): Promise<Blob> {
+    if (USE_MOCK) {
+      const { mockEventExport } = await import('./mock-export')
+      return mockEventExport(mockApi.allEvents(), format, filter)
+    }
+    return real(`/api/events/export?${eventQuery(filter, format)}`, undefined, 'blob')
   },
 
   async getEvent(id: string): Promise<Event> {

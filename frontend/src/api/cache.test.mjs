@@ -5,6 +5,30 @@ import { applyStreamNotification, replaceSessionCache, removeDeletedTrap } from 
 
 const page = (items) => ({ items, next_cursor: null, stream_cursor: 'cursor' })
 
+test('live updates refetch cursor pages without losing their boundary event', () => {
+  const qc = new QueryClient()
+  const key = ['events', { limit: 1 }]
+  const old = { event_id: 'boundary', trap_id: 'a' }
+  qc.setQueryData(key, { ...page([old]), next_cursor: 'after-boundary' })
+  applyStreamNotification(qc, { kind: 'event.created', event: { event_id: 'new', trap_id: 'a' } })
+  assert.deepEqual(qc.getQueryData(key).items, [old])
+  assert.equal(qc.getQueryState(key).isInvalidated, true)
+  qc.clear()
+})
+
+test('live events honor type and date filters without changing later pages', () => {
+  const qc = new QueryClient()
+  const event = { event_id: 'new', trap_id: 'a', type_id: 'tcp-banner', event_type: 'tcp.connection_opened', occurred_at: '2026-10-13T00:00:00Z' }
+  const filters = [{ type_id: 'redis-emulator' }, { event_type: 'service.action' }, { from: '2026-10-14T00:00:00Z' }, { to: event.occurred_at }, { cursor: 'next-page' }]
+  for (const filter of filters) qc.setQueryData(['events', filter], page([]))
+  const matching = { type_id: event.type_id, event_type: event.event_type, from: event.occurred_at }
+  qc.setQueryData(['events', matching], page([]))
+  applyStreamNotification(qc, { kind: 'event.created', event })
+  for (const filter of filters) assert.deepEqual(qc.getQueryData(['events', filter]).items, [])
+  assert.deepEqual(qc.getQueryData(['events', matching]).items, [event])
+  qc.clear()
+})
+
 test('replayed trap snapshots cannot overwrite newer REST state or resurrect deletions', () => {
   const qc = new QueryClient()
   const newer = { id: 'a', state_version: 5, connectivity: 'online' }

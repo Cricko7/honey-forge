@@ -2328,6 +2328,10 @@ paths:
         schema:
           type: string
       - in: query
+        name: type_id
+        schema:
+          $ref: '#/components/schemas/TypeID'
+      - in: query
         name: event_type
         schema:
           $ref: '#/components/schemas/TypeID'
@@ -2337,7 +2341,7 @@ paths:
           $ref: '#/components/schemas/ID'
       responses:
         '200':
-          description: Own summaries including tombstone traps. All filters AND; order occurred_at DESC/event_id DESC. Late events stay outside original page boundary. stream_cursor is retained across pagination.
+          description: Own summaries including tombstone traps. All filters AND; from inclusive, to exclusive on occurred_at; order occurred_at DESC/event_id DESC. Late events stay outside original page boundary. stream_cursor is retained across pagination.
           content:
             application/json:
               schema:
@@ -2346,10 +2350,107 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '422':
+          description: Invalid time range (from must be earlier than to).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/events/export:
+    get:
+      operationId: exportEvents
+      summary: Download filtered attack telemetry as CSV or STIX 2.1
+      description: |
+        Admin/viewer access within the owning organization, including tombstone traps.
+        All filters combine with AND. from is inclusive and to is exclusive on occurred_at.
+        Exports every matching event at the initial ingestion boundary, in the same order
+        as the list. New arrivals are excluded. Pagination parameters are not accepted.
+        The file is prepared before returning a response; failures never return partial exports.
+        CSV uses UTF-8 and includes metadata, source_enrichment and original data as JSON.
+        Cells with spreadsheet formula prefixes are escaped with a leading apostrophe.
+        STIX contains an IP observable and observed-data per event; the original event
+        is retained in the custom x_honeyforge_event property (including captured input).
+        No agent credentials or configuration snapshots are included.
+      security:
+      - sessionCookie: []
+      parameters:
+      - in: query
+        name: format
+        required: true
+        schema:
+          type: string
+          enum: [csv, stix]
+      - in: query
+        name: trap_id
+        schema:
+          $ref: '#/components/schemas/ID'
+      - in: query
+        name: from
+        schema:
+          $ref: '#/components/schemas/Timestamp'
+      - in: query
+        name: to
+        schema:
+          $ref: '#/components/schemas/Timestamp'
+      - in: query
+        name: source_ip
+        schema:
+          type: string
+      - in: query
+        name: type_id
+        schema:
+          $ref: '#/components/schemas/TypeID'
+      - in: query
+        name: event_type
+        schema:
+          $ref: '#/components/schemas/TypeID'
+      - in: query
+        name: session_id
+        schema:
+          $ref: '#/components/schemas/ID'
+      responses:
+        '200':
+          description: Complete export, including a header-only CSV or empty STIX bundle for no matches.
+          headers:
+            Content-Disposition:
+              description: attachment with an events timestamp filename and .csv or .stix.json extension
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                enum: [no-store]
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+            application/stix+json:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          description: Invalid time range (from must be earlier than to).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
         '503':
           $ref: '#/components/responses/Unavailable'
   /api/events/recordings/{session_id}:

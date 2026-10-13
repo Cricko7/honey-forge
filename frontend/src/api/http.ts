@@ -10,7 +10,7 @@ export class ApiError extends Error {
 
 // Each client reads the CSRF token owned by its current session.
 export function createHTTPClient(base: string, csrf: () => string) {
-  return async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  return async function request<T>(path: string, init?: RequestInit, responseType: 'json' | 'blob' = 'json'): Promise<T> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...(init?.headers as Record<string, string>),
@@ -31,6 +31,6 @@ export function createHTTPClient(base: string, csrf: () => string) {
       throw new ApiError(res.status, body?.error?.code ?? 'unknown', body?.error?.message ?? res.statusText)
     }
     if (res.status === 204) return undefined as T
-    return res.json() as Promise<T>
+    return (responseType === 'blob' ? res.blob() : res.json()) as Promise<T>
   }
 }

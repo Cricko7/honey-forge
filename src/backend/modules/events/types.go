@@ -70,10 +70,10 @@ type EventPage struct {
 }
 
 type Query struct {
-	Limit                                  int
-	TrapID, EventType, SessionID, SourceIP string
-	From, To                               *time.Time
-	Boundary                               int64
-	AfterTime                              *time.Time
-	AfterID                                string
+	Limit                                          int
+	TrapID, EventType, SessionID, SourceIP, TypeID string
+	From, To                                       *time.Time
+	Boundary                                       int64
+	AfterTime                                      *time.Time
+	AfterID                                        string
 }

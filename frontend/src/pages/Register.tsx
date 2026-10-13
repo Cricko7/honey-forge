@@ -1,3 +1,4 @@
+import { Select } from '@/components/Select'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Shield, ArrowRight } from 'lucide-react'
@@ -70,10 +71,8 @@ export function RegisterPage() {
           <p className="text-sm text-muted mb-6">По коду администратора — доступ к просмотру. Новая организация — права администратора.</p>
 
           <label className="label">Способ регистрации</label>
-          <select className="input mb-4" value={mode} onChange={(e) => setMode(e.target.value as RegistrationMode)}>
-            <option value="join">Пользователь — по коду приглашения</option>
-            <option value="create">Администратор — новая организация</option>
-          </select>
+          <Select label="Способ регистрации" className="mb-4" value={mode} onChange={(value) => setMode(value as RegistrationMode)}
+            options={[{ value: 'join', label: 'Пользователь — по коду приглашения' }, { value: 'create', label: 'Администратор — новая организация' }]} />
           {mode === 'join' ? <>
             <label className="label">Код приглашения</label>
             <input className="input mb-4" required value={code} onChange={(e) => setCode(e.target.value)} />

@@ -1,3 +1,4 @@
+import { matchesEvent, type EventFilter } from './event-filters'
 import type {
   Command,
   CommandAction,
@@ -426,13 +427,16 @@ export const mockApi = {
     return { items: commandsByTrap.get(trapId) ?? [], next_cursor: null }
   },
 
-  listEvents(filter?: { trap_id?: string; limit?: number }) {
-    let items = events as EventSummary[]
-    if (filter?.trap_id) items = items.filter((e) => e.trap_id === filter.trap_id)
+  listEvents(filter?: EventFilter) {
+    let items = events.filter((e) => matchesEvent(e, filter)) as EventSummary[]
+    if (filter?.cursor) {
+      const index = items.findIndex((e) => e.event_id === filter.cursor)
+      items = items.slice(index + 1)
+    }
     const limit = filter?.limit ?? 50
     return {
       items: items.slice(0, limit).map(({ ...e }) => e),
-      next_cursor: null,
+      next_cursor: items.length > limit ? items[limit - 1].event_id : null,
       stream_cursor: 'cursor-' + Date.now(),
     }
   },

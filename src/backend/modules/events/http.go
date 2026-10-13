@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/netip"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -51,6 +52,7 @@ func (h *Handler) RegisterRoutes(router *gin.Engine, session gin.HandlerFunc) {
 		c.Next()
 	}, contract.RESTBody())
 	group.GET("", h.list)
+	group.GET("/export", h.export)
 	group.GET("/:event_id", h.read)
 	group.GET("/recordings/:session_id", h.recording)
 }
@@ -79,53 +81,23 @@ func (h *Handler) list(c *gin.Context) {
 		return
 	}
 
-	values, ok := contract.RequestQuery(c, "limit", "cursor", "trap_id", "from", "to", "source_ip", "event_type", "session_id")
+	values, ok := contract.RequestQuery(c, "limit", "cursor", "trap_id", "from", "to", "source_ip", "event_type", "session_id", "type_id")
 	if !ok {
 		return
 	}
 
-	parsed, err := contract.ParseListQuery(values, "trap_id", "from", "to", "source_ip", "event_type", "session_id")
+	parsed, err := contract.ParseListQuery(values, "trap_id", "from", "to", "source_ip", "event_type", "session_id", "type_id")
 	if err != nil {
 		contract.Fail(c, err)
 		return
 	}
 
-	interval, err := contract.ParseTimeRange(values)
+	q, err := parseEventFilters(values)
 	if err != nil {
 		contract.Fail(c, err)
 		return
 	}
-
-	q := Query{
-		Limit:     parsed.Limit,
-		TrapID:    strings.ToLower(values.Get("trap_id")),
-		SessionID: strings.ToLower(values.Get("session_id")),
-		EventType: values.Get("event_type"),
-		From:      interval.From,
-		To:        interval.To,
-		Boundary:  -1,
-	}
-	for _, key := range []string{"trap_id", "session_id"} {
-		if v, ok := values[key]; ok && !contract.ValidID(v[0]) {
-			contract.Fail(c, contract.NewError("invalid_query"))
-			return
-		}
-	}
-
-	if v, ok := values["event_type"]; ok && !contract.ValidTypeID(v[0]) {
-		contract.Fail(c, contract.NewError("invalid_query"))
-		return
-	}
-
-	if v, ok := values["source_ip"]; ok {
-		ip, err := netip.ParseAddr(v[0])
-		if err != nil || ip.Zone() != "" {
-			contract.Fail(c, contract.NewError("invalid_query"))
-			return
-		}
-
-		q.SourceIP = ip.Unmap().String()
-	}
+	q.Limit = parsed.Limit
 
 	values.Del("cursor")
 	values.Del("limit")
@@ -216,4 +188,44 @@ func (h *Handler) fail(c *gin.Context, err error) {
 	}
 
 	contract.Fail(c, api)
+}
+
+func parseEventFilters(values url.Values) (Query, *contract.Error) {
+	interval, err := contract.ParseTimeRange(values)
+	if err != nil {
+		return Query{}, err
+	}
+
+	q := Query{
+		TypeID:    values.Get("type_id"),
+		TrapID:    strings.ToLower(values.Get("trap_id")),
+		SessionID: strings.ToLower(values.Get("session_id")),
+		EventType: values.Get("event_type"),
+		From:      interval.From,
+		To:        interval.To,
+		Boundary:  -1,
+	}
+	for _, key := range []string{"trap_id", "session_id"} {
+		if v, ok := values[key]; ok && !contract.ValidID(v[0]) {
+			return Query{}, contract.NewError("invalid_query")
+		}
+	}
+
+	if v, ok := values["type_id"]; ok && !contract.ValidTypeID(v[0]) {
+		return Query{}, contract.NewError("invalid_query")
+	}
+	if v, ok := values["event_type"]; ok && !contract.ValidTypeID(v[0]) {
+		return Query{}, contract.NewError("invalid_query")
+	}
+
+	if v, ok := values["source_ip"]; ok {
+		ip, err := netip.ParseAddr(v[0])
+		if err != nil || ip.Zone() != "" {
+			return Query{}, contract.NewError("invalid_query")
+		}
+
+		q.SourceIP = ip.Unmap().String()
+	}
+
+	return q, nil
 }

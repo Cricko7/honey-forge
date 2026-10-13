@@ -1,3 +1,4 @@
+import { Select } from '@/components/Select'
 import { useEffect, useMemo, useState } from 'react'
 import { Lock, Plus } from 'lucide-react'
 import { Card, SectionTitle, LevelBadge, Spinner, EmptyState } from '@/components/ui'
@@ -158,13 +159,8 @@ function CreateProfileModal({ open, onClose }: { open: boolean; onClose: () => v
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="label">Тип ловушки</label>
-            <select className="input" value={typeKey} onChange={(e) => setTypeKey(e.target.value)}>
-              {entries.map((e) => (
-                <option key={`${e.type_id}/${e.type_version}`} value={`${e.type_id}/${e.type_version}`}>
-                  {e.title} — {e.type_id}/{e.type_version} ({e.interaction_level})
-                </option>
-              ))}
-            </select>
+            <Select label="Тип ловушки" value={typeKey} onChange={setTypeKey}
+              options={entries.map((entry) => ({ value: `${entry.type_id}/${entry.type_version}`, label: `${entry.title} — ${entry.type_id}/${entry.type_version} (${entry.interaction_level})` }))} />
           </div>
           <div>
             <label className="label">Имя профиля</label>

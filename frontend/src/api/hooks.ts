@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import type { CommandAction, EventSummary } from '@/types'
+import type { EventFilter } from './event-filters'
 import { api, subscribeStream } from './client'
 import { qk } from './query-keys'
 import { canManage } from '@/lib/auth'
@@ -39,8 +40,8 @@ export const useCommands = (trapId: string) =>
     refetchInterval: (query) => query.state.data?.items.some((c) => c.status === 'queued' || c.status === 'running') ? 3000 : false,
   })
 
-export const useEvents = (filter?: { trap_id?: string; limit?: number }) =>
-  useQuery({ queryKey: qk.events(filter), queryFn: () => api.listEvents(filter) })
+export const useEvents = (filter?: EventFilter, enabled = true) =>
+  useQuery({ queryKey: qk.events(filter), queryFn: () => api.listEvents(filter), enabled })
 
 export const useEvent = (id: string) =>
   useQuery({ queryKey: qk.event(id), queryFn: () => api.getEvent(id), enabled: !!id })

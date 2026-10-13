@@ -1,5 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { qk } from './query-keys.ts'
+import { matchesEvent, type EventFilter } from './event-filters.ts'
 import type { EventSummary, Page, SessionView, StreamNotification, Trap } from '../types'
 
 const deletedTraps = new WeakMap<QueryClient, Set<string>>()
@@ -24,8 +25,14 @@ export function removeDeletedTrap(qc: QueryClient, id: string) {
 export function applyStreamNotification(qc: QueryClient, n: StreamNotification) {
   if (n.kind === 'event.created') {
     for (const [key] of qc.getQueriesData({ queryKey: qk.eventLists })) {
-      const filter = key[1] as { trap_id?: string; limit?: number } | undefined
-      if (filter?.trap_id && filter.trap_id !== n.event.trap_id) continue
+      const filter = key[1] as EventFilter | undefined
+      if (filter?.cursor || !matchesEvent(n.event, filter)) continue
+      const cached = qc.getQueryData<Page<EventSummary>>(key)
+      if (cached?.next_cursor) {
+        // Refetch items and cursor together so live inserts cannot skip the last item.
+        qc.invalidateQueries({ queryKey: key, exact: true })
+        continue
+      }
       qc.setQueryData<Page<EventSummary>>(key, (old) => old ? {
         ...old,
         items: [n.event, ...old.items.filter((e) => e.event_id !== n.event.event_id)]

@@ -1,13 +1,50 @@
+import { Select } from '@/components/Select'
+import { DateTimePicker } from '@/components/DateTimePicker'
 import { useState } from 'react'
 import { Card, EventTypeBadge, Spinner, EmptyState } from '@/components/ui'
 import { EventDetailModal } from '@/components/EventDetailModal'
-import { useEvents } from '@/api/hooks'
+import { useCatalog, useEvents, useTraps } from '@/api/hooks'
+import { api } from '@/api/client'
+import { journalFilter } from '@/api/event-filters'
 import { formatDateTime } from '@/lib/utils'
 
 export function EventsPage() {
-  const { data, isLoading } = useEvents({ limit: 100 })
+  const empty = { trap_id: '', type_id: '', event_type: '', from: '', to: '' }
+  const [filters, setFilters] = useState(empty)
+  const [cursors, setCursors] = useState<string[]>([])
+  const [exporting, setExporting] = useState(false)
+  const [downloadError, setDownloadError] = useState('')
+  const { data: traps } = useTraps()
+  const { data: catalog } = useCatalog()
+  let filter = {}
+  let validationError = ''
+  try { filter = journalFilter(filters) } catch (e) { validationError = (e as Error).message }
+  const { data, isLoading, error } = useEvents({ ...filter, limit: 100, cursor: cursors.at(-1) }, !validationError)
   const [selected, setSelected] = useState<string | null>(null)
   const events = data?.items ?? []
+  const types = [...new Set((catalog?.items ?? []).map((entry) => entry.type_id))].sort()
+  const eventTypes = [...new Set((catalog?.items ?? []).flatMap((entry) => entry.event_schemas.map((event) => event.event_type)))].sort()
+  const change = (key: keyof typeof filters, value: string) => {
+    setFilters((previous) => ({ ...previous, [key]: value }))
+    setCursors([])
+    setDownloadError('')
+  }
+  const download = async (format: 'csv' | 'stix') => {
+    setExporting(true)
+    setDownloadError('')
+    try {
+      const blob = await api.exportEvents(format, filter)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `events-${new Date().toISOString().replaceAll(':', '-')}.${format === 'csv' ? 'csv' : 'stix.json'}`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } catch (e) { setDownloadError(e instanceof Error ? e.message : 'Не удалось скачать файл') }
+    finally { setExporting(false) }
+  }
 
   return (
     <div className="p-6 space-y-5">
@@ -18,8 +55,38 @@ export function EventsPage() {
         </p>
       </div>
 
+      <Card>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <label className="text-xs text-muted">Тип ловушки
+            <Select label="Тип ловушки" className="mt-1" value={filters.type_id} onChange={(value) => change('type_id', value)}
+              options={[{ value: '', label: 'Все типы' }, ...types.map((type) => ({ value: type, label: type }))]} />
+          </label>
+          <label className="text-xs text-muted">Ловушка
+            <Select label="Ловушка" className="mt-1" value={filters.trap_id} onChange={(value) => change('trap_id', value)}
+              options={[{ value: '', label: 'Все ловушки' }, ...(traps?.items ?? []).map((trap) => ({ value: trap.id, label: trap.name }))]} />
+          </label>
+          <label className="text-xs text-muted">Тип события
+            <Select label="Тип события" className="mt-1" value={filters.event_type} onChange={(value) => change('event_type', value)}
+              options={[{ value: '', label: 'Все события' }, ...eventTypes.map((type) => ({ value: type, label: type }))]} />
+          </label>
+          <label className="text-xs text-muted">С (включительно)
+            <DateTimePicker label="С (включительно)" className="mt-1" value={filters.from} onChange={(value) => change('from', value)} />
+          </label>
+          <label className="text-xs text-muted">До (не включительно)
+            <DateTimePicker label="До (не включительно)" className="mt-1" value={filters.to} onChange={(value) => change('to', value)} />
+          </label>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button className="btn-ghost" onClick={() => { setFilters(empty); setCursors([]); setDownloadError('') }}>Сбросить</button>
+          <button className="btn-primary" disabled={exporting || !!validationError} onClick={() => download('csv')}>Скачать CSV</button>
+          <button className="btn-ghost" disabled={exporting || !!validationError} onClick={() => download('stix')}>Скачать STIX</button>
+          <span className="text-xs text-muted">{exporting ? 'Подготовка файла…' : 'Экспорт всей выборки · даты в вашем часовом поясе'}</span>
+        </div>
+      </Card>
+      {(validationError || downloadError || error) && <p role="alert" className="text-sm text-danger">{validationError || downloadError || (error as Error).message}</p>}
+
       <Card className="!p-0 overflow-hidden">
-        {isLoading ? (
+        {validationError || error ? <EmptyState title="Не удалось получить события" /> : isLoading ? (
           <Spinner />
         ) : events.length === 0 ? (
           <EmptyState title="Событий нет" />
@@ -65,6 +132,11 @@ export function EventsPage() {
           </table>
         )}
       </Card>
+      <div className="flex items-center gap-3">
+        <button className="btn-ghost" disabled={cursors.length === 0 || isLoading} onClick={() => setCursors((previous) => previous.slice(0, -1))}>Назад</button>
+        <span className="text-xs text-muted">Страница {cursors.length + 1} · {events.length} событий</span>
+        <button className="btn-ghost" disabled={!data?.next_cursor || isLoading || !!validationError || !!error} onClick={() => { if (data?.next_cursor) setCursors((previous) => [...previous, data.next_cursor!]) }}>Далее</button>
+      </div>
 
       <EventDetailModal id={selected} onClose={() => setSelected(null)} />
     </div>

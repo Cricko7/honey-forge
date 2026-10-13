@@ -1,3 +1,4 @@
+import { Select } from '@/components/Select'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Bug, Database, Server, KeyRound, TerminalSquare, AlertTriangle, Shuffle } from 'lucide-react'
@@ -156,14 +157,8 @@ export function AddTrapModal({
 
         <div>
           <label className="label" htmlFor="deployment-node">Где развернуть ловушку</label>
-          <select id="deployment-node" className="input" value={deploymentNodeId} onChange={(e) => onDeploymentNodeChange(e.target.value)}>
-            <option value="">Сервер платформы</option>
-            {deploymentNodes.map((node) => (
-              <option key={node.id} value={node.id} disabled={!node.ready}>
-                {node.hostname} ({node.address}){!node.ready ? ' — недоступен' : ''}
-              </option>
-            ))}
-          </select>
+          <Select id="deployment-node" label="Где развернуть ловушку" value={deploymentNodeId} onChange={onDeploymentNodeChange}
+            options={[{ value: '', label: 'Сервер платформы' }, ...deploymentNodes.map((node) => ({ value: node.id, label: `${node.hostname} (${node.address})${!node.ready ? ' — недоступен' : ''}`, disabled: !node.ready }))]} />
           <p className="text-xs text-muted mt-2">
             Сервер компании появится после подключения к Docker Swarm и назначения вашей организации администратором платформы.
           </p>
