@@ -168,6 +168,7 @@ func TestFrontendRESTReplayLiveReconnect(t *testing.T) {
 	login := sessionFromResponse(t, sendOperator(t, r, "POST", "/api/sessions", integrationJSON(t, auth.LoginRequest{Email: a.view.User.Email, Password: integrationPassword}), operatorSession{}, 201))
 	resumed := dialFrontend(t, server, login)
 	subscribeFrontend(t, resumed, cursor)
+	readFrontend(t, resumed, "profile.deleted")
 	deleted := readFrontend(t, resumed, "trap.deleted")
 	if !strings.Contains(string(deleted.Payload["data"]), trap.ID) {
 		t.Fatal("tombstone missing")

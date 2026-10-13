@@ -59,6 +59,7 @@ export function subscribeDashboardStream(base: string, onNotify: (n: StreamNotif
           if (env.type === 'event.created' && data?.event) onNotify({ kind: 'event.created', event: data.event })
           else if (env.type === 'trap.changed' && data?.trap) onNotify({ kind: 'trap.changed', trap: data.trap })
           else if (env.type === 'trap.deleted' && data?.trap_id) onNotify({ kind: 'trap.deleted', trap_id: data.trap_id })
+          else if (env.type === 'profile.deleted' && data?.profile_id) onNotify({ kind: 'profile.deleted', profile_id: data.profile_id })
           else if (env.type === 'command.changed' && data?.command)
             onNotify({ kind: 'command.changed', trap_id: data.trap_id, command: data.command })
         } catch {

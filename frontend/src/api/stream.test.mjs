@@ -58,6 +58,16 @@ test('StrictMode cleanup before initialization creates no aborted handshake', as
   assert.equal(ws.sent[0].type, 'stream.subscribe')
 })
 
+test('profile deletion reaches the cache consumer', async (t) => {
+  const s = setup(t)
+  s.subscribe()
+  await flush()
+  const ws = s.sockets[0]
+  ws.open()
+  ws.message('profile.deleted', { data: { profile_id: 'deleted-profile' }, cursor: 'after-delete' })
+  assert.deepEqual(s.notifications, [{ kind: 'profile.deleted', profile_id: 'deleted-profile' }])
+})
+
 test('network reconnect resumes after applied notifications including unknown types', async (t) => {
   const s = setup(t)
   s.subscribe()

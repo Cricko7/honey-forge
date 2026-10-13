@@ -426,8 +426,7 @@ func testDemoRegistrationToTCPStop(t *testing.T, disconnect bool) {
 	}
 
 	sendOperator(t, r, "GET", "/api/events?trap_id="+trap.ID, "", admin, 200)
-	profileRead = sendOperator(t, r, "GET", "/api/profiles/"+profile.ID, "", admin, 200)
-	sendOperator(t, r, "DELETE", "/api/profiles/"+profile.ID, "", admin, 204, profileRead.Header().Get("ETag"))
+	sendOperator(t, r, "GET", "/api/profiles/"+profile.ID, "", admin, 404)
 }
 
 type agentConnections struct {

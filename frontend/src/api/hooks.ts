@@ -79,7 +79,10 @@ export function useDeleteTrap() {
         qc.cancelQueries({ queryKey: qk.trap(id), exact: true }),
       ])
       removeDeletedTrap(qc, id)
-      await qc.invalidateQueries({ queryKey: qk.trapLists })
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: qk.trapLists }),
+        qc.invalidateQueries({ queryKey: qk.profiles }),
+      ])
     },
   })
 }

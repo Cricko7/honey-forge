@@ -77,6 +77,7 @@ export function createAlertTracker() {
     },
     accept(notification: StreamNotification): AlertInput[] {
       switch (notification.kind) {
+        case 'profile.deleted': return []
         case 'event.created': {
           const e = notification.event
           const id = `event:${e.event_id}`

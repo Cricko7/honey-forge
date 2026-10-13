@@ -8,6 +8,10 @@ const changed = (t) => ({ kind: 'trap.changed', trap: t })
 const event = (id = 'e1') => ({ kind: 'event.created', event: { event_id: id, event_type: 'auth.attempt',
   trap_id: 't1', source: { ip: '192.0.2.1', port: 123 }, destination: { protocol: 'tcp', port: 22 } } })
 
+test('automatic profile cleanup does not duplicate the trap deletion alert', () => {
+  assert.deepEqual(createAlertTracker().accept({ kind: 'profile.deleted', profile_id: 'removed' }), [])
+})
+
 test('events link to details and replay is silent', () => {
   const tracker = createAlertTracker()
   const [alert] = tracker.accept(event())

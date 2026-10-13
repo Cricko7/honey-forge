@@ -79,7 +79,7 @@ func TestStructuredEventHistory(t *testing.T) {
 	}
 
 	trapMutation(t, r, a, "DELETE", "/api/traps/"+trap.ID, "", 1, 204)
-	sendOperator(t, r, "DELETE", "/api/profiles/"+p.ID, "", a, 204, `"profile:`+p.ID+`:2"`)
+	sendOperator(t, r, "GET", "/api/profiles/"+p.ID, "", a, 404)
 	sendOperator(t, r, "GET", "/api/events/"+authEvent.EventID, "", viewer, 200)
 	var unsafe int
 	if err := r.pool.QueryRow(t.Context(), `SELECT count(*) FROM mutation_audit WHERE metadata::text LIKE '%attacker%' OR metadata::text LIKE '%Пароль%'`).Scan(&unsafe); err != nil || unsafe != 0 {

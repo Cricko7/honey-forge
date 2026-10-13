@@ -5,6 +5,16 @@ import { applyStreamNotification, replaceSessionCache, removeDeletedTrap } from 
 
 const page = (items) => ({ items, next_cursor: null, stream_cursor: 'cursor' })
 
+test('profile deletion removes its card without removing shared or unrelated profiles', () => {
+  const qc = new QueryClient()
+  const shared = { id: 'shared' }
+  qc.setQueryData(['profiles'], page([{ id: 'deleted' }, shared]))
+  applyStreamNotification(qc, { kind: 'profile.deleted', profile_id: 'deleted' })
+  assert.deepEqual(qc.getQueryData(['profiles']).items, [shared])
+  assert.equal(qc.getQueryState(['profiles']).isInvalidated, true)
+  qc.clear()
+})
+
 test('live updates refetch cursor pages without losing their boundary event', () => {
   const qc = new QueryClient()
   const key = ['events', { limit: 1 }]

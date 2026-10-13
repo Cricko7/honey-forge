@@ -173,3 +173,22 @@ test('demo links survive refetch and allow reverse links', async () => {
   assert.deepEqual((await api.listTrapLinks()).items, [reverse])
   await api.deleteTrapLink(reverse)
 })
+
+test('demo trap deletion keeps a shared profile until its last binding is removed', async (t) => {
+  t.mock.timers.enable({ apis: ['setInterval'] })
+  const { api, subscribeStream } = await client('')
+  const { items } = await api.listTraps()
+  const original = items.find((trap) => items.filter((other) => other.profile_id === trap.profile_id).length === 1)
+  assert.ok(original)
+  const shared = await api.createTrap({ name: 'Shared', profile_id: original.profile_id })
+  const notifications = []
+  const stop = subscribeStream((n) => notifications.push(n))
+  try {
+    await api.deleteTrap(original.id, original.revision)
+    assert.ok((await api.listProfiles()).items.some((p) => p.id === original.profile_id))
+    assert.equal(notifications.filter((n) => n.kind === 'profile.deleted').length, 0)
+    await api.deleteTrap(shared.id, shared.revision)
+    assert.ok(!(await api.listProfiles()).items.some((p) => p.id === original.profile_id))
+    assert.deepEqual(notifications.filter((n) => n.kind === 'profile.deleted'), [{ kind: 'profile.deleted', profile_id: original.profile_id }])
+  } finally { stop() }
+})

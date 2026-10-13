@@ -66,13 +66,7 @@ func TestTrapsLifecycle(t *testing.T) {
 		t.Fatalf("tombstone: %v", err)
 	}
 
-	deleteProfile := operatorRequest(t, "DELETE", "/api/profiles/"+p.ID, "", admin)
-	deleteProfile.Header.Set("If-Match", profiles.ETag(p))
-	w := httptest.NewRecorder()
-	r.Router.ServeHTTP(w, deleteProfile)
-	if w.Code != 204 {
-		t.Fatalf("profile binding: %d %s", w.Code, w.Body.String())
-	}
+	sendOperator(t, r, "GET", "/api/profiles/"+p.ID, "", admin, 404)
 
 	var audits, changes int
 	if err := r.pool.QueryRow(t.Context(), `SELECT count(*) FROM mutation_audit WHERE resource_id=$1 AND action='trap.deleted'`, trap.ID).Scan(&audits); err != nil {

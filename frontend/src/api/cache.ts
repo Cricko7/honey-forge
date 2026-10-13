@@ -1,7 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { qk } from './query-keys.ts'
 import { matchesEvent, type EventFilter } from './event-filters.ts'
-import type { EventSummary, Page, SessionView, StreamNotification, Trap } from '../types'
+import type { EventSummary, Page, Profile, SessionView, StreamNotification, Trap } from '../types'
 
 const deletedTraps = new WeakMap<QueryClient, Set<string>>()
 
@@ -61,6 +61,11 @@ export function applyStreamNotification(qc: QueryClient, n: StreamNotification) 
     qc.setQueryData(qk.trap(n.trap.id), n.trap)
   } else if (n.kind === 'trap.deleted') {
     removeDeletedTrap(qc, n.trap_id)
+  } else if (n.kind === 'profile.deleted') {
+    qc.setQueryData<Page<Profile>>(qk.profiles, (old) =>
+      old ? { ...old, items: old.items.filter((p) => p.id !== n.profile_id) } : old,
+    )
+    qc.invalidateQueries({ queryKey: qk.profiles })
   } else if (n.kind === 'command.changed') {
     qc.invalidateQueries({ queryKey: qk.commands(n.trap_id) })
     qc.invalidateQueries({ queryKey: qk.trap(n.trap_id), exact: true })

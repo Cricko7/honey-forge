@@ -10,6 +10,7 @@ import (
 
 	"honey-forge/internal/contract"
 	"honey-forge/internal/mutation"
+	"honey-forge/modules/auth"
 	"honey-forge/modules/profiles"
 	profilerepo "honey-forge/modules/profiles/repository"
 )
@@ -140,6 +141,12 @@ func (r *Repository) Delete(ctx context.Context, org, id string, check func(Reco
 
 		if _, err := tx.Exec(ctx, `UPDATE traps SET deleted_at=clock_timestamp(),token_hash=NULL,connection_id=NULL,connectivity='offline',active_command_id=NULL WHERE organization_id=$1 AND id=$2`, org, id); err != nil {
 			return mutation.Outcome{}, fmt.Errorf("tombstone trap: %w", err)
+		}
+
+		principal, _ := contract.PrincipalFrom(ctx)
+		actor := auth.AuthContext{UserID: string(principal.UserID), OrganizationID: org, Role: string(principal.Role)}
+		if err := profilerepo.NewRepository(r.pool).DeleteUnbound(ctx, tx, actor, current.ProfileID); err != nil {
+			return mutation.Outcome{}, fmt.Errorf("delete unbound trap profile: %w", err)
 		}
 
 		return result, nil

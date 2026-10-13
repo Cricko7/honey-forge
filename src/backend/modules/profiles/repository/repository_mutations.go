@@ -136,11 +136,7 @@ func (r *Repository) Delete(ctx context.Context, a auth.AuthContext, id string, 
 			return err
 		}
 
-		if _, err := tx.Exec(ctx, `UPDATE profiles SET deleted_at=clock_timestamp() WHERE organization_id=$1 AND id=$2`, a.OrganizationID, id); err != nil {
-			return err
-		}
-
-		return r.recordMutation(ctx, tx, a, "profile.deleted", p, []string{})
+		return r.deleteProfile(ctx, tx, a, p)
 	})
 	return databaseError("deleting profile transaction", err)
 }

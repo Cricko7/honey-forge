@@ -187,6 +187,7 @@ export type StreamNotification =
   | { kind: 'event.created'; event: EventSummary }
   | { kind: 'trap.changed'; trap: Trap }
   | { kind: 'trap.deleted'; trap_id: UUID }
+  | { kind: 'profile.deleted'; profile_id: UUID }
   | { kind: 'command.changed'; trap_id: UUID; command: Command }
 
 // Позиции узлов на canvas-конструкторе. Чисто фронтовое наложение

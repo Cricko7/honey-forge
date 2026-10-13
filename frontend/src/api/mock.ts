@@ -374,7 +374,14 @@ export const mockApi = {
   deleteTrap(id: string) {
     const idx = traps.findIndex((t) => t.id === id)
     if (idx >= 0) {
-      traps.splice(idx, 1)
+      const [removed] = traps.splice(idx, 1)
+      if (!traps.some((t) => t.profile_id === removed.profile_id)) {
+        const profileIndex = profiles.findIndex((p) => p.id === removed.profile_id)
+        if (profileIndex >= 0) {
+          profiles.splice(profileIndex, 1)
+          emit({ kind: 'profile.deleted', profile_id: removed.profile_id })
+        }
+      }
       emit({ kind: 'trap.deleted', trap_id: id })
     }
   },
