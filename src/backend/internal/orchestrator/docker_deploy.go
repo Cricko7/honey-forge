@@ -76,6 +76,7 @@ func (d DockerCLI) Deploy(ctx context.Context, target Target, token string, gene
 	}
 
 	args := []string{"service", "create", "--detach=true", "--name", serviceName(target.ID),
+		"--log-driver", "local", "--log-opt", "max-size=10m", "--log-opt", "max-file=3",
 		"--label", "com.nodemetrics.instance=" + target.ID,
 		"--label", "com.nodemetrics.generation=" + strconv.FormatInt(generation, 10),
 		"--label", "com.nodemetrics.ports=" + portLabel(ports),

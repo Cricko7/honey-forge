@@ -28,6 +28,7 @@ func sandboxArgs(id, image, publicKey string, seconds int) ([]string, error) {
 	}
 
 	return []string{"run", "--detach", "--rm", "--init", "--pull=never", "--name", "node-metrics-session-" + id,
+		"--log-driver", "local", "--log-opt", "max-size=10m", "--log-opt", "max-file=3",
 		"--label", "com.nodemetrics.sandbox=true", "--label", "com.nodemetrics.expires=" + strconv.FormatInt(time.Now().Add(time.Duration(seconds)*time.Second).Unix(), 10),
 		"--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
 		"--memory", "128m", "--memory-swap", "128m", "--cpus", "0.5", "--pids-limit", "64", "--user", "1000:1000",

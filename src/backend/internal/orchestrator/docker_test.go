@@ -154,7 +154,7 @@ func TestDockerDeployUsesOneIsolatedSwarmTaskAndSecret(t *testing.T) {
 				}
 			}
 
-			for _, want := range []string{"--replicas 1", "--read-only", "--cap-drop ALL", "--cap-add SETUID", "--network mgmt", "--hostname {{.Node.Hostname}}", "NM_WORKER_IMAGE=registry/trap:1", "NM_WORKER_NETWORK=decoys", "/var/run/docker.sock", "com.nodemetrics.isolation=mask3", "registry/trap:1"} {
+			for _, want := range []string{"--log-driver local", "--log-opt max-size=10m", "--log-opt max-file=3", "--replicas 1", "--read-only", "--cap-drop ALL", "--cap-add SETUID", "--network mgmt", "--hostname {{.Node.Hostname}}", "NM_WORKER_IMAGE=registry/trap:1", "NM_WORKER_NETWORK=decoys", "/var/run/docker.sock", "com.nodemetrics.isolation=mask3", "registry/trap:1"} {
 				if !strings.Contains(create, want) {
 					t.Fatalf("service create missing %q: %s", want, create)
 				}

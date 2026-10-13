@@ -163,6 +163,10 @@ func (s *Service) Execute(ctx context.Context, dispatch commands.Dispatch) (comm
 	}
 
 	state.Results[dispatch.CommandID] = result
+	if state.ResultExpiresAt == nil {
+		state.ResultExpiresAt = make(map[string]time.Time)
+	}
+	state.ResultExpiresAt[dispatch.CommandID] = dispatch.ExpiresAt
 	if state.Awaiting == nil {
 		state.Awaiting = map[string]bool{}
 	}

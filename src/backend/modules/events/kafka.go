@@ -78,7 +78,7 @@ func NewKafkaPublisher(brokers []string, topic string, config *tls.Config) (*Kaf
 		return nil, fmt.Errorf("configure Kafka TLS: %w", err)
 	}
 
-	client, err := kgo.NewClient(kgo.SeedBrokers(brokers...), kgo.DialTLSConfig(secure), kgo.AllowAutoTopicCreation(), kgo.RequiredAcks(kgo.AllISRAcks()), kgo.RecordDeliveryTimeout(8*time.Second), kgo.ProducerBatchMaxBytes(512<<10))
+	client, err := kgo.NewClient(kgo.SeedBrokers(brokers...), kgo.DialTLSConfig(secure), kgo.AllowAutoTopicCreation(), kgo.RequiredAcks(kgo.AllISRAcks()), kgo.RecordDeliveryTimeout(8*time.Second), kgo.ProducerBatchMaxBytes(512<<10), kgo.MaxBufferedBytes(8<<20))
 	if err != nil {
 		return nil, fmt.Errorf("configure Kafka: %w", err)
 	}

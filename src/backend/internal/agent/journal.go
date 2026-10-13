@@ -26,11 +26,12 @@ type Batch struct {
 }
 
 type State struct {
-	Running       bool                            `json:"running"`
-	Awaiting      map[string]bool                 `json:"awaiting"`
-	Configuration *profiles.Snapshot              `json:"configuration"`
-	Results       map[string]commands.AgentResult `json:"results"`
-	Intent        *commands.Dispatch              `json:"intent"`
+	Running         bool                            `json:"running"`
+	Awaiting        map[string]bool                 `json:"awaiting"`
+	Configuration   *profiles.Snapshot              `json:"configuration"`
+	Results         map[string]commands.AgentResult `json:"results"`
+	ResultExpiresAt map[string]time.Time            `json:"result_expires_at,omitempty"`
+	Intent          *commands.Dispatch              `json:"intent"`
 }
 
 type record struct {
@@ -56,6 +57,9 @@ type activeSession struct {
 type Journal struct {
 	mu       sync.Mutex
 	file     *os.File
+	lockFile *os.File
+	identity string
+	records  int
 	capacity int64
 	pending  []Batch
 	bytes    int64
@@ -111,7 +115,11 @@ func (j *Journal) append(rec record) error {
 	}
 
 	j.apply(committed)
-
+	j.records++
+	if err := j.compactFile(); err != nil {
+		j.broken = err
+		return err
+	}
 	return nil
 }
 
@@ -196,7 +204,10 @@ func (j *Journal) apply(rec record) {
 		for i, b := range j.pending {
 			if b.BatchID == rec.Ack {
 				j.bytes -= batchBytes(b)
-				j.pending = append(j.pending[:i], j.pending[i+1:]...)
+				j.pending = slices.Delete(j.pending, i, i+1)
+				if len(j.pending) == 0 {
+					j.pending = nil
+				}
 				break
 			}
 		}
@@ -298,6 +309,7 @@ func (j *Journal) SaveState(state State) error {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 
+	pruneResults(&state, time.Now())
 	return j.append(record{State: &state})
 }
 
@@ -316,5 +328,5 @@ func (j *Journal) Close() error {
 		return j.redis.close()
 	}
 
-	return j.file.Close()
+	return errors.Join(j.file.Close(), j.lockFile.Close())
 }

@@ -3,8 +3,15 @@
 # https://localhost:8443: nginx отдаёт SPA и проксирует API/WSS на Go-бэкенд.
 #
 # Запуск без .env и ручной генерации: docker compose -f docker-compose.real.yml up --build -d
+x-logging: &bounded-logging
+  driver: local
+  options:
+    max-size: '10m'
+    max-file: '3'
+
 services:
   tls-init:
+    logging: *bounded-logging
     image: alpine/openssl
     entrypoint: ["/bin/sh", "/tls/renew.sh"]
     environment:
@@ -30,6 +37,7 @@ services:
     restart: unless-stopped
 
   postgres:
+    logging: *bounded-logging
     image: postgres:17
     entrypoint: ["/bin/sh", "/tls/postgres.sh"]
     environment:
@@ -50,6 +58,7 @@ services:
       retries: 10
 
   kafka:
+    logging: *bounded-logging
     image: apache/kafka:4.1.2
     hostname: kafka
     environment:
@@ -70,6 +79,11 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_HEAP_OPTS: '-Xms128m -Xmx256m'
+      KAFKA_LOG_RETENTION_HOURS: 24
+      KAFKA_LOG_RETENTION_BYTES: 268435456
+      KAFKA_LOG_SEGMENT_BYTES: 16777216
+      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 60000
       KAFKA_LOG_DIRS: /var/lib/kafka/data
     volumes:
       - kafka_data:/var/lib/kafka/data
@@ -84,6 +98,7 @@ services:
       retries: 15
 
   redis:
+    logging: *bounded-logging
     image: redis:7.4.6
     entrypoint: ["/bin/sh", "/tls/redis.sh"]
     environment:
@@ -102,6 +117,7 @@ services:
       retries: 10
 
   api:
+    logging: *bounded-logging
     build:
       context: .
       dockerfile: Dockerfile.api
@@ -114,6 +130,7 @@ services:
       KAFKA_CA_FILE: /certs/ca.crt
       AGENT_WS_URL: wss://resources.localhost:8443/assets/stream
       AUTO_DEPLOY_TRAPS: "true"
+      HISTORY_RETENTION: ${HISTORY_RETENTION:-24h}
       TLS_CERT_FILE: /certs/localhost.crt
       TLS_KEY_FILE: /certs/localhost.key
       AGENT_CLIENT_CA_FILE: /certs/agents-ca.crt
@@ -131,6 +148,7 @@ services:
     restart: unless-stopped
 
   web:
+    logging: *bounded-logging
     build:
       context: ./frontend
       dockerfile: Dockerfile.nginx
@@ -152,6 +170,7 @@ services:
   # Необязательный ручной агент для ловушек, созданных без AUTO_DEPLOY_TRAPS.
   # Для автоматически управляемых ловушек используется orchestrator ниже.
   agent:
+    logging: *bounded-logging
     profiles: ["agent"]
     build:
       context: .
@@ -177,6 +196,7 @@ services:
     restart: unless-stopped
 
   decoy-tcp-image:
+    logging: *bounded-logging
     build:
       context: .
       dockerfile: deploy/decoys/Dockerfile
@@ -186,6 +206,7 @@ services:
     restart: "no"
 
   decoy-redis-image:
+    logging: *bounded-logging
     build:
       context: .
       dockerfile: deploy/decoys/Dockerfile
@@ -195,6 +216,7 @@ services:
     restart: "no"
 
   decoy-honeytoken-image:
+    logging: *bounded-logging
     build:
       context: .
       dockerfile: deploy/decoys/Dockerfile
@@ -204,6 +226,7 @@ services:
     restart: "no"
 
   orchestrator:
+    logging: *bounded-logging
     build:
       context: .
       dockerfile: deploy/decoys/Dockerfile.orchestrator
@@ -250,6 +273,7 @@ services:
     restart: unless-stopped
 
   decoy-ssh-image:
+    logging: *bounded-logging
     build:
       context: .
       dockerfile: deploy/decoys/Dockerfile
@@ -259,6 +283,7 @@ services:
     restart: "no"
 
   ssh-sandbox-image:
+    logging: *bounded-logging
     build:
       context: .
       dockerfile: deploy/decoys/Dockerfile.sandbox

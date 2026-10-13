@@ -20,6 +20,19 @@ func OpenJournal(path, identity string, capacity int64) (*Journal, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return nil, fmt.Errorf("create journal directory: %w", err)
 	}
+	lock, err := os.OpenFile(path+".lock", os.O_CREATE|os.O_RDWR, 0600)
+	if err != nil {
+		return nil, fmt.Errorf("open journal lock: %w", err)
+	}
+	owned := false
+	defer func() {
+		if !owned {
+			lock.Close()
+		}
+	}()
+	if err := lockJournal(lock); err != nil {
+		return nil, fmt.Errorf("lock journal owner: %w", err)
+	}
 
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
@@ -28,6 +41,8 @@ func OpenJournal(path, identity string, capacity int64) (*Journal, error) {
 
 	j := &Journal{
 		file:     f,
+		lockFile: lock,
+		identity: identity,
 		capacity: capacity,
 		sessions: map[string]bool{},
 		active:   map[string]activeSession{},
@@ -74,6 +89,7 @@ func OpenJournal(path, identity string, capacity int64) (*Journal, error) {
 		}
 
 		j.apply(rec)
+		j.records++
 		offset += int64(len(line))
 	}
 
@@ -92,6 +108,7 @@ func OpenJournal(path, identity string, capacity int64) (*Journal, error) {
 	}
 
 	failed = false
+	owned = true
 
 	return j, nil
 }

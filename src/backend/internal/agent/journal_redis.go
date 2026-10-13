@@ -213,7 +213,13 @@ func (j *Journal) CheckStorage(ctx context.Context) error {
 	defer j.mu.Unlock()
 
 	if j.redis == nil {
-		return j.broken
+		if j.broken != nil {
+			return j.broken
+		}
+		if state, changed := retainedState(j.state); changed {
+			return j.append(record{State: &state})
+		}
+		return nil
 	}
 
 	if err := j.redis.lease(ctx); err != nil {
@@ -227,6 +233,15 @@ func (j *Journal) CheckStorage(ctx context.Context) error {
 		}
 
 		j.broken = nil
+	}
+
+	if state, changed := retainedState(j.state); changed {
+		if err := j.append(record{State: &state}); err != nil {
+			return err
+		}
+		// Release the old checkpoint immediately, even when the trap is idle.
+		j.redis.records = max(j.redis.records, 128)
+		return j.compactRedis()
 	}
 
 	return nil

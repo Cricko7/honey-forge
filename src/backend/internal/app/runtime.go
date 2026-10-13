@@ -44,6 +44,7 @@ type Config struct {
 	AgentWSURL         string
 	PublicOrigin       string
 	AutoDeployTraps    bool
+	HistoryRetention   time.Duration
 	Ingester           traps.Ingester
 	EventPublisher     events.BatchPublisher
 	CatalogDefinitions []catalog.Definition
@@ -70,6 +71,9 @@ type Runtime struct {
 }
 
 func Open(ctx context.Context, config Config) (*Runtime, error) {
+	if config.HistoryRetention < 0 {
+		return nil, fmt.Errorf("history retention must be positive")
+	}
 	endpoint, err := configureAgentEndpoint(config.AgentWSURL, config.PublicOrigin, config.BrowserOrigins)
 	if err != nil {
 		return nil, err
@@ -177,8 +181,14 @@ func Open(ctx context.Context, config Config) (*Runtime, error) {
 	frontend := frontendws.NewHandler(frontendws.NewRepository(pool), authService, cursors, browser, logger, background)
 	frontend.Register(router)
 	done := make(chan struct{})
+	retentionDone := make(chan struct{})
+	go func() {
+		defer close(retentionDone)
+		maintainHistory(background, pool, logger, config.HistoryRetention)
+	}()
 	go func() {
 		defer close(done)
+		defer func() { <-retentionDone }()
 
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
