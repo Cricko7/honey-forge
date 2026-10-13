@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"net"
+	"os/exec"
 	"strconv"
 	"strings"
 	"testing"
@@ -27,6 +28,10 @@ func testSnapshot(port int) profiles.Snapshot {
 }
 
 func TestInteractiveRedisSession(t *testing.T) {
+	if _, err := exec.LookPath("redis-server"); err != nil {
+		t.Skip("redis-server required; run in the Redis decoy image")
+	}
+
 	probe, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -34,7 +39,7 @@ func TestInteractiveRedisSession(t *testing.T) {
 
 	port := probe.Addr().(*net.TCPAddr).Port
 	probe.Close()
-	collected := make(chan events.AgentEvent, 16)
+	collected := make(chan events.AgentEvent, 64)
 	runtime, err := Start(t.Context(), testSnapshot(port), "127.0.0.1", func(_ context.Context, event events.AgentEvent) error {
 		collected <- event
 		return nil
@@ -54,7 +59,7 @@ func TestInteractiveRedisSession(t *testing.T) {
 
 	conn.SetDeadline(time.Now().Add(5 * time.Second))
 	reader := bufio.NewReader(conn)
-	for _, tc := range []struct{ command, response string }{
+	cases := []struct{ command, response string }{
 		{"*2\r\n$3\r\nGET\r\n$4\r\ntest\r\n", "-NOAUTH Authentication required.\r\n"},
 		{"AUTH wrong\r\n", "-WRONGPASS invalid username-password pair or user is disabled.\r\n"},
 		{"AUTH\r\n", "-ERR wrong number of arguments for 'auth' command\r\n"},
@@ -64,11 +69,20 @@ func TestInteractiveRedisSession(t *testing.T) {
 		{"DEL demo\r\n", ":1\r\n"},
 		{"GET demo\r\n", "$-1\r\n"},
 		{"QUIT\r\n", "+OK\r\n"},
-	} {
-		if _, err := conn.Write([]byte(tc.command)); err != nil {
-			t.Fatal(err)
+	}
+	for i, tc := range cases {
+		if i < 4 {
+			if _, err := conn.Write([]byte(tc.command)); err != nil {
+				t.Fatal(err)
+			}
+		} else if i == 4 {
+			// Pipeline authenticated commands; failed AUTH pipelines can suppress replies in Redis.
+			for _, queued := range cases[4:] {
+				if _, err := conn.Write([]byte(queued.command)); err != nil {
+					t.Fatal(err)
+				}
+			}
 		}
-
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			t.Fatal(err)
@@ -102,8 +116,8 @@ func TestInteractiveRedisSession(t *testing.T) {
 	}
 
 done:
-	if len(got) != 11 {
-		t.Fatalf("events = %d, want 11: %+v", len(got), got)
+	if len(got) != 20 {
+		t.Fatalf("events = %d, want 20: %+v", len(got), got)
 	}
 	for i, event := range got {
 		if event.SessionSequence != int64(i+1) || event.SessionID != got[0].SessionID || event.TypeID != "redis-emulator" || event.Destination.Port != port {
@@ -111,7 +125,7 @@ done:
 		}
 	}
 
-	if got[0].EventType != "service.connection_opened" || got[2].EventType != "service.auth_attempt" || got[3].EventType != "service.auth_attempt" {
+	if got[0].EventType != "service.connection_opened" || got[3].EventType != "service.auth_attempt" || got[5].EventType != "service.auth_attempt" {
 		t.Fatal("missing lifecycle or auth events")
 	}
 
@@ -124,7 +138,7 @@ done:
 		Outcome       string `json:"outcome"`
 		ReceivedBytes int    `json:"received_bytes"`
 	}
-	if err := json.Unmarshal(got[5].Data, &action); err != nil || action.Input != "SET demo value" || action.Outcome != "accepted" || action.ReceivedBytes != len("SET demo value\r\n") {
+	if err := json.Unmarshal(got[9].Data, &action); err != nil || action.Input != "SET demo value" || action.Outcome != "accepted" || action.ReceivedBytes != len("SET demo value\r\n") {
 		t.Fatalf("command telemetry: %+v %v", action, err)
 	}
 
@@ -140,11 +154,11 @@ done:
 		Password string `json:"password"`
 		Outcome  string `json:"outcome"`
 	}
-	if err := json.Unmarshal(got[2].Data, &auth); err != nil || auth.Password != "wrong" || auth.Outcome != "rejected" {
+	if err := json.Unmarshal(got[3].Data, &auth); err != nil || auth.Password != "wrong" || auth.Outcome != "rejected" {
 		t.Fatalf("rejected auth: %+v %v", auth, err)
 	}
 
-	if err := json.Unmarshal(got[4].Data, &auth); err != nil || auth.Password != "bait-pass" || auth.Outcome != "accepted" {
+	if err := json.Unmarshal(got[7].Data, &auth); err != nil || auth.Password != "bait-pass" || auth.Outcome != "accepted" {
 		t.Fatalf("accepted auth: %+v %v", auth, err)
 	}
 }

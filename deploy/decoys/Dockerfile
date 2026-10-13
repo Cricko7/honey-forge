@@ -14,7 +14,15 @@ ENTRYPOINT ["/bin/sh", "/entrypoint.sh"]
 FROM runtime AS tcp
 ENV NM_ROLE=tcp-banner
 
-FROM runtime AS redis
+FROM redis:7.4.6-alpine AS redis-binary
+
+# Do not inherit the official image's /data VOLUME: workers have no disk mounts.
+FROM alpine:3.21 AS redis
+RUN apk add --no-cache ca-certificates docker-cli iptables su-exec libssl3 libcrypto3
+COPY --from=redis-binary /usr/local/bin/redis-server /usr/local/bin/redis-server
+COPY --from=build /out/node-metrics /usr/local/bin/node-metrics
+COPY deploy/decoys/entrypoint.sh /entrypoint.sh
+ENTRYPOINT ["/bin/sh", "/entrypoint.sh"]
 ENV NM_ROLE=redis-emulator
 
 FROM runtime AS honeytokens

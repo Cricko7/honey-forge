@@ -3,6 +3,8 @@ package agent
 import (
 	"strings"
 	"testing"
+
+	"honey-forge/modules/profiles"
 )
 
 func TestWorkerContainerHasNoManagementAccess(t *testing.T) {
@@ -22,6 +24,29 @@ func TestWorkerContainerHasNoManagementAccess(t *testing.T) {
 	for _, bad := range []string{"nm-mgmt", "AGENT_", "docker.sock", "--secret", "--mount", "--privileged", "--network host"} {
 		if strings.Contains(joined, bad) {
 			t.Fatalf("worker crosses management boundary: %s", bad)
+		}
+	}
+}
+
+func TestRedisWorkerPrivateSocketDirectory(t *testing.T) {
+	p := Process{WorkerImage: "hf/redis:local", WorkerNetwork: "nm-decoys", TrapID: "11111111-1111-4111-8111-111111111111"}
+	snapshot := profiles.Snapshot{TypeID: "redis-emulator", TypeVersion: 1, ProfileRevision: 1, Config: map[string]any{
+		"services":   []any{map[string]any{"name": "redis", "port": 6380, "password": "bait-pass"}},
+		"management": map[string]any{"heartbeat_interval_seconds": 5, "telemetry_flush_interval_ms": 100},
+	}}
+	args, err := p.workerArgs(t.Context(), snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	joined := strings.Join(args, " ")
+	if !strings.Contains(joined, "--tmpfs /run/redis:rw,nosuid,nodev,noexec,size=1m,mode=0700,uid=65532,gid=65532") {
+		t.Fatalf("missing private Redis socket directory: %s", joined)
+	}
+
+	for _, forbidden := range []string{"docker.sock", "--mount", "--secret", "--network host", "bait-pass"} {
+		if strings.Contains(joined, forbidden) {
+			t.Fatalf("Redis worker leaks management or bait credentials: %s", joined)
 		}
 	}
 }

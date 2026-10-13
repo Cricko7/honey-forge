@@ -1,91 +1,46 @@
 package redistrap
 
 import (
+	"bufio"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 )
 
-func TestProbeResponses(t *testing.T) {
+func TestObserveCommands(t *testing.T) {
 	for _, tc := range []struct {
-		name string
-		args []string
-		want string
+		name, wire         string
+		args               []string
+		invalid, truncated bool
 	}{
-		{"info server", []string{"INFO", "server"}, "redis_version:7.2.0\r\n"},
-		{"info unknown section", []string{"INFO", "missing"}, "$0\r\n\r\n"},
-		{"info keyspace", []string{"INFO", "keyspace"}, "db0:keys=3,expires=0,avg_ttl=0\r\n"},
-		{"role", []string{"ROLE"}, "*3\r\n$6\r\nmaster\r\n:0\r\n*0\r\n"},
-		{"unknown casing", []string{"MiSsInG"}, "unknown command 'MiSsInG'"},
-		{"unknown injection", []string{"bad\r\n+OK"}, "unknown command 'bad\\r\\n+OK'"},
+		{"inline quotes", "AUTH \"bait pass\"\r\n", []string{"AUTH", "bait pass"}, false, false},
+		{"inline escapes", "ECHO \"a\\x00b\"\r\n", []string{"ECHO", "a\x00b"}, false, false},
+		{"binary", "*2\r\n$4\r\nECHO\r\n$3\r\na\x00b\r\n", []string{"ECHO", "a\x00b"}, false, false},
+		{"malformed", "*bad\r\n", nil, true, false},
+		{"partial", "*2\r\n$4\r\nAUTH\r\n$5\r\nab", []string{"AUTH"}, true, true},
+		{"unclosed quote", "AUTH \"oops\r\n", []string{"AUTH"}, true, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			reply, _, _ := newDatabase().execute(tc.args)
-			if !strings.Contains(reply, tc.want) {
-				t.Fatalf("reply %q, want %q", reply, tc.want)
-			}
-
-			if tc.name == "info server" && strings.Contains(reply, "# Keyspace") {
-				t.Fatal("INFO server included another section")
+			args, count, truncated, err := readCommand(bufio.NewReader(strings.NewReader(tc.wire)))
+			if (err != nil) != tc.invalid || count != int64(len(tc.wire)) || truncated != tc.truncated || !reflect.DeepEqual(args, tc.args) {
+				t.Fatalf("args=%q count=%d truncated=%v err=%v", args, count, truncated, err)
 			}
 		})
 	}
 }
 
-func TestDatabaseStorageLimits(t *testing.T) {
-	t.Run("distinct keys", func(t *testing.T) {
-		db := newDatabase()
-		for i := len(db.values); i < 256; i++ {
-			reply, accepted, _ := db.execute([]string{"SET", fmt.Sprintf("key:%d", i), "value"})
-			if !accepted || reply != "+OK\r\n" {
-				t.Fatalf("SET below limit rejected: %q", reply)
-			}
-		}
+func TestLargeBulkDoesNotDesynchronizeObserver(t *testing.T) {
+	value := strings.Repeat("x", 128<<10)
+	wire := fmt.Sprintf("*3\r\n$3\r\nSET\r\n$4\r\ndemo\r\n$%d\r\n%s\r\n", len(value), value)
+	r := bufio.NewReader(strings.NewReader(wire + "PING\r\n"))
+	args, count, truncated, err := readCommand(r)
+	if err != nil || !truncated || count != int64(len(wire)) || len(args[2]) > 8192 {
+		t.Fatalf("large frame: count=%d truncated=%v err=%v", count, truncated, err)
+	}
 
-		reply, accepted, _ := db.execute([]string{"SET", "overflow", "value"})
-		if accepted || !strings.HasPrefix(reply, "-OOM ") || len(db.values) != 256 {
-			t.Fatalf("unbounded key storage: accepted=%v keys=%d reply=%q", accepted, len(db.values), reply)
-		}
-
-		if _, accepted, _ := db.execute([]string{"SET", "app:mode", "updated"}); !accepted {
-			t.Fatal("overwrite at key limit rejected")
-		}
-
-		db.execute([]string{"DEL", "app:mode"})
-		if _, accepted, _ := db.execute([]string{"SET", "replacement", "value"}); !accepted {
-			t.Fatal("deletion did not release key capacity")
-		}
-	})
-
-	t.Run("stored bytes", func(t *testing.T) {
-		db := newDatabase()
-		value := strings.Repeat("x", 4096)
-		blocked := false
-		for i := 0; i < 100; i++ {
-			key := fmt.Sprintf("key:%d", i)
-			reply, accepted, _ := db.execute([]string{"SET", key, value})
-			if !accepted {
-				if !strings.HasPrefix(reply, "-OOM ") {
-					t.Fatalf("unexpected limit reply: %q", reply)
-				}
-
-				blocked = true
-				break
-			}
-		}
-
-		if !blocked {
-			t.Fatal("SET did not bound stored bytes")
-		}
-
-		before := db.values["key:0"]
-		if _, accepted, _ := db.execute([]string{"SET", "key:0", strings.Repeat("x", 8192)}); accepted || db.values["key:0"] != before {
-			t.Fatal("over-budget overwrite changed existing value")
-		}
-
-		db.execute([]string{"DEL", "key:0"})
-		if _, accepted, _ := db.execute([]string{"SET", "key:0", value}); !accepted {
-			t.Fatal("deletion did not release byte capacity")
-		}
-	})
+	args, count, truncated, err = readCommand(r)
+	if err != nil || truncated || count != 6 || !reflect.DeepEqual(args, []string{"PING"}) {
+		t.Fatalf("following frame: args=%q count=%d truncated=%v err=%v", args, count, truncated, err)
+	}
 }

@@ -5,6 +5,7 @@ package agent
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net"
 	"net/http/httptest"
 	"os"
@@ -15,19 +16,34 @@ import (
 	"testing"
 	"time"
 
+	"github.com/redis/go-redis/v9"
+
 	"honey-forge/internal/contract"
+	"honey-forge/modules/profiles"
 )
 
 // Exercise actual Docker networking, worker privilege drop, TLS pipe transport,
 // port publishing, event delivery, restart and graceful shutdown together.
 func TestDockerWorkerMASK3Isolation(t *testing.T) {
+	testDockerWorkerIsolation(t, false)
+}
+
+func TestRealRedisDockerIsolationAndTelemetry(t *testing.T) {
+	testDockerWorkerIsolation(t, true)
+}
+
+func testDockerWorkerIsolation(t *testing.T, realRedis bool) {
 	if os.Getenv("TEST_MASK3_DOCKER") != "1" {
 		t.Skip("TEST_MASK3_DOCKER=1 and a built DECOY_TCP_IMAGE required")
 	}
 
 	image := os.Getenv("DECOY_TCP_IMAGE")
+	if realRedis {
+		image = os.Getenv("DECOY_REDIS_IMAGE")
+	}
+
 	if image == "" {
-		t.Fatal("DECOY_TCP_IMAGE required")
+		t.Fatal("the selected DECOY_TCP_IMAGE or DECOY_REDIS_IMAGE is required")
 	}
 
 	id := string(contract.NewID())
@@ -110,6 +126,13 @@ func TestDockerWorkerMASK3Isolation(t *testing.T) {
 
 	snapshot := demoSnapshot()
 	snapshot.Config["listeners"].([]any)[0].(map[string]any)["port"] = port
+	if realRedis {
+		snapshot = profiles.Snapshot{TypeID: "redis-emulator", TypeVersion: 1, ProfileRevision: 1, Config: map[string]any{
+			"services":   []any{map[string]any{"name": "redis", "port": port, "password": "bait-pass"}},
+			"management": map[string]any{"heartbeat_interval_seconds": 5, "telemetry_flush_interval_ms": 100},
+		}}
+	}
+
 	p := &Process{
 		WorkerImage:   image,
 		WorkerNetwork: network,
@@ -173,7 +196,17 @@ func TestDockerWorkerMASK3Isolation(t *testing.T) {
 			}
 		}
 
-		conn, err := net.DialTimeout("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)), 2*time.Second)
+		address := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
+		if realRedis {
+			testRealRedisClient(t, address)
+			if err := p.Stop(); err != nil {
+				t.Fatal(err)
+			}
+
+			continue
+		}
+
+		conn, err := net.DialTimeout("tcp", address, 2*time.Second)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -196,6 +229,93 @@ func TestDockerWorkerMASK3Isolation(t *testing.T) {
 
 	if len(journal.Pending()) < 2 {
 		t.Fatal("Docker worker lost telemetry")
+	}
+
+	if realRedis {
+		seen := map[string]bool{}
+		largeCommandObserved := false
+		for _, batch := range journal.Pending() {
+			for _, event := range batch.Events {
+				seen[event.EventType] = true
+				if event.EventType == "service.action" {
+					var data struct {
+						Input         string `json:"input"`
+						Truncated     bool   `json:"truncated"`
+						ReceivedBytes int    `json:"received_bytes"`
+					}
+					if err := json.Unmarshal(event.Data, &data); err != nil {
+						t.Fatal(err)
+					}
+
+					if strings.HasPrefix(data.Input, "set binary:smoke ") || strings.HasPrefix(data.Input, "SET binary:smoke ") {
+						largeCommandObserved = data.Truncated && data.ReceivedBytes == 8192 && len(data.Input) <= 4096
+					}
+				}
+			}
+		}
+
+		if !largeCommandObserved {
+			t.Fatal("large command was not safely clipped in telemetry")
+		}
+
+		for _, kind := range []string{"service.connection_opened", "service.auth_attempt", "service.action", "service.connection_closed"} {
+			if !seen[kind] {
+				t.Fatalf("Redis telemetry did not reach the journal: %s", kind)
+			}
+		}
+	}
+}
+
+func testRealRedisClient(t *testing.T, address string) {
+	t.Helper()
+
+	client := redis.NewClient(&redis.Options{Addr: address, Password: "bait-pass", DialTimeout: 2 * time.Second})
+	defer client.Close()
+
+	if n, err := client.Exists(t.Context(), "user:1001", "product:1001", "orders:recent").Result(); err != nil || n != 3 {
+		t.Fatalf("missing synthetic data: %d %v", n, err)
+	}
+
+	if err := client.HSet(t.Context(), "cart:smoke", "product:1001", "2").Err(); err != nil {
+		t.Fatal(err)
+	}
+
+	other := redis.NewClient(&redis.Options{Addr: address, Password: "bait-pass"})
+	defer other.Close()
+
+	if value, err := other.HGet(t.Context(), "cart:smoke", "product:1001").Result(); err != nil || value != "2" {
+		t.Fatalf("Redis keyspace is not shared: %q %v", value, err)
+	}
+
+	value := strings.Repeat("a\x00b\xff", 8192)
+	if err := client.Set(t.Context(), "binary:smoke", value, 0).Err(); err != nil {
+		t.Fatal(err)
+	}
+
+	if got, err := other.Get(t.Context(), "binary:smoke").Result(); err != nil || got != value {
+		t.Fatalf("binary data corrupted: %v", err)
+	}
+
+	if result, err := client.Eval(t.Context(), "return 40+2", nil).Int(); err != nil || result != 42 {
+		t.Fatalf("Lua not executed by Redis: %d %v", result, err)
+	}
+
+	sub := other.Subscribe(t.Context(), "smoke:events")
+	defer sub.Close()
+
+	if _, err := sub.Receive(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := client.Publish(t.Context(), "smoke:events", "order:created").Err(); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+	defer cancel()
+
+	if message, err := sub.ReceiveMessage(ctx); err != nil || message.Payload != "order:created" {
+		t.Fatalf("Pub/Sub failed: %v %v", message, err)
 	}
 }
 

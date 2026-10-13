@@ -57,6 +57,10 @@ func (p *Process) workerArgs(ctx context.Context, snapshot profiles.Snapshot) ([
 		"--sysctl", "net.ipv6.conf.all.disable_ipv6=1",
 		"--memory", "128m", "--memory-swap", "128m", "--pids-limit", "128",
 		"--env", "NM_STDIO=1"}
+	if snapshot.TypeID == "redis-emulator" {
+		args = append(args, "--tmpfs", "/run/redis:rw,nosuid,nodev,noexec,size=1m,mode=0700,uid=65532,gid=65532")
+	}
+
 	for _, port := range ports {
 		args = append(args, "--publish", net.JoinHostPort(ip, strconv.Itoa(port))+":"+strconv.Itoa(port)+"/tcp")
 	}

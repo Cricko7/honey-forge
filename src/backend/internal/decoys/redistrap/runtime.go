@@ -18,14 +18,18 @@ import (
 
 type Sink func(context.Context, events.AgentEvent) error
 
-type Runtime struct{ server *tcpserver.Server }
+type Runtime struct {
+	server *tcpserver.Server
+	redis  *redisProcess
+}
 
 func (r *Runtime) Stop() {
 	r.server.Stop()
+	r.redis.stop()
 }
 
 func (r *Runtime) Err() error {
-	return r.server.Err()
+	return errors.Join(r.server.Err(), r.redis.failure())
 }
 
 func Start(ctx context.Context, snapshot profiles.Snapshot, host string, sink Sink) (*Runtime, error) {
@@ -39,17 +43,28 @@ func Start(ctx context.Context, snapshot profiles.Snapshot, host string, sink Si
 	}
 
 	service := config.Services[0]
+	process, err := startRedis(ctx, service.Password)
+	if err != nil {
+		return nil, err
+	}
+
 	listener, err := traffic.Listen(ctx, "tcp", net.JoinHostPort(host, strconv.Itoa(service.Port)))
 	if err != nil {
+		process.stop()
 		return nil, fmt.Errorf("bind Redis service: %w", err)
 	}
 
-	identity := newServerIdentity(service.Port)
 	listeners := []tcpserver.Listener{{Listener: listener, Serve: func(ctx context.Context, conn net.Conn) error {
-		return serve(ctx, conn, service.Name, service.Port, service.Password, snapshot, sink, identity)
+		return serve(ctx, conn, service.Name, service.Port, snapshot, sink, process.connect)
 	}}}
 
-	return &Runtime{tcpserver.Start(ctx, listeners, 64)}, nil
+	r := &Runtime{server: tcpserver.Start(ctx, listeners, 64), redis: process}
+	go func() {
+		<-process.done
+		r.server.Stop()
+	}()
+
+	return r, nil
 }
 
 type emitter struct {

@@ -23,6 +23,12 @@ import (
 func TestStdioWorkerProtocolsAfterIdle(t *testing.T) {
 	for _, kind := range []string{"redis-emulator", "honeytoken-http"} {
 		t.Run(kind, func(t *testing.T) {
+			if kind == "redis-emulator" {
+				if _, err := exec.LookPath("redis-server"); err != nil {
+					t.Skip("redis-server required; run Redis worker coverage in Linux/Docker")
+				}
+			}
+
 			ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
 			defer cancel()
 			journal, err := OpenJournal(filepath.Join(t.TempDir(), "journal"), "trap", 1<<20)

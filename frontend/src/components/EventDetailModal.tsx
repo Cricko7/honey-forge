@@ -68,8 +68,12 @@ function CapturedData({ data }: { data: Record<string, unknown> }) {
 
   if ('username' in d) rows.push({ k: 'Логин', v: String(d.username), danger: true })
   if ('password' in d) rows.push({ k: 'Пароль', v: String(d.password), danger: true })
-  if ('input' in d) rows.push({ k: 'Команда', v: String(d.input), danger: true })
-  if ('outcome' in d) rows.push({ k: 'Результат', v: String(d.outcome) })
+  if ('input' in d) {
+    const response = d.service === 'redis' && d.action_kind === 'request' && String(d.input).startsWith('Redis response: ')
+
+    rows.push({ k: response ? 'Ответ Redis' : 'Команда', v: response ? String(d.input).slice('Redis response: '.length) : String(d.input), danger: true })
+  }
+  if ('outcome' in d) rows.push({ k: 'Результат', v: d.outcome === 'accepted' ? 'Успешно' : d.outcome === 'rejected' ? 'Отклонено' : d.outcome === 'unknown' ? 'Результат не определён' : String(d.outcome) })
   if ('payload_base64' in d) {
     rows.push({ k: 'Payload (decoded)', v: decodeBase64(String(d.payload_base64)), danger: true })
   }
