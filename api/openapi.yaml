@@ -1328,6 +1328,27 @@ components:
           type: boolean
         expected_revision:
           $ref: '#/components/schemas/Revision'
+    AdminAccessView:
+      type: object
+      additionalProperties: false
+      required: [expires_at]
+      properties:
+        expires_at:
+          type: [string, 'null']
+          format: date-time
+          description: End of the current browser session's password-confirmed access; null if locked or expired. Never later than the underlying session expiry.
+    AdminPasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [password]
+      properties:
+        password:
+          type: string
+          format: password
+          writeOnly: true
+          minLength: 12
+          maxLength: 128
+          description: Current authenticated administrator's account password; at most 512 UTF-8 bytes. No email, user ID, role or session ID may be supplied.
     CreateTrapRequest:
       type: object
       additionalProperties: false
@@ -3045,7 +3066,7 @@ paths:
     get:
       operationId: listOrganizationMembers
       summary: List the authenticated administrator's organization team
-      description: Browser administrator session only; Bearer authentication is rejected even with a cookie. Returns no passwords, hashes, session identifiers, CSRF tokens or join codes. Unknown and repeated query parameters are rejected. Empty body required. Cache-Control is no-store. Presence is independent of session lifetime.
+      description: Browser administrator session with unexpired account password confirmation through POST /api/admin-session required; otherwise 403 admin_confirmation_required. Bearer authentication is rejected even with a cookie. Returns no passwords, hashes, session identifiers, CSRF tokens or join codes. Unknown and repeated query parameters are rejected. Empty body required. Cache-Control is no-store. Presence is independent of session lifetime.
       security:
       - sessionCookie: []
       parameters:
@@ -3082,7 +3103,7 @@ paths:
     patch:
       operationId: setMemberTrapPermission
       summary: Grant or revoke trap management for a viewer
-      description: Only the organization's creator with a browser administrator session can change this permission. Role and creator identity cannot be changed. Foreign and absent targets return 404; administrator targets return 409 permission_protected; stale revisions return 409 permission_changed. Actual changes increment revision and commit with member.trap_management_granted or member.trap_management_revoked audit entries targeting the user. No-op writes at the current revision return 204 without an audit entry. Authorization uses current database permissions on every subsequent request; previously accepted requests and queued commands may complete. No query parameters. Cache-Control is no-store.
+      description: Only the organization's creator with a browser administrator session and unexpired account password confirmation can change this permission; missing confirmation returns 403 admin_confirmation_required before payload validation. Role and creator identity cannot be changed. Foreign and absent targets return 404; administrator targets return 409 permission_protected; stale revisions return 409 permission_changed. Actual changes increment revision and commit with member.trap_management_granted or member.trap_management_revoked audit entries targeting the user. No-op writes at the current revision return 204 without an audit entry. Authorization uses current database permissions on every subsequent request; previously accepted requests and queued commands may complete. No query parameters. Cache-Control is no-store.
       security:
       - sessionCookie: []
       parameters:
@@ -3118,6 +3139,103 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '422':
           $ref: '#/components/responses/ValidationFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/admin-session:
+    get:
+      operationId: getAdminPasswordConfirmation
+      summary: Check the browser administrator's password confirmation
+      description: Administrator browser session only; Bearer rejected. Does not confirm access, extend either deadline or consume password attempts. Empty body and no query. Cache-Control no-store. Existing login and registration sessions start locked.
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          description: Current confirmation deadline or null when locked.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAccessView'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+    post:
+      operationId: confirmAdminAccountPassword
+      summary: Confirm the current administrator's account password
+      description: Administrator browser session, allowed Origin, CSRF and strict application/json required. Password is checked against the authenticated user's existing hash; confirmation is scoped to this exact session for 15 minutes, capped at session expiry, and committed atomically with session.admin_confirmed audit. Wrong password returns 401 invalid_credentials without signing out the normal session or opening the panel. Five attempts per user per 15 minutes are persisted across sessions and replicas, including successes; 10 attempts per IP per minute and two concurrent password checks per API process also apply. Limit returns 429 with Retry-After. New login sessions do not reset the user quota. Password is never returned or logged. No query parameters. Cache-Control no-store.
+      security:
+      - sessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRF'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminPasswordRequest'
+      responses:
+        '200':
+          description: Confirmed access deadline for this browser session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAccessView'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          description: Password confirmation quota exhausted.
+          headers:
+            Retry-After:
+              $ref: '#/components/headers/RetryAfter'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+    delete:
+      operationId: lockAdminPanel
+      summary: Revoke the current browser session's admin confirmation
+      description: Administrator browser session, allowed Origin and CSRF required. Empty body and no query; idempotent while the normal session is active. Clears confirmation and commits session.admin_locked audit atomically on actual change. Keeps the normal platform session active. Other browsers retain their independent confirmations; already accepted requests may complete. Cache-Control no-store.
+      security:
+      - sessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRF'
+      responses:
+        '204':
+          description: Panel confirmation revoked; empty body.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/TooLarge'
         '500':
           $ref: '#/components/responses/InternalError'
         '503':

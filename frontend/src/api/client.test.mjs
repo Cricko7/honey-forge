@@ -13,6 +13,33 @@ async function client(base) {
   return import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 }
 
+test('admin panel reauthentication sends only the account password and uses the browser CSRF session', async () => {
+  const { api } = await client('https://operator.example')
+  const originalFetch = globalThis.fetch
+  const originalWindow = globalThis.window
+  const requests = []
+  globalThis.window = { location: { origin: 'https://operator.example' } }
+  globalThis.fetch = async (url, init) => {
+    requests.push({ url, ...init })
+    if (init?.method === 'DELETE') return new Response(null, { status: 204 })
+    return new Response(JSON.stringify({ csrf_token: 'csrf', expires_at: null }))
+  }
+  try {
+    await api.getSession()
+    await api.getAdminAccess()
+    assert.equal(requests.at(-1).url, 'https://operator.example/api/admin-session')
+    assert.equal(requests.at(-1).cache, 'no-store')
+    await api.confirmAdminAccess('test-account-password')
+    assert.equal(requests.at(-1).method, 'POST')
+    assert.deepEqual(JSON.parse(requests.at(-1).body), { password: 'test-account-password' })
+    assert.equal(requests.at(-1).headers['X-CSRF-Token'], 'csrf')
+    assert.equal(requests.at(-1).credentials, 'include')
+    await api.lockAdminAccess()
+    assert.equal(requests.at(-1).method, 'DELETE')
+    assert.equal(requests.at(-1).headers['X-CSRF-Token'], 'csrf')
+  } finally { globalThis.fetch = originalFetch; globalThis.window = originalWindow }
+})
+
 test('member administration scopes requests to the session and uses CSRF for mutations', async () => {
   const { api } = await client('https://operator.example')
   const originalFetch = globalThis.fetch

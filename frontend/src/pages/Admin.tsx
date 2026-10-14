@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate } from 'react-router-dom'
 import { ShieldCheck, Users, RefreshCw, Crown } from 'lucide-react'
@@ -7,9 +7,16 @@ import { useSession } from '@/api/hooks'
 import { canManage } from '@/lib/auth'
 import { Spinner } from '@/components/ui'
 import { MemberTable } from './organization/MemberTable'
+import { AdminAccessGate } from './organization/AdminAccessGate'
 import type { OrganizationMember } from '@/types'
 
 export function AdminPage() {
+  const { data: session } = useSession()
+  if (!session || !canManage(session)) return <Navigate to="/app" replace />
+  return <AdminAccessGate key={`${session.organization.id}:${session.user.id}`} session={session}><AdminContent /></AdminAccessGate>
+}
+
+function AdminContent() {
   const { data: session } = useSession()
   const allowed = canManage(session)
   const qc = useQueryClient()
@@ -17,7 +24,7 @@ export function AdminPage() {
   const key = ['organization-members', session?.organization.id, session?.user.id]
   const members = useInfiniteQuery({
     queryKey: key,
-    queryFn: ({ pageParam }) => api.listMembers(pageParam),
+    queryFn: ({ pageParam, signal }) => api.listMembers(pageParam, signal),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: page => page.next_cursor ?? undefined,
     enabled: allowed, retry: false, gcTime: 0,
@@ -34,6 +41,12 @@ export function AdminPage() {
     },
     onError: async () => { await qc.invalidateQueries({ queryKey: key }) },
   })
+  useEffect(() => {
+    const error = members.error ?? mutation.error
+    if (error instanceof ApiError && (error.code === 'admin_confirmation_required' || error.status === 401)) {
+      qc.setQueryData(['admin-access', session?.organization.id, session?.user.id], { expires_at: null })
+    }
+  }, [members.error, mutation.error, qc, session?.organization.id, session?.user.id])
   if (!allowed) return <Navigate to="/app" replace />
   const items = members.data?.pages.flatMap(page => page.items) ?? []
   const uniqueMembers = [...new Map(items.map(member => [member.id, member])).values()]

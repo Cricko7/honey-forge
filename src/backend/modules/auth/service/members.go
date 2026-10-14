@@ -19,7 +19,7 @@ func authorizeMembers(actor auth.AuthContext) error {
 }
 
 func (s *Service) Members(ctx context.Context, actor auth.AuthContext, limit int, cursor string) (auth.MemberPage, error) {
-	if err := authorizeMembers(actor); err != nil {
+	if err := s.RequireAdminAccess(ctx, actor); err != nil {
 		return auth.MemberPage{}, err
 	}
 	if limit < 1 || limit > 100 || (cursor != "" && !contract.ValidID(cursor)) {
@@ -33,7 +33,7 @@ func (s *Service) Members(ctx context.Context, actor auth.AuthContext, limit int
 }
 
 func (s *Service) SetTrapPermission(ctx context.Context, actor auth.AuthContext, id string, granted bool, expected int32) error {
-	if err := authorizeMembers(actor); err != nil {
+	if err := s.RequireAdminAccess(ctx, actor); err != nil {
 		return err
 	}
 	if !contract.ValidID(id) || expected < 1 {

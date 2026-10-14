@@ -10,6 +10,7 @@ import type {
   Profile,
   SessionView,
   MemberPage,
+  AdminAccessView,
   StreamNotification,
   Trap,
   TrapLink,
@@ -43,7 +44,22 @@ let mockSignedOut = false
 const real = createHTTPClient(API_BASE, () => csrfToken)
 
 export const api = {
-  async listMembers(cursor?: string): Promise<MemberPage> {
+  async getAdminAccess(signal?: AbortSignal): Promise<AdminAccessView> {
+    if (USE_MOCK) return { expires_at: null }
+    return real('/api/admin-session', { cache: 'no-store', signal })
+  },
+
+  async confirmAdminAccess(password: string, signal?: AbortSignal): Promise<AdminAccessView> {
+    if (USE_MOCK) throw new ApiError(503, 'demo_unavailable', 'Подтверждение пароля доступно с подключённым сервером')
+    return real('/api/admin-session', { method: 'POST', cache: 'no-store', signal, body: JSON.stringify({ password }) })
+  },
+
+  async lockAdminAccess(): Promise<void> {
+    if (USE_MOCK) return
+    await real('/api/admin-session', { method: 'DELETE', cache: 'no-store' })
+  },
+
+  async listMembers(cursor?: string, signal?: AbortSignal): Promise<MemberPage> {
     if (USE_MOCK) {
       const session = await api.getSession()
       return { creator: session.user, items: [{ ...session.user, organization_id: session.organization.id,
@@ -51,7 +67,7 @@ export const api = {
     }
     const query = new URLSearchParams({ limit: '50' })
     if (cursor) query.set('cursor', cursor)
-    return real(`/api/organization/members?${query}`, { cache: 'no-store' })
+    return real(`/api/organization/members?${query}`, { cache: 'no-store', signal })
   },
 
   async setTrapPermission(id: string, granted: boolean, expectedRevision: number): Promise<void> {

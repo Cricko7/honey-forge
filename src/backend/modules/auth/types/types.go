@@ -32,6 +32,7 @@ type SessionView struct {
 
 // AuthContext contains only identity verified by the server.
 type AuthContext struct {
+	SessionID      string
 	UserID         string
 	OrganizationID string
 	Role           string
@@ -45,7 +46,7 @@ type ResolvedSession struct {
 }
 
 func (s ResolvedSession) AuthContext() AuthContext {
-	return AuthContext{UserID: s.View.User.ID, OrganizationID: s.View.User.OrganizationID, Role: s.View.User.Role, CanManageTraps: s.View.User.CanManageTraps}
+	return AuthContext{SessionID: s.ID, UserID: s.View.User.ID, OrganizationID: s.View.User.OrganizationID, Role: s.View.User.Role, CanManageTraps: s.View.User.CanManageTraps}
 }
 
 type JoinCode struct {

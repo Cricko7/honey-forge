@@ -32,11 +32,14 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) error {
 	}
 
 	group := r.Group("/api", bodyLimit)
-	private := func(c *gin.Context) { c.Header("Cache-Control", "no-store"); c.Next() }
-	group.GET("/organization/members", private, h.requireBrowserSession(), h.members)
-	group.PATCH("/organization/members/:id/trap-permission", private, h.requireBrowserSession(), rejectQuery, h.setTrapPermission)
-	group.POST("/session/presence", private, h.requireBrowserSession(), rejectQuery, h.presence)
 	limiter := newAuthLimiter()
+	private := func(c *gin.Context) { c.Header("Cache-Control", "no-store"); c.Next() }
+	group.GET("/admin-session", private, h.requireBrowserSession(), rejectQuery, h.adminAccess)
+	group.POST("/admin-session", private, h.requireBrowserSession(), rejectQuery, limiter.middleware, h.confirmAdminAccess)
+	group.DELETE("/admin-session", private, h.requireBrowserSession(), rejectQuery, h.lockAdminAccess)
+	group.GET("/organization/members", private, h.requireBrowserSession(), h.requireAdminAccess(), h.members)
+	group.PATCH("/organization/members/:id/trap-permission", private, h.requireBrowserSession(), h.requireAdminAccess(), rejectQuery, h.setTrapPermission)
+	group.POST("/session/presence", private, h.requireBrowserSession(), rejectQuery, h.presence)
 	group.POST("/registrations", limiter.middleware, rejectQuery, h.register)
 	group.POST("/sessions", limiter.middleware, rejectQuery, h.login)
 	group.GET("/session", h.requireBrowserSession(), rejectQuery, h.current)

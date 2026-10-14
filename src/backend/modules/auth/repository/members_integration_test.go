@@ -25,6 +25,9 @@ func TestPostgresMemberPermissionsAndPresence(t *testing.T) {
 		t.Fatal(err)
 	}
 	actor := sess.AuthContext()
+	if _, err := s.ConfirmAdminAccess(ctx, sess, "demo-password-2026"); err != nil {
+		t.Fatal(err)
+	}
 	code, err := s.JoinCode(ctx, actor)
 	if err != nil {
 		t.Fatal(err)
@@ -80,6 +83,9 @@ func TestPostgresMemberPermissionsAndPresence(t *testing.T) {
 	}
 	resolved, err = s.ResolveSession(ctx, viewerRaw)
 	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ConfirmAdminAccess(ctx, resolved, "demo-password-2026"); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.SetTrapPermission(ctx, resolved.AuthContext(), viewer.User.ID, false, 2); !errors.Is(err, auth.ErrForbidden) {

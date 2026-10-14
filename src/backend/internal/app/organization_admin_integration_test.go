@@ -18,6 +18,7 @@ func TestDelegationControlsRealTrapRequests(t *testing.T) {
 	profile, trap, _ := createIntegrationTrap(t, r, owner)
 	path := "/api/traps/" + trap.ID
 	grantPath := "/api/organization/members/" + viewer.view.User.ID + "/trap-permission"
+	sendOperator(t, r, "POST", "/api/admin-session", `{"password":"demo-password-2026"}`, owner, 200)
 	trapMutation(t, r, viewer, "PATCH", path, `{"name":"Unauthorized"}`, 1, 403)
 	badOrigin := operatorRequest(t, "PATCH", grantPath, `{"can_manage_traps":true,"expected_revision":1}`, owner)
 	badOrigin.Header.Set("Origin", "https://attacker.example")

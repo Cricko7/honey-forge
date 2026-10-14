@@ -17,8 +17,14 @@ import (
 func (h *Handler) fail(c *gin.Context, event string, err error) {
 	status, code, message := http.StatusInternalServerError, "internal_error", "Internal server error"
 	var rateError *authcore.APIKeyRateError
+	var adminRateError *authcore.AdminPasswordRateError
 
 	switch {
+	case errors.Is(err, authcore.ErrAdminConfirmationRequired):
+		status, code, message = 403, "admin_confirmation_required", "Confirm your account password to access the admin panel"
+	case errors.As(err, &adminRateError):
+		status, code, message = 429, "rate_limited", "Too many password confirmation attempts"
+		c.Header("Retry-After", strconv.Itoa(adminRateError.RetryAfter))
 	case errors.Is(err, authcore.ErrPermissionChanged):
 		status, code, message = 409, "permission_changed", "Member permissions have changed"
 	case errors.Is(err, authcore.ErrPermissionProtected):

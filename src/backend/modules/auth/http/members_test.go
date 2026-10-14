@@ -27,6 +27,9 @@ func TestMembersHTTPBoundaryAndPresence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err := s.ConfirmAdminAccess(t.Context(), sess, "correct horse battery staple"); err != nil {
+		t.Fatal(err)
+	}
 	join := createRequest("viewer@example.com")
 	join.Organization = &auth.OrganizationInput{Mode: "join", JoinCode: code.Code}
 	viewer, viewerRaw, err := s.Register(t.Context(), join, "")

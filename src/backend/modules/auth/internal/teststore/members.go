@@ -27,6 +27,12 @@ func (m *Store) Members(_ context.Context, actor auth.AuthContext, limit int, cu
 	if !m.memberAdmin(actor) {
 		return auth.MemberPage{}, auth.ErrForbidden
 	}
+	if _, err := m.adminSession(actor); err != nil {
+		return auth.MemberPage{}, err
+	}
+	if !m.adminExpires[actor.SessionID].After(time.Now()) {
+		return auth.MemberPage{}, auth.ErrAdminConfirmationRequired
+	}
 	page := auth.MemberPage{Items: []auth.Member{}}
 	now := time.Now()
 	for _, rec := range m.users {
@@ -72,6 +78,12 @@ func (m *Store) SetTrapPermission(_ context.Context, actor auth.AuthContext, id 
 	}
 	if !m.memberAdmin(actor) || m.creators[actor.OrganizationID] != actor.UserID {
 		return auth.ErrForbidden
+	}
+	if _, err := m.adminSession(actor); err != nil {
+		return err
+	}
+	if !m.adminExpires[actor.SessionID].After(time.Now()) {
+		return auth.ErrAdminConfirmationRequired
 	}
 	for email, rec := range m.users {
 		if rec.user.ID != id || rec.user.OrganizationID != actor.OrganizationID {

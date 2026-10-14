@@ -34,6 +34,10 @@ export interface MemberPage {
   next_cursor: string | null
 }
 
+export interface AdminAccessView {
+  expires_at: Timestamp | null
+}
+
 export interface Organization {
   id: UUID
   name: string

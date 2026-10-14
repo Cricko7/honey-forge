@@ -13,14 +13,19 @@ import (
 func (r *Repository) Members(ctx context.Context, actor auth.AuthContext, limit int, cursor string) (auth.MemberPage, error) {
 	page := auth.MemberPage{Items: []auth.Member{}}
 	var creatorID *string
-	err := r.pool.QueryRow(ctx, `SELECT o.creator_user_id::text FROM organizations o
+	var confirmed bool
+	err := r.pool.QueryRow(ctx, `SELECT o.creator_user_id::text, EXISTS (SELECT 1 FROM operator_sessions s
+		WHERE s.id = $3 AND s.user_id = actor.id AND s.expires_at > now() AND s.admin_verified_until > now()) FROM organizations o
 		JOIN users actor ON actor.organization_id = o.id
-		WHERE o.id = $1 AND actor.id = $2 AND actor.role = 'admin'`, actor.OrganizationID, actor.UserID).Scan(&creatorID)
+		WHERE o.id = $1 AND actor.id = $2 AND actor.role = 'admin'`, actor.OrganizationID, actor.UserID, actor.SessionID).Scan(&creatorID, &confirmed)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return page, auth.ErrForbidden
 	}
 	if err != nil {
 		return page, databaseError("checking member access", err)
+	}
+	if !confirmed {
+		return page, auth.ErrAdminConfirmationRequired
 	}
 	if creatorID != nil {
 		var creator auth.User
@@ -71,14 +76,20 @@ func (r *Repository) Members(ctx context.Context, actor auth.AuthContext, limit 
 func (r *Repository) SetTrapPermission(ctx context.Context, actor auth.AuthContext, id string, granted bool, expected int32) error {
 	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
 		var allowed bool
-		err := tx.QueryRow(ctx, `SELECT COALESCE(o.creator_user_id = actor.id, false) AND actor.role = 'admin'
+		var confirmed bool
+		err := tx.QueryRow(ctx, `SELECT COALESCE(o.creator_user_id = actor.id, false) AND actor.role = 'admin',
+			EXISTS (SELECT 1 FROM operator_sessions s WHERE s.id = $3 AND s.user_id = actor.id
+			AND s.expires_at > now() AND s.admin_verified_until > now())
 			FROM organizations o JOIN users actor ON actor.organization_id = o.id
-			WHERE o.id = $1 AND actor.id = $2 FOR UPDATE OF o`, actor.OrganizationID, actor.UserID).Scan(&allowed)
+			WHERE o.id = $1 AND actor.id = $2 FOR UPDATE OF o`, actor.OrganizationID, actor.UserID, actor.SessionID).Scan(&allowed, &confirmed)
 		if errors.Is(err, pgx.ErrNoRows) || (err == nil && !allowed) {
 			return auth.ErrForbidden
 		}
 		if err != nil {
 			return err
+		}
+		if !confirmed {
+			return auth.ErrAdminConfirmationRequired
 		}
 		var role string
 		var current bool

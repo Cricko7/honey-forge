@@ -11,6 +11,10 @@ import (
 )
 
 type store interface {
+	AdminAccess(context.Context, authcore.AuthContext) (authcore.AdminAccessView, error)
+	ConsumeAdminAttempt(context.Context, authcore.AuthContext) error
+	ConfirmAdminAccess(context.Context, authcore.AuthContext, string) (authcore.AdminAccessView, error)
+	LockAdminAccess(context.Context, authcore.AuthContext) error
 	Members(context.Context, authcore.AuthContext, int, string) (authcore.MemberPage, error)
 	SetTrapPermission(context.Context, authcore.AuthContext, string, bool, int32) error
 	TouchPresence(context.Context, string, string) error

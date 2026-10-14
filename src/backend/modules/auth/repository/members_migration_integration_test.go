@@ -15,12 +15,18 @@ func TestPostgresCreatorBackfillDoesNotGuessAmbiguousOwnership(t *testing.T) {
 	pool := integrationPool(t)
 	s := authservice.NewService(NewRepository(pool))
 	owners := make(map[string]auth.User)
+	sessions := make(map[string]auth.ResolvedSession)
 	for _, name := range []string{"single", "known", "ambiguous"} {
-		view, _, err := s.Register(t.Context(), createRequest(name+"@example.com"), "")
+		view, raw, err := s.Register(t.Context(), createRequest(name+"@example.com"), "")
 		if err != nil {
 			t.Fatal(err)
 		}
 		owners[name] = view.User
+		sess, err := s.ResolveSession(t.Context(), raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sessions[name] = sess
 		if name != "single" {
 			_, err := pool.Exec(t.Context(), `INSERT INTO users (id, organization_id, email, password_hash, role)
 				VALUES ($1, $2, $3, 'test-only-hash', 'admin')`, auth.NewUUID(), view.Organization.ID, "second-"+name+"@example.com")
@@ -35,12 +41,18 @@ func TestPostgresCreatorBackfillDoesNotGuessAmbiguousOwnership(t *testing.T) {
 		}
 	}
 	file := filepath.Join("..", "..", "..", "..", "..", "migrations", "20261014000100_organization_admin.sql")
+	confirmationFile := filepath.Join(filepath.Dir(file), "20261014000200_admin_password_confirmation.sql")
+	applyMigration(t, pool, confirmationFile, "Down")
 	applyMigration(t, pool, file, "Down")
 	applyMigration(t, pool, file, "Up")
+	applyMigration(t, pool, confirmationFile, "Up")
 	for _, name := range []string{"single", "known", "ambiguous"} {
 		t.Run(name, func(t *testing.T) {
 			owner := owners[name]
-			actor := auth.AuthContext{UserID: owner.ID, OrganizationID: owner.OrganizationID, Role: auth.RoleAdmin}
+			actor := sessions[name].AuthContext()
+			if _, err := s.ConfirmAdminAccess(t.Context(), sessions[name], "demo-password-2026"); err != nil {
+				t.Fatal(err)
+			}
 			page, err := s.Members(t.Context(), actor, 50, "")
 			if err != nil {
 				t.Fatal(err)

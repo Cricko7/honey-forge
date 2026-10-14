@@ -20,6 +20,9 @@ func TestMembersAndTrapPermissionLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	actor := sess.AuthContext()
+	if _, err := s.ConfirmAdminAccess(t.Context(), sess, "demo-password-2026"); err != nil {
+		t.Fatal(err)
+	}
 	code, err := s.JoinCode(t.Context(), actor)
 	if err != nil {
 		t.Fatal(err)
