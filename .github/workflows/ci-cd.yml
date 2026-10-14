@@ -69,7 +69,7 @@ jobs:
       - name: Constructor tests and Docker build
         run: |
           python -m pip install -r constructor/requirements.txt -r constructor/requirements-test.txt
-          python -m unittest constructor.backend.test_integration deploy.nginx.test_constructor
+          python -m unittest constructor.backend.test_integration deploy.nginx.test_constructor deploy.test_release_cleanup
           docker compose config --quiet
           docker build -f constructor/Dockerfile -t honeyforge/constructor:test .
       - uses: actions/setup-node@v4
@@ -87,8 +87,27 @@ jobs:
         if: always()
         run: docker compose -f compose.infra.yaml down
 
+  prepare-deployment:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove obsolete release archives and unused project images
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ vars.SSH_PORT || 22 }}
+          command_timeout: 5m
+          script_path: deploy/cleanup-release-artifacts.sh
+
   deploy:
-    needs: build-and-test
+    needs: [build-and-test, prepare-deployment]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -284,6 +303,12 @@ jobs:
               }
             fi
             gzip -dc "$INCOMING/images.tar.gz" | docker load
+            # Docker load may print unpack errors without failing; verify each image.
+            while IFS='=' read -r key image; do
+              case "$key" in
+                *_IMAGE) docker run --rm --network none --entrypoint /bin/true "$image" ;;
+              esac
+            done < "$INCOMING/release.env"
             constructor_image=$(sed -n 's/^CONSTRUCTOR_IMAGE=//p' "$INCOMING/release.env")
             test -n "$constructor_image"
             nginx_route() {
