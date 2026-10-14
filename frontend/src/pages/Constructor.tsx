@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { Boxes, Maximize2, ExternalLink, X, Workflow, Zap, GitBranch, Radio } from 'lucide-react'
-import { Logo } from '@/components/Logo'
 
 // Полноценный конструктор цепочек ловушек — отдельный самостоятельный модуль
 // (honeyforge/constructor, бесконечная доска). Встраиваем «как есть» через
@@ -86,9 +85,7 @@ export function ConstructorPage() {
         <div className="fixed inset-0 z-50 flex flex-col bg-bg-base">
           <div className="h-12 shrink-0 flex items-center justify-between px-4 border-b border-line/60 bg-bg-panel/80 backdrop-blur-xl">
             <div className="flex items-center gap-2 text-sm font-medium">
-              <Logo size={20} />
-              <span>HoneyForge</span>
-              <span className="text-muted font-normal">· Конструктор цепочек</span>
+              Конструктор цепочек
             </div>
             <div className="flex items-center gap-2">
               <a className="btn-ghost !py-1.5" href={CONSTRUCTOR_URL} target="_blank" rel="noreferrer">
