@@ -47,3 +47,6 @@ src/redis-trap/redis-trap
 
 # Deploy artifacts
 incoming/
+
+# Constructor runtime data
+constructor/data/

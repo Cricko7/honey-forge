@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HoneyForge · Конструктор цепочек</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./css/app.css?v=5" />
+</head>
+<body>
+  <!-- ======= Полноэкранная бесконечная доска ======= -->
+  <main class="canvas-wrap" id="canvasWrap">
+    <div class="canvas-bg" id="canvasBg"></div>
+    <svg class="edge-layer" id="edgeLayer">
+      <g id="edgeGroup"></g>
+      <path id="tempEdge" class="edge temp hidden" />
+    </svg>
+    <div class="node-layer" id="nodeLayer"></div>
+    <div class="canvas-hint" id="canvasHint">Схема защиты строится автоматически: «Интернет» → ловушки. Слева — блоки инфраструктуры/защиты и реальные ловушки. «Синхронизировать» — обновить из дашборда.</div>
+  </main>
+
+  <!-- ======= Плавающая панель: бренд + переключатель цепочки ======= -->
+  <div class="dock dock-tl">
+    <div class="brand-pill">
+      <span class="logo" aria-hidden="true"></span>
+      <div class="brand-text">
+        <strong>HoneyForge</strong>
+        <span>Конструктор</span>
+      </div>
+    </div>
+    <div class="chain-switcher">
+      <button id="chainMenuBtn" class="pill">
+        <span id="chainName">—</span>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <div id="chainMenu" class="dropdown hidden"></div>
+    </div>
+  </div>
+
+  <!-- ======= Плавающая панель: действия ======= -->
+  <div class="dock dock-tr">
+    <span id="saveState" class="save-state">сохранено</span>
+    <button id="btnSync" class="pill pill-primary" title="Обновить ловушки из дашборда">Синхронизировать</button>
+    <button id="btnTheme" class="pill pill-icon" title="Тема" aria-label="Тема"></button>
+  </div>
+
+  <!-- ======= Выезжающая палитра ловушек (слева) ======= -->
+  <button class="drawer-tab tab-left" id="paletteTab" title="Ловушки">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+  </button>
+  <aside class="drawer drawer-left" id="palette">
+    <div class="drawer-head">
+      <h2>Блоки и ловушки</h2>
+      <button class="pill pill-icon sm" id="paletteClose" aria-label="Закрыть">✕</button>
+    </div>
+    <input id="paletteSearch" class="input input-sm" placeholder="Поиск по блокам и ловушкам…" />
+    <div class="palette-list" id="paletteList"></div>
+  </aside>
+
+  <!-- ======= Выезжающий инспектор (справа) ======= -->
+  <aside class="drawer drawer-right" id="inspector">
+    <div class="inspector-body" id="inspectorBody"></div>
+  </aside>
+
+  <!-- ======= Сворачиваемый островок инструментов (снизу) ======= -->
+  <div class="tooldock" id="toolDock">
+    <button class="td-handle" id="tdHandle" title="Свернуть / развернуть">
+      <svg class="td-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m6 9 6 6 6-6"/></svg>
+      <span class="td-handle-label">Инструменты</span>
+    </button>
+    <div class="td-tools" id="tdTools">
+      <button class="td-btn" id="tdPalette" title="Список ловушек">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        <span>Ловушки</span>
+      </button>
+      <span class="td-sep"></span>
+      <button class="td-btn icon" id="btnZoomOut" title="Отдалить">−</button>
+      <span class="zoom-label" id="zoomLabel">100%</span>
+      <button class="td-btn icon" id="btnZoomIn" title="Приблизить">+</button>
+      <button class="td-btn" id="btnFit" title="Показать всю цепочку">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3m13-5v3a2 2 0 0 1-2 2h-3"/></svg>
+        <span>Вписать</span>
+      </button>
+      <span class="td-sep"></span>
+      <button class="td-btn" id="btnAutoLayout" title="Автоматически разложить узлы">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+        <span>Авто-раскладка</span>
+      </button>
+      <button class="td-btn" id="btnSnap" title="Привязка к сетке">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg>
+        <span>Сетка</span>
+      </button>
+      <span class="td-sep"></span>
+      <button class="td-btn" id="btnExport" title="Скачать цепочку в JSON">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        <span>Экспорт</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ======= Тост ======= -->
+  <div class="toast hidden" id="toast"></div>
+
+  <script type="module" src="./js/api.js?v=5"></script>
+  <script type="module" src="./js/app.js?v=5"></script>
+</body>
+</html>
