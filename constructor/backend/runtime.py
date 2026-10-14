@@ -17,6 +17,8 @@ from .store import store
 def trap_id(chain, node):
     if node.type == 'custom/listener':
         return chain.bindings.get('__custom__', {}).get('trap_id')
+    if node.type == 'http/input':
+        return chain.bindings.get('__http__', {}).get('trap_id')
     value = chain.bindings.get(node.id, {}).get('trap_id') or node.config.get('_real', {}).get('id')
     if value:
         try:
@@ -51,13 +53,19 @@ class RuntimeManager:
     def deploy(self, chain_id, action):
         with self.lock, store._lock:
             chain = store.get(chain_id)
-            nodes = [n for n in chain.nodes if not n.type.startswith('custom/') and trap_id(chain, n)]
-            custom = compile_chain(chain) if action == 'deploy' else None
-            if custom:
-                nodes.append(custom)
-            elif action == 'stop' and chain.bindings.get('__custom__', {}).get('trap_id'):
+            nodes = [n for n in chain.nodes if not n.type.startswith(('custom/', 'http/')) and trap_id(chain, n)]
+            compiled_ids = ('__custom__', '__http__')
+            if action == 'deploy':
+                from .http_builder import compile_http
+                # Compile both builders before any side effects, including on mixed boards.
+                tcp = compile_chain(chain.model_copy(update={'nodes': [n for n in chain.nodes if not n.type.startswith('http/')]}))
+                http = compile_http(chain)
+                nodes.extend(n for n in (tcp, http) if n)
+            elif action == 'stop':
                 from .models import Node
-                nodes.append(Node(id='__custom__', type='build/custom-tcp'))
+                for key, kind in [('__custom__', 'custom-tcp'), ('__http__', 'custom-http')]:
+                    if chain.bindings.get(key, {}).get('trap_id'):
+                        nodes.append(Node(id=key, type='build/' + kind))
             if not nodes:
                 raise HTTPException(422, 'Добавьте блок реальной ловушки из каталога')
             if action == 'deploy':
@@ -65,7 +73,7 @@ class RuntimeManager:
                 configs, ports = {}, set()
                 # Validate all new blocks before the first side effect.
                 for node in nodes:
-                    if trap_id(chain, node) and node.id != '__custom__':
+                    if trap_id(chain, node) and node.id not in compiled_ids:
                         continue
                     type_id = node.type.removeprefix('build/')
                     if type_id not in catalog:
@@ -78,7 +86,7 @@ class RuntimeManager:
                 for node in nodes:
                     tid = trap_id(chain, node)
                     if tid:
-                        if node.id == '__custom__':
+                        if node.id in compiled_ids:
                             digest = hashlib.sha256(json.dumps(configs[node.id], sort_keys=True).encode()).hexdigest()
                             binding = chain.bindings[node.id]
                             if binding.get('digest') != digest:
@@ -156,12 +164,16 @@ class RuntimeManager:
                     continue
                 page = await asyncio.to_thread(real_api._request, 'GET', '/api/events?' + urlencode({'trap_id': tid, 'limit': 100}))
                 for event in reversed(page['items']):
-                    if node.type == 'custom/listener' and event.get('destination', {}).get('port') != node.config['port']:
+                    if node.type in ('custom/listener', 'http/input') and event.get('destination', {}).get('port') != node.config['port']:
                         continue
                     if event['event_id'] in seen:
                         continue
+                    if event['event_type'] == 'http.block':
+                        # Event lists intentionally omit payload; details identify the behavior block.
+                        event = await asyncio.to_thread(real_api._request, 'GET', '/api/events/' + event['event_id'])
                     seen.add(event['event_id'])
-                    yield sse({'kind': 'hop', 'node_id': node.id, 'title': event['event_type'], 'detail': event['occurred_at'],
+                    event_node = event.get('data', {}).get('node_id', node.id) if event['event_type'] == 'http.block' else node.id
+                    yield sse({'kind': 'hop', 'node_id': event_node, 'title': event['event_type'], 'detail': event['occurred_at'],
                                'source_ip': event.get('source', {}).get('ip', ''), 'country': '', 'technique': '—',
                                'severity': 'medium', 'is_detection': True, 'event_id': event['event_id']})
             if len(seen) > 10000:

@@ -11,12 +11,16 @@ CUSTOM_TYPES = [
 
 
 def registry_types():
+    from .http_builder import HTTP_TYPES
     return [{**spec, 'category': 'custom', 'subtitle': 'Блок новой ловушки', 'risk': 'low',
              'ports': [port('in', 'предыдущий блок', 'in'), port('out', 'следующий блок', 'out')],
-             'doc': 'Соедините TCP-вход, приветствие и правила в порядке проверки. Запросы завершаются переводом строки.'} for spec in CUSTOM_TYPES]
+             'doc': 'Соедините TCP-вход, приветствие и правила в порядке проверки. Запросы завершаются переводом строки.'} for spec in CUSTOM_TYPES] + HTTP_TYPES
 
 
 def compile_chain(chain):
+    from .http_builder import compile_http
+    if any(n.type.startswith('http/') for n in chain.nodes):
+        return compile_http(chain)
     blocks = {node.id: node for node in chain.nodes if node.type.startswith('custom/')}
     if not blocks:
         return None

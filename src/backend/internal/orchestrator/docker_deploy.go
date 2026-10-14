@@ -22,6 +22,8 @@ func (d DockerCLI) Deploy(ctx context.Context, target Target, token string, gene
 		image = d.RedisImage
 	case target.Snapshot.TypeID == "honeytoken-http" && target.Snapshot.TypeVersion == 1:
 		image = d.HoneytokenImage
+	case target.Snapshot.TypeID == "custom-http" && target.Snapshot.TypeVersion == 1:
+		image = d.HTTPImage
 	case target.Snapshot.TypeID == "ssh-high-interaction" && (target.Snapshot.TypeVersion == 1 || target.Snapshot.TypeVersion == 2):
 		image = d.SSHImage
 		if d.SandboxImage == "" {

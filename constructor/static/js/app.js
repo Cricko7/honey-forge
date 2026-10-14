@@ -134,7 +134,7 @@ function buildNode(node) {
     <div class="node-body">${chips}</div>`;
 
   // статус ловушки в боевом режиме / реальной ловушки из бэкенда
-  if (node.type.startsWith("trap/") || node.type.startsWith("endpoint/") || node.type === 'custom/listener' || isReal) {
+  if (node.type.startsWith("trap/") || node.type.startsWith("endpoint/") || node.type === 'custom/listener' || node.type === 'http/input' || isReal) {
     const st = document.createElement("div");
     const running = isReal
       ? (node.config?._real?.runtime === "running")
@@ -473,7 +473,9 @@ function renderInspector() {
 function renderField(f, val) {
   const id = "f_" + f.key;
   let ctrl = "";
-  if (f.type === "toggle") {
+  if (f.type === "node") {
+    ctrl = `<select class="input" id="${id}"><option value="">Выберите HTTP-вход</option>${S.chain.nodes.filter(n => n.type === 'http/input').map(n => `<option value="${esc(n.id)}" ${n.id === val ? 'selected' : ''}>${esc(n.label || n.config.name || n.id)} · ${esc(n.config.port)}</option>`).join('')}</select>`;
+  } else if (f.type === "toggle") {
     ctrl = `<div class="field-row"><div class="toggle ${val ? "on" : ""}" id="${id}" role="switch"></div>
       <span class="hint" style="margin:0">${val ? "включено" : "выключено"}</span></div>`;
   } else if (f.type === "select") {

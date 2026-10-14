@@ -244,6 +244,16 @@ services:
     entrypoint: ["/bin/true"]
     restart: "no"
 
+  decoy-http-image:
+    logging: *bounded-logging
+    build:
+      context: .
+      dockerfile: deploy/decoys/Dockerfile
+      target: http
+    image: ${DECOY_HTTP_IMAGE:-honeyforge/http-decoy:local}
+    entrypoint: ["/bin/true"]
+    restart: "no"
+
   orchestrator:
     logging: *bounded-logging
     build:
@@ -265,6 +275,7 @@ services:
       DECOY_TCP_IMAGE: ${DECOY_TCP_IMAGE:-honeyforge/tcp-decoy:local}
       DECOY_REDIS_IMAGE: ${DECOY_REDIS_IMAGE:-honeyforge/redis-decoy:local}
       DECOY_HONEYTOKEN_IMAGE: ${DECOY_HONEYTOKEN_IMAGE:-honeyforge/honeytoken-decoy:local}
+      DECOY_HTTP_IMAGE: ${DECOY_HTTP_IMAGE:-honeyforge/http-decoy:local}
       DECOY_SSH_IMAGE: ${DECOY_SSH_IMAGE:-honeyforge/ssh-decoy:local}
       SSH_SANDBOX_IMAGE: ${SSH_SANDBOX_IMAGE:-honeyforge/ssh-sandbox:local}
       TETRAGON_CONTAINER: ${TETRAGON_CONTAINER:-}
@@ -285,6 +296,8 @@ services:
       decoy-redis-image:
         condition: service_completed_successfully
       decoy-honeytoken-image:
+        condition: service_completed_successfully
+      decoy-http-image:
         condition: service_completed_successfully
       decoy-ssh-image:
         condition: service_completed_successfully

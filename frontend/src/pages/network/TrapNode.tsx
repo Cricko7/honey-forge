@@ -18,6 +18,7 @@ export interface TrapNodeData {
 const typeIcon: Record<string, typeof Bug> = {
   'tcp-banner': Server,
   'redis-emulator': Database,
+  'custom-http': Globe,
 }
 
 function TrapNodeInner({ data, selected, isConnectable }: NodeProps<TrapNodeData>) {

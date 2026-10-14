@@ -9,10 +9,10 @@ import (
 )
 
 func TestDeployPinsCompanyNode(t *testing.T) {
-	for _, kind := range []string{"tcp-banner", "redis-emulator", "honeytoken-http", "ssh-high-interaction"} {
+	for _, kind := range []string{"tcp-banner", "redis-emulator", "honeytoken-http", "custom-http", "ssh-high-interaction"} {
 		t.Run(kind, func(t *testing.T) {
 			var command string
-			d := DockerCLI{Network: "decoys", ManagementNetwork: "mgmt", WorkerBindIP: "192.0.2.5", TCPImage: "tcp", RedisImage: "redis", HoneytokenImage: "http", SSHImage: "ssh", SandboxImage: "sandbox", WSURL: "wss://center/assets/stream", RedisURL: "rediss://redis", Run: func(_ context.Context, _ []byte, args ...string) ([]byte, error) {
+			d := DockerCLI{Network: "decoys", ManagementNetwork: "mgmt", WorkerBindIP: "192.0.2.5", TCPImage: "tcp", RedisImage: "redis", HoneytokenImage: "http", HTTPImage: "python-http", SSHImage: "ssh", SandboxImage: "sandbox", WSURL: "wss://center/assets/stream", RedisURL: "rediss://redis", Run: func(_ context.Context, _ []byte, args ...string) ([]byte, error) {
 				if len(args) > 1 && args[0] == "service" && args[1] == "create" {
 					command = strings.Join(args, " ")
 				}

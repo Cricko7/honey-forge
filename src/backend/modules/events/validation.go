@@ -56,6 +56,12 @@ func checkSnapshot(e AgentEvent, snapshot profiles.Snapshot) error {
 	}
 
 	if e.TypeID != "tcp-banner" && e.TypeID != "custom-tcp" {
+		if e.TypeID == "custom-http" {
+			if err := checkServiceSnapshot(e, snapshot); err != nil {
+				return err
+			}
+			return checkHTTPBlockSnapshot(e, snapshot)
+		}
 		if e.TypeID == "honeytoken-http" && e.EventType == "honeytoken.triggered" {
 			return checkHoneytokenSnapshot(e, snapshot)
 		}

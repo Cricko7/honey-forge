@@ -176,16 +176,20 @@ func (j *Journal) apply(rec record) {
 				j.active[e.SessionID] = a
 			}
 
-			if e.EventType == "service.auth_attempt" || e.EventType == "service.action" || e.EventType == "honeytoken.triggered" || (e.TypeID == "ssh-high-interaction" && strings.HasPrefix(e.EventType, "service.") && e.EventType != "service.connection_opened" && e.EventType != "service.connection_closed") {
+			if e.EventType == "service.auth_attempt" || e.EventType == "service.action" || e.EventType == "honeytoken.triggered" || e.TypeID == "custom-http" && strings.HasPrefix(e.EventType, "http.") || (e.TypeID == "ssh-high-interaction" && strings.HasPrefix(e.EventType, "service.") && e.EventType != "service.connection_opened" && e.EventType != "service.connection_closed") {
 				a := j.active[e.SessionID]
 				a.Last = e
 				var d struct {
 					Received int64  `json:"received_bytes"`
 					Bytes    int64  `json:"bytes"`
 					Stream   string `json:"stream"`
+					Original int64  `json:"original_bytes"`
 				}
 				json.Unmarshal(e.Data, &d)
 				a.Bytes += d.Received
+				if e.EventType == "http.request" {
+					a.Bytes += d.Original
+				}
 				if e.EventType == "service.file_chunk" || e.EventType == "service.session_io" && (d.Stream == "stdin" || d.Stream == "exec") {
 					a.Bytes += d.Bytes
 				}

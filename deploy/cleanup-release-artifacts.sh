@@ -40,7 +40,7 @@ fi
 
 while read -r repository tag id; do
   case "$repository" in
-    honeyforge/api|honeyforge/orchestrator|honeyforge/constructor|honeyforge/tcp-decoy|honeyforge/redis-decoy|honeyforge/honeytoken-decoy|honeyforge/ssh-decoy|honeyforge/ssh-sandbox) ;;
+    honeyforge/api|honeyforge/orchestrator|honeyforge/constructor|honeyforge/tcp-decoy|honeyforge/redis-decoy|honeyforge/honeytoken-decoy|honeyforge/http-decoy|honeyforge/ssh-decoy|honeyforge/ssh-sandbox) ;;
     *) continue ;;
   esac
   test "$tag" != '<none>' || continue

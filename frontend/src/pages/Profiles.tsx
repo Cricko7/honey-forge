@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Lock, Plus } from 'lucide-react'
 import { Card, SectionTitle, LevelBadge, Spinner, EmptyState } from '@/components/ui'
 import { Modal } from '@/components/Modal'
+import { Link } from 'react-router-dom'
 import { useProfiles, useCatalog, useCreateProfile, useCanManage } from '@/api/hooks'
 import { ApiError } from '@/api/client'
 import type { CatalogEntry } from '@/types'
@@ -10,6 +11,13 @@ import { parseProfileConfig } from '@/lib/profile-config'
 
 // Шаблоны config под типы каталога — стартовая заготовка для редактора.
 function configTemplate(typeId: string): Record<string, unknown> {
+  if (typeId === 'custom-http') {
+    return {
+      services: [], blocks: [],
+      limits: { max_steps: 512, timeout_ms: 10000, max_body_bytes: 65536 },
+      management: { heartbeat_interval_seconds: 10, telemetry_flush_interval_ms: 500 },
+    }
+  }
   if (typeId === 'ssh-high-interaction') {
     return {
       services: [{ name: 'ssh', port: 2222, username: 'root', password: 'DemoTrapOnly!' }],
@@ -172,6 +180,10 @@ function CreateProfileModal({ open, onClose }: { open: boolean; onClose: () => v
           <label className="label">Описание</label>
           <input className="input" value={description} onChange={(e) => setDescription(e.target.value)} />
         </div>
+
+        {selected?.type_id === 'custom-http' && <p className="text-sm text-muted">
+          HTTP-профиль можно собрать из блоков: <Link to="/app/constructor" className="text-brand" onClick={onClose}>открыть конструктор</Link>.
+        </p>}
 
         <div>
           <label className="label">

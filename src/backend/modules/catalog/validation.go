@@ -72,6 +72,10 @@ func (s *Service) CheckConfig(ctx context.Context, id string, version contract.T
 		return checkTCPConfig(config)
 	}
 
+	if id == "custom-http" && version == 1 {
+		return CheckCustomHTTPConfig(config)
+	}
+
 	if id == "honeytoken-http" && version == 1 {
 		return checkHoneytokenConfig(config)
 	}
@@ -171,5 +175,5 @@ func (s *Service) CheckActionResult(ctx context.Context, id string, version cont
 }
 
 func hasRuntimeRevision(id string, version contract.TypeVersion) bool {
-	return version == 1 && (id == "tcp-banner" || id == "custom-tcp" || id == "redis-emulator" || id == "honeytoken-http" || id == "ssh-high-interaction") || id == "ssh-high-interaction" && version == 2
+	return version == 1 && (id == "tcp-banner" || id == "custom-tcp" || id == "custom-http" || id == "redis-emulator" || id == "honeytoken-http" || id == "ssh-high-interaction") || id == "ssh-high-interaction" && version == 2
 }

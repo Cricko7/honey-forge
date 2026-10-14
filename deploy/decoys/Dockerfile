@@ -28,6 +28,10 @@ ENV NM_ROLE=redis-emulator
 FROM runtime AS honeytokens
 ENV NM_ROLE=honeytoken-http
 
+FROM runtime AS http
+RUN apk add --no-cache python3
+ENV NM_ROLE=custom-http PYTHONDONTWRITEBYTECODE=1
+
 # Trusted SSH gateway. Attacker processes run only in the separate sandbox image.
 FROM runtime AS ssh
 ENV NM_ROLE=ssh-high-interaction

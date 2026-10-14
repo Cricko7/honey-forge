@@ -13,7 +13,7 @@ from typing import Any, Literal
 
 # --- Описание схемы поля конфигурации -------------------------------------------------
 # Поддерживаемые типы полей инспектора: text, number, select, toggle, textarea, tags, secret
-FieldType = Literal["text", "number", "select", "toggle", "textarea", "tags", "secret"]
+FieldType = Literal["text", "number", "select", "toggle", "textarea", "tags", "secret", "node"]
 
 
 def field(

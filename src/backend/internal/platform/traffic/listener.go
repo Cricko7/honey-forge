@@ -16,6 +16,13 @@ func WithSink(ctx context.Context, sink Sink) context.Context {
 	return context.WithValue(ctx, sinkKey{}, sink)
 }
 
+// Mirror lets a non-Go listener preserve the same passive traffic links.
+func Mirror(ctx context.Context, frame Frame) {
+	if sink, ok := ctx.Value(sinkKey{}).(Sink); ok {
+		sink(frame)
+	}
+}
+
 // Listen installs a wire tap before any protocol decoder reads the connection.
 func Listen(ctx context.Context, network, address string) (net.Listener, error) {
 	listener, err := (&net.ListenConfig{}).Listen(ctx, network, address)

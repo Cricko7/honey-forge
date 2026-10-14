@@ -102,11 +102,12 @@ export function AddTrapModal({
   const conflictTrap = portValid ? usedPorts.get(port) : undefined
   const hasConflict = !!conflictTrap
   const nodeReady = !deploymentNodeId || deploymentNodes.some((node) => node.id === deploymentNodeId && node.ready)
-  const canSubmit = nodeReady && !!name.trim() && !!selected && portValid && !hasConflict && !creating
+  const isCustomHTTP = selected?.type_id === 'custom-http'
+  const canSubmit = nodeReady && !!name.trim() && !!selected && !isCustomHTTP && portValid && !hasConflict && !creating
 
   async function submit() {
     setError(null)
-    if (!nodeReady || !selected || !name.trim() || !portValid || hasConflict) return
+    if (!nodeReady || !selected || isCustomHTTP || !name.trim() || !portValid || hasConflict) return
     try {
       await onCreate(name.trim(), selected, port)
       setName('')
@@ -154,6 +155,11 @@ export function AddTrapModal({
             })}
           </div>
         </div>
+
+        {isCustomHTTP && <div className="rounded-xl border border-brand/40 p-3 text-sm">
+          Соберите поведение HTTP-ловушки из блоков и разверните её в конструкторе.
+          <Link to="/app/constructor" onClick={onClose} className="block text-brand mt-2">Открыть конструктор ловушек →</Link>
+        </div>}
 
         <div>
           <label className="label" htmlFor="deployment-node">Где развернуть ловушку</label>

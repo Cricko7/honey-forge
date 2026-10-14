@@ -29,7 +29,7 @@ class IntegrationTests(unittest.TestCase):
                 raise real_api.RealApiError(401, 'unauthenticated', 'Sign in')
             return {'organization': {'id': self.org}, 'user': {'role': self.role}, 'csrf_token': 'csrf'}
         if path.startswith('/api/trap-types'):
-            return {'items': [{'type_id': tid, 'type_version': 1, 'available_for_new_profiles': True} for tid in ('tcp-banner', 'custom-tcp')]}
+            return {'items': [{'type_id': tid, 'type_version': 1, 'available_for_new_profiles': True} for tid in ('tcp-banner', 'custom-tcp', 'custom-http')]}
         if path == '/api/profiles' and method == 'POST':
             return {'id': 'profile-1', 'revision': 1}
         if path == '/api/traps' and method == 'POST':
@@ -122,6 +122,28 @@ class IntegrationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         self.assertTrue(any(method == 'PATCH' and path == '/api/profiles/profile-1' for method, path, _ in self.calls))
         self.assertTrue(any(body and body.get('action') == 'apply_config' and body['params']['profile_revision'] == 2 for _, _, body in self.calls))
+
+    def test_http_deploy_update_stop_and_authorization(self):
+        from .test_http_builder import HTTPBuilderTests
+        chain = self.create()
+        board = HTTPBuilderTests().board()
+        data = {'nodes': [n.model_dump() for n in board.nodes], 'edges': [e.model_dump() for e in board.edges]}
+        self.assertEqual(self.client.patch('/api/chains/' + chain, json=data, headers=self.headers).status_code, 200)
+        result = self.client.post('/api/chains/' + chain + '/deploy', json={}, headers=self.headers)
+        self.assertEqual(result.status_code, 200, result.text)
+        self.assertIn('web', result.json()['node_status'])
+        profile = next(body for method, path, body in self.calls if method == 'POST' and path == '/api/profiles')
+        self.assertEqual(profile['type_id'], 'custom-http')
+        self.assertEqual(profile['config']['blocks'][3]['config']['target'], 'other')
+        data['nodes'][6]['config']['status'] = 201
+        self.client.patch('/api/chains/' + chain, json=data, headers=self.headers)
+        result = self.client.post('/api/chains/' + chain + '/deploy', json={}, headers=self.headers)
+        self.assertEqual(result.status_code, 200, result.text)
+        self.assertTrue(any(body and body.get('action') == 'apply_config' for _, _, body in self.calls))
+        self.assertEqual(self.client.post('/api/chains/' + chain + '/deploy', json={'action': 'stop'}, headers=self.headers).status_code, 200)
+        self.assertTrue(any(body and body.get('action') == 'stop' for _, _, body in self.calls))
+        self.role = 'viewer'
+        self.assertEqual(self.client.post('/api/chains/' + chain + '/deploy', json={}, headers=self.headers).status_code, 403)
 
 
 if __name__ == '__main__':

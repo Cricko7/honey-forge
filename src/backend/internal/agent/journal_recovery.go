@@ -34,7 +34,7 @@ func (j *Journal) RecoverSessions() error {
 			"reason":         "service_stopped",
 		}
 		kind := "tcp.connection_closed"
-		if strings.HasPrefix(a.Last.EventType, "service.") || a.Last.EventType == "honeytoken.triggered" {
+		if strings.HasPrefix(a.Last.EventType, "service.") || a.Last.EventType == "honeytoken.triggered" || a.Last.TypeID == "custom-http" {
 			kind = "service.connection_closed"
 			fields["service"] = data.Service
 		} else {

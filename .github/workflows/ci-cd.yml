@@ -69,7 +69,8 @@ jobs:
       - name: Constructor tests and Docker build
         run: |
           python -m pip install -r constructor/requirements.txt -r constructor/requirements-test.txt
-          python -m unittest constructor.backend.test_integration deploy.nginx.test_constructor deploy.test_release_cleanup
+          python -m unittest constructor.backend.test_integration constructor.backend.test_http_builder deploy.nginx.test_constructor deploy.test_release_cleanup
+          python -m unittest discover -s src/backend/internal/decoys/pythonhttp/scripts -p '*_test.py'
           docker compose config --quiet
           docker build -f constructor/Dockerfile -t honeyforge/constructor:test .
       - uses: actions/setup-node@v4
@@ -182,7 +183,7 @@ jobs:
           cp deploy/compose.constructor.yml release/compose.constructor.yml
           cp deploy/nginx/constructor.location.conf release/constructor.location.conf
           cp deploy/nginx/install_constructor.py release/install_constructor.py
-          for entry in 'tcp:tcp-decoy:DECOY_TCP_IMAGE' 'redis:redis-decoy:DECOY_REDIS_IMAGE' 'honeytokens:honeytoken-decoy:DECOY_HONEYTOKEN_IMAGE'; do
+          for entry in 'tcp:tcp-decoy:DECOY_TCP_IMAGE' 'redis:redis-decoy:DECOY_REDIS_IMAGE' 'honeytokens:honeytoken-decoy:DECOY_HONEYTOKEN_IMAGE' 'http:http-decoy:DECOY_HTTP_IMAGE'; do
             IFS=: read -r target image key <<< "$entry"
             docker build -f deploy/decoys/Dockerfile --target "$target" -t "honeyforge/$image:$tag" .
             images+=("honeyforge/$image:$tag")
@@ -392,6 +393,7 @@ jobs:
                 honeyforge/tcp-decoy:*) image="$DECOY_TCP_IMAGE";;
                 honeyforge/redis-decoy:*) image="$DECOY_REDIS_IMAGE";;
                 honeyforge/honeytoken-decoy:*) image="$DECOY_HONEYTOKEN_IMAGE";;
+                honeyforge/http-decoy:*) image="$DECOY_HTTP_IMAGE";;
                 honeyforge/ssh-decoy:*) image="$DECOY_SSH_IMAGE";;
                 *) echo "Unchanged service $service: $old_image"; continue;;
               esac

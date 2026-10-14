@@ -85,7 +85,7 @@ def public_chain(chain):
 @app.get('/api/registry')
 def registry():
     data = registry_payload()
-    return {'categories': [{'id': 'custom', 'label': 'Собрать новую ловушку', 'accent': '#4A6CF7'}, *data['categories']],
+    return {'categories': [{'id': 'http', 'label': 'Собрать HTTP-ловушку', 'accent': '#2c9b80'}, {'id': 'custom', 'label': 'Собрать TCP-ловушку', 'accent': '#4A6CF7'}, *data['categories']],
             'node_types': [*registry_types(), *data['node_types']]}
 
 

@@ -21,11 +21,20 @@ import (
 )
 
 func TestStdioWorkerProtocolsAfterIdle(t *testing.T) {
-	for _, kind := range []string{"redis-emulator", "honeytoken-http"} {
+	for _, kind := range []string{"redis-emulator", "honeytoken-http", "custom-http"} {
 		t.Run(kind, func(t *testing.T) {
 			if kind == "redis-emulator" {
 				if _, err := exec.LookPath("redis-server"); err != nil {
 					t.Skip("redis-server required; run Redis worker coverage in Linux/Docker")
+				}
+			}
+			if kind == "custom-http" {
+				executable := os.Getenv("HF_PYTHON")
+				if executable == "" {
+					executable = "python3"
+				}
+				if _, err := exec.LookPath(executable); err != nil {
+					t.Skip("python3 required for HTTP worker")
 				}
 			}
 
@@ -52,6 +61,13 @@ func TestStdioWorkerProtocolsAfterIdle(t *testing.T) {
 			}}
 			if kind == "redis-emulator" {
 				snapshot.Config["services"].([]any)[0].(map[string]any)["password"] = "bait-pass"
+			} else if kind == "custom-http" {
+				snapshot.Config["services"].([]any)[0].(map[string]any)["entry"] = "web"
+				snapshot.Config["blocks"] = []any{
+					map[string]any{"id": "web", "kind": "input", "config": map[string]any{"name": "trap", "port": port, "method": "GET", "path": "/backup.txt"}, "outputs": map[string]any{"out": "reply"}},
+					map[string]any{"id": "reply", "kind": "response", "config": map[string]any{"status": 200, "format": "text", "body": "fake backup", "headers": "{}"}, "outputs": map[string]any{}},
+				}
+				snapshot.Config["limits"] = map[string]any{"max_steps": 512, "timeout_ms": 10000, "max_body_bytes": 65536}
 			} else {
 				snapshot.Config["tokens"] = []any{map[string]any{"id": "document", "kind": "file", "path": "/backup.txt", "value": "fake backup"}}
 			}

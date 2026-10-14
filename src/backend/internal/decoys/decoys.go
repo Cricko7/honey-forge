@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"honey-forge/internal/decoys/honeytrap"
+	"honey-forge/internal/decoys/pythonhttp"
 	"honey-forge/internal/decoys/redistrap"
 	"honey-forge/internal/decoys/sshtrap"
 	"honey-forge/internal/decoys/tcptrap"
@@ -65,6 +66,13 @@ var builtins = []definition{
 	sshDefinition(1),
 	sshDefinition(2),
 	tcpDefinition("custom-tcp"),
+	{
+		typeID: "custom-http", version: 1,
+		start: func(ctx context.Context, snapshot profiles.Snapshot, host string, sink func(context.Context, events.AgentEvent) error) (Runtime, error) {
+			return pythonhttp.Start(ctx, snapshot, host, sink)
+		},
+		ports: pythonhttp.Ports,
+	},
 }
 
 func tcpDefinition(typeID string) definition {

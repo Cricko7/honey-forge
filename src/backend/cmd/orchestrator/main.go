@@ -51,6 +51,7 @@ func run() error {
 		TCPImage:          os.Getenv("DECOY_TCP_IMAGE"),
 		RedisImage:        os.Getenv("DECOY_REDIS_IMAGE"),
 		HoneytokenImage:   os.Getenv("DECOY_HONEYTOKEN_IMAGE"),
+		HTTPImage:         os.Getenv("DECOY_HTTP_IMAGE"),
 		SSHImage:          os.Getenv("DECOY_SSH_IMAGE"),
 		SandboxImage:      os.Getenv("SSH_SANDBOX_IMAGE"),
 		TetragonContainer: os.Getenv("TETRAGON_CONTAINER"),
