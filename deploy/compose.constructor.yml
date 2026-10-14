@@ -1,0 +1,29 @@
+# Linux production: the constructor is reachable only through the management nginx.
+services:
+  constructor:
+    image: ${CONSTRUCTOR_IMAGE:?Constructor image is required}
+    network_mode: host
+    command: [uvicorn, constructor.backend.app:app, --host, 127.0.0.1, --port, '8077', --root-path, /constructor]
+    environment:
+      HONEYFORGE_API_BASE: https://localhost:8443
+      HONEYFORGE_CA_FILE: /certs/backend-ca.crt
+      HONEYFORGE_ORIGIN: ${PUBLIC_ORIGIN:?Management origin is required}
+    volumes:
+      - /etc/honey-forge/certs/backend-ca.crt:/certs/backend-ca.crt:ro
+      - constructor_data:/data
+    depends_on:
+      api:
+        condition: service_started
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8077/', timeout=3).close()"]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+    restart: unless-stopped
+    logging:
+      driver: local
+      options:
+        max-size: 10m
+        max-file: '3'
+volumes:
+  constructor_data:

@@ -8,6 +8,9 @@ import (
 //go:embed schemas/tcp-banner-1.json
 var tcpBannerJSON []byte
 
+//go:embed schemas/custom-tcp-1.json
+var customTCPJSON []byte
+
 //go:embed schemas/redis-emulator-1.json
 var redisEmulatorJSON []byte
 
@@ -23,7 +26,7 @@ var sshHostTelemetryJSON []byte
 // BuiltinDefinitions returns fresh copies of the installed trap descriptors.
 func BuiltinDefinitions() []Definition {
 	var definitions []Definition
-	for _, raw := range [][]byte{tcpBannerJSON, redisEmulatorJSON, honeytokenHTTPJSON, sshHighInteractionJSON, sshHostTelemetryJSON} {
+	for _, raw := range [][]byte{tcpBannerJSON, redisEmulatorJSON, honeytokenHTTPJSON, sshHighInteractionJSON, sshHostTelemetryJSON, customTCPJSON} {
 		var entry CatalogEntry
 		if err := json.Unmarshal(raw, &entry); err != nil {
 			panic("invalid embedded trap descriptor: " + err.Error())

@@ -9,7 +9,7 @@ import (
 )
 
 func TestMASK3DeploymentBoundaries(t *testing.T) {
-	for _, name := range []string{"compose.yaml", "docker-compose.real.yml"} {
+	for _, name := range []string{"compose.infra.yaml", "docker-compose.real.yml"} {
 		t.Run(name, func(t *testing.T) {
 			raw, err := os.ReadFile("../../../../../" + name)
 			if err != nil {
@@ -30,7 +30,7 @@ func TestMASK3DeploymentBoundaries(t *testing.T) {
 			}
 
 			redis := compose.Services["redis"]
-			if name == "compose.yaml" && !strings.Contains(redis.Environment["REDIS_PASSWORD"], "REDIS_PASSWORD:?") || name == "docker-compose.real.yml" && redis.Environment["REDIS_PASSWORD_FILE"] != "/certs/redis-password" {
+			if name == "compose.infra.yaml" && !strings.Contains(redis.Environment["REDIS_PASSWORD"], "REDIS_PASSWORD:?") || name == "docker-compose.real.yml" && redis.Environment["REDIS_PASSWORD_FILE"] != "/certs/redis-password" {
 				t.Fatal("Redis starts without an authenticated password source")
 			}
 

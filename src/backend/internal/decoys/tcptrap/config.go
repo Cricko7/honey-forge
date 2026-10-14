@@ -17,6 +17,14 @@ type Listener struct {
 	Port             int    `json:"port"`
 	Banner           string `json:"banner"`
 	CloseAfterBanner bool   `json:"close_after_banner"`
+	Rules            []Rule `json:"rules,omitempty"`
+}
+
+type Rule struct {
+	Match    string `json:"match"`
+	Input    string `json:"input"`
+	Response string `json:"response"`
+	Close    bool   `json:"close"`
 }
 
 type Config struct {
@@ -33,7 +41,7 @@ type Config struct {
 
 func ParseConfig(ctx context.Context, snapshot profiles.Snapshot) (Config, error) {
 	var config Config
-	if snapshot.TypeID != "tcp-banner" || snapshot.TypeVersion != 1 || snapshot.ProfileRevision < 1 {
+	if (snapshot.TypeID != "tcp-banner" && snapshot.TypeID != "custom-tcp") || snapshot.TypeVersion != 1 || snapshot.ProfileRevision < 1 {
 		return config, fmt.Errorf("unsupported trap snapshot")
 	}
 
@@ -42,7 +50,14 @@ func ParseConfig(ctx context.Context, snapshot profiles.Snapshot) (Config, error
 		return config, fmt.Errorf("encode configuration: %w", err)
 	}
 
-	schema, err := configschema.Compile(catalog.BuiltinDefinitions()[0].Entry.ConfigSchema)
+	var descriptor json.RawMessage
+	for _, definition := range catalog.BuiltinDefinitions() {
+		if string(definition.Entry.TypeID) == snapshot.TypeID && int32(definition.Entry.TypeVersion) == snapshot.TypeVersion {
+			descriptor = definition.Entry.ConfigSchema
+			break
+		}
+	}
+	schema, err := configschema.Compile(descriptor)
 	if err != nil {
 		return config, fmt.Errorf("compile TCP schema: %w", err)
 	}
@@ -67,6 +82,11 @@ func ParseConfig(ctx context.Context, snapshot profiles.Snapshot) (Config, error
 
 		names[l.Name] = true
 		ports[l.Port] = true
+		for _, rule := range l.Rules {
+			if len(rule.Input) > 4096 || len(rule.Response) > 4096 || rule.Match != "any" && rule.Input == "" {
+				return config, fmt.Errorf("invalid response rule")
+			}
+		}
 	}
 
 	if !config.Logging.Capture && config.Logging.MaxBytes != 0 || config.Logging.Capture && config.Logging.MaxBytes < 1 {

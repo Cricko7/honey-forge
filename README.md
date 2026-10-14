@@ -35,13 +35,15 @@ sudo nano /etc/hosts
 
 ---
 ### Примечание:
-Локальный запуск можно сделать одной командой (без `.env`), `Go` идёт на хосте, а также имеется ручная генерация сертификатов:
+Полный проект, включая конструктор ловушек, запускается одной командой без `.env`, Go/Python на хосте и ручной генерации сертификатов:
 
 ```sh
-docker compose -f docker-compose.real.yml up --build -d
+docker compose up --build -d
 ```
 
-Откройте `https://localhost:8443`. Docker сам создаёт и сохраняет локальные
+Откройте `https://localhost:8443`. Конструктор доступен в общей панели по адресу `https://localhost:8443/app/constructor`, использует ту же сессию и запускается вместе с API. Отдельный процесс на порту 8077 не нужен. В PowerShell также можно выполнить `./start.ps1`.
+
+Docker сам создаёт и сохраняет локальные
 секреты, настраивает mTLS/pinning и обновляет сертификаты. При первом открытии браузер попросит довериться локальному HTTPS.
 
 ## Как правильно воспользоваться нашим решением?
@@ -133,7 +135,7 @@ go test -race -tags=integration ./... -count=1
 | Переменная | Назначение |
 |---|---|
 | `POSTGRES_PASSWORD` | Обязательный пароль PostgreSQL для Docker Compose. |
-| `REDIS_PASSWORD` | Пароль Redis: минимум 32 hex-символа. Для `compose.yaml` обязателен; полный локальный стек генерирует и сохраняет его автоматически. Healthcheck и агенты проходят аутентификацию. |
+| `REDIS_PASSWORD` | Пароль Redis: минимум 32 hex-символа. Для `compose.infra.yaml` обязателен; полный локальный стек генерирует и сохраняет его автоматически. Healthcheck и агенты проходят аутентификацию. |
 | `AGENT_REDIS_URL_FILE` | Файл с TLS URL Redis и паролем; используется локальным bootstrap и Docker secrets, имеет приоритет над `AGENT_REDIS_URL`. |
 | `MGMT_NETWORK` | Управляющая overlay-сеть, по умолчанию `hf-mgmt`; должна отличаться от `DECOY_NETWORK`. |
 | `MGMT_BIND_IP` | IP панели в Compose; по умолчанию `127.0.0.1`. Для удалённого доступа — адрес из изолированной mgmt-подсети. |
@@ -208,7 +210,7 @@ $env:GIN_MODE = 'release'
 с SAN для обоих хостов либо запускайте его за настроенным прокси. Пример продолжения:
 
 ```powershell
-docker compose up -d postgres kafka
+docker compose -f compose.infra.yaml up -d postgres kafka
 Set-Location src/backend
 go run ./cmd/api
 ```
@@ -342,16 +344,16 @@ Frontend WSS `/api/stream` подключён: [replay/live, безопасны�
 
 ## 7. Докеризация
 
-`compose.yaml` поднимает только PostgreSQL 17 и Kafka 4.1.2:
+`compose.yaml` запускает полный проект, включая встроенный конструктор. Для разработки Go на хосте и тестов доступен отдельный `compose.infra.yaml` (PostgreSQL, Kafka и Redis):
 
 ```powershell
 # Из корня репозитория
-docker compose up -d postgres kafka
-docker compose ps
+docker compose -f compose.infra.yaml up -d postgres kafka
+docker compose -f compose.infra.yaml ps
 ```
 
 Порты PostgreSQL `5432` и Kafka `29092` опубликованы только на `127.0.0.1`.
-Процесс Go запускается отдельно; Dockerfile для API сейчас нет.
+В полном запуске API собирается через `Dockerfile.api`, конструктор — через `constructor/Dockerfile`; исходники и Python-зависимости входят в сборку автоматически. В режиме только инфраструктуры Go можно запускать на хосте.
 
 ## 8. Ветка Git для продакшена
 

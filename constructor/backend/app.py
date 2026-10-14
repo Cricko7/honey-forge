@@ -1,218 +1,201 @@
-"""FastAPI-приложение конструктора цепочек ловушек HoneyForge.
-
-Отдаёт REST API (реестр узлов, шаблоны, CRUD досок, валидация, симуляция),
-прокси к РЕАЛЬНОМУ бэкенду дашборда (каталог, ловушки, команды, события) и
-статический фронтенд с бесконечной доской.
-
-Запуск:
-    uvicorn honeyforge.constructor.backend.app:app --reload --port 8077
-или:
-    python -m honeyforge.constructor.backend.app
-"""
-from __future__ import annotations
-
+"""Constructor on the panel origin, using HoneyForge session and authorization."""
+import asyncio
+import hmac
+import os
 from pathlib import Path
+from typing import Literal
+import uuid
 
-import random
-
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from fastapi.exceptions import RequestValidationError
+from pydantic import BaseModel, ConfigDict
 
 from . import real_api
-from .models import Chain, ChainCreate, ChainUpdate, SimulateRequest, ValidationResult
+from .custom import registry_types
+from .models import ChainCreate, ChainUpdate
 from .node_registry import registry_payload
 from .runtime import runtime
-from .simulator import simulate
-from .store import store, templates_payload
-from .validation import validate_chain
+from .store import organization, store
 
-STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
-
-app = FastAPI(title="HoneyForge Chain Constructor", version="0.1.0")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
-)
-
-api = app  # алиас
+STATIC_DIR = Path(__file__).resolve().parent.parent / 'static'
+app = FastAPI(title='HoneyForge Constructor', version='1.0.0')
 
 
-# ---- мета ----
-@app.get("/api/registry")
-def get_registry() -> dict:
-    return registry_payload()
+@app.exception_handler(real_api.RealApiError)
+async def backend_error(request, error):
+    return JSONResponse({'error': {'code': error.code, 'message': str(error)}}, status_code=error.status)
 
 
-@app.get("/api/templates")
-def get_templates() -> list[dict]:
-    return templates_payload()
+@app.exception_handler(HTTPException)
+async def request_error(request, error):
+    return JSONResponse({'error': {'code': 'constructor_error', 'message': error.detail}}, status_code=error.status_code)
 
 
-# ---- цепочки ----
-@app.get("/api/chains")
-def list_chains() -> list:
+@app.exception_handler(RequestValidationError)
+async def validation_error(request, error):
+    malformed = any(issue['type'] == 'json_invalid' for issue in error.errors())
+    return JSONResponse({'error': {'code': 'invalid_json' if malformed else 'validation_failed', 'message': 'Invalid constructor request'}}, status_code=400 if malformed else 422)
+
+
+@app.middleware('http')
+async def operator_session(request: Request, call_next):
+    path = request.scope['path']
+    root = request.scope.get('root_path', '')
+    if root and path.startswith(root + '/'):
+        path = path[len(root):]
+    if not path.startswith('/api/'):
+        return await call_next(request)
+    token = real_api.request_headers.set({key: request.headers[key] for key in ('Cookie', 'X-CSRF-Token', 'Origin') if key in request.headers})
+    org_token = None
+    try:
+        session = await asyncio.to_thread(real_api._request, 'GET', '/api/session')
+        org_token = organization.set(str(uuid.UUID(session['organization']['id'])))
+        if request.method != 'GET':
+            if session['user']['role'] != 'admin':
+                raise HTTPException(403, 'Доступно только администратору')
+            if request.headers.get('origin') != os.environ.get('HONEYFORGE_ORIGIN', 'https://localhost:8443') or not hmac.compare_digest(request.headers.get('x-csrf-token', ''), session['csrf_token']):
+                raise HTTPException(403, 'Invalid CSRF token or origin')
+        return await call_next(request)
+    except real_api.RealApiError as error:
+        return await backend_error(request, error)
+    except HTTPException as error:
+        return await request_error(request, error)
+    finally:
+        if org_token is not None:
+            organization.reset(org_token)
+        real_api.request_headers.reset(token)
+
+
+def chain_or_404(chain_id):
+    chain = store.get(chain_id)
+    if not chain:
+        raise HTTPException(404, 'Цепочка не найдена')
+    return chain
+
+
+def public_chain(chain):
+    data = chain.model_dump(exclude={'bindings'})
+    for node in data['nodes']:
+        node['config'].pop('password', None)
+    return data
+
+
+@app.get('/api/registry')
+def registry():
+    data = registry_payload()
+    return {'categories': [{'id': 'custom', 'label': 'Собрать новую ловушку', 'accent': '#4A6CF7'}, *data['categories']],
+            'node_types': [*registry_types(), *data['node_types']]}
+
+
+@app.get('/api/templates')
+def templates():
+    return []
+
+
+@app.get('/api/chains')
+def chains():
     return store.list()
 
 
-@app.post("/api/chains", status_code=201)
-def create_chain(data: ChainCreate) -> Chain:
-    return store.create(data)
+@app.post('/api/chains', status_code=201)
+def create(data: ChainCreate):
+    chain = store.create(data)
+    return JSONResponse(public_chain(chain), status_code=201, headers={'Location': '/constructor/api/chains/' + chain.id})
 
 
-@app.get("/api/chains/{chain_id}")
-def get_chain(chain_id: str) -> Chain:
-    c = store.get(chain_id)
-    if not c:
-        raise HTTPException(404, "Цепочка не найдена")
-    return c
+@app.get('/api/chains/{chain_id}')
+def read(chain_id: str):
+    return public_chain(chain_or_404(chain_id))
 
 
-@app.patch("/api/chains/{chain_id}")
-def update_chain(chain_id: str, data: ChainUpdate) -> Chain:
-    c = store.update(chain_id, data)
-    if not c:
-        raise HTTPException(404, "Цепочка не найдена")
-    return c
+@app.patch('/api/chains/{chain_id}')
+def update(chain_id: str, data: ChainUpdate):
+    chain_or_404(chain_id)
+    if data.nodes is not None and len({n.id for n in data.nodes}) != len(data.nodes):
+        raise HTTPException(422, 'Идентификаторы блоков должны быть уникальными')
+    with runtime.lock:
+        return public_chain(store.update(chain_id, data))
 
 
-@app.delete("/api/chains/{chain_id}", status_code=204)
-def delete_chain(chain_id: str) -> None:
-    if not store.delete(chain_id):
-        raise HTTPException(404, "Цепочка не найдена")
+@app.delete('/api/chains/{chain_id}', status_code=204)
+def delete(chain_id: str):
+    chain_or_404(chain_id)
+    store.delete(chain_id)
 
 
-@app.post("/api/chains/{chain_id}/duplicate", status_code=201)
-def duplicate_chain(chain_id: str) -> Chain:
-    c = store.duplicate(chain_id)
-    if not c:
-        raise HTTPException(404, "Цепочка не найдена")
-    return c
+@app.post('/api/chains/{chain_id}/duplicate', status_code=201)
+def duplicate(chain_id: str):
+    chain_or_404(chain_id)
+    return public_chain(store.duplicate(chain_id))
 
 
-# ---- валидация / симуляция ----
-@app.post("/api/chains/{chain_id}/validate")
-def validate(chain_id: str) -> ValidationResult:
-    c = store.get(chain_id)
-    if not c:
-        raise HTTPException(404, "Цепочка не найдена")
-    return validate_chain(c)
-
-
-@app.post("/api/chains/{chain_id}/simulate")
-def run_simulation(chain_id: str, req: SimulateRequest) -> dict:
-    c = store.get(chain_id)
-    if not c:
-        raise HTTPException(404, "Цепочка не найдена")
-    return simulate(c, req)
-
-
-# ---- рантайм ловушек / живой поток ----
-class DeployRequest(BaseModel):
-    action: str = "deploy"   # deploy | stop
-
-
-@app.get("/api/chains/{chain_id}/runtime")
-def get_runtime(chain_id: str) -> dict:
-    if not store.get(chain_id):
-        raise HTTPException(404, "Цепочка не найдена")
+@app.get('/api/chains/{chain_id}/runtime')
+def status(chain_id: str):
+    chain_or_404(chain_id)
     return runtime.status(chain_id)
 
 
-@app.post("/api/chains/{chain_id}/deploy")
-def deploy_chain(chain_id: str, req: DeployRequest) -> dict:
-    if not store.get(chain_id):
-        raise HTTPException(404, "Цепочка не найдена")
-    return runtime.deploy(chain_id, req.action)
+class DeployRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    action: Literal['deploy', 'stop'] = 'deploy'
 
 
-@app.get("/api/chains/{chain_id}/stream")
-async def stream_chain(chain_id: str) -> StreamingResponse:
-    if not store.get(chain_id):
-        raise HTTPException(404, "Цепочка не найдена")
-    gen = runtime.stream(chain_id, random.Random())
-    return StreamingResponse(gen, media_type="text/event-stream", headers={
-        "Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive",
-    })
+@app.post('/api/chains/{chain_id}/deploy')
+def deploy(chain_id: str, data: DeployRequest):
+    chain_or_404(chain_id)
+    return runtime.deploy(chain_id, data.action)
 
 
-# ---- интеграция с РЕАЛЬНЫМ бэкендом HoneyForge (прокси, обход CORS) ----
-@app.get("/api/real/health")
-def real_health() -> dict:
-    return {"online": real_api.health(), "api_base": real_api.API_BASE}
+@app.get('/api/chains/{chain_id}/stream')
+async def stream(chain_id: str):
+    chain_or_404(chain_id)
+    return StreamingResponse(runtime.stream(chain_id), media_type='text/event-stream', headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
 
 
-@app.get("/api/real/catalog")
-def real_catalog() -> dict:
-    try:
-        return {"online": True, "items": real_api.list_trap_types()}
-    except real_api.RealApiError as e:
-        return {"online": False, "items": [], "error": str(e)}
+@app.get('/api/real/catalog')
+def catalog():
+    return {'online': True, 'items': real_api.list_trap_types()}
 
 
-@app.get("/api/real/traps")
-def real_traps() -> dict:
-    try:
-        return {"online": True, "items": real_api.list_traps()}
-    except real_api.RealApiError as e:
-        return {"online": False, "items": [], "error": str(e)}
+@app.get('/api/real/traps')
+def traps():
+    return {'online': True, 'items': real_api.list_traps()}
 
 
 class RealCommand(BaseModel):
-    action: str  # start | stop | apply_config
+    model_config = ConfigDict(extra='forbid')
+    action: Literal['start', 'stop']
 
 
-@app.post("/api/real/traps/{trap_id}/command")
-def real_command(trap_id: str, req: RealCommand) -> dict:
-    try:
-        cmd = real_api.send_command(trap_id, req.action)
-        return {"ok": True, "command": cmd}
-    except real_api.RealApiError as e:
-        raise HTTPException(502, f"Бэкенд отклонил команду: {e}")
-
-
-@app.get("/api/real/profiles")
-def real_profiles() -> dict:
-    try:
-        return {"online": True, "items": real_api.list_profiles()}
-    except real_api.RealApiError as e:
-        return {"online": False, "items": [], "error": str(e)}
+@app.get('/api/real/profiles')
+def profiles():
+    return {'online': True, 'items': real_api.list_all('/api/profiles')}
 
 
 class RealTrapCreate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    request_id: uuid.UUID
     name: str
-    profile_id: str
-    description: str = ""
+    profile_id: uuid.UUID
+    description: str = ''
 
 
-@app.post("/api/real/traps", status_code=201)
-def real_create_trap(req: RealTrapCreate) -> dict:
-    """Создать настоящую ловушку на дашборде из блока конструктора."""
-    try:
-        trap = real_api.create_trap(req.name, req.profile_id, req.description)
-        return {"ok": True, "trap": trap}
-    except real_api.RealApiError as e:
-        raise HTTPException(502, f"Бэкенд отклонил создание ловушки: {e}")
+@app.post('/api/real/traps', status_code=201)
+def create_profile_trap(data: RealTrapCreate):
+    trap = real_api._request('POST', '/api/traps', data.model_dump(mode='json'))
+    return {'ok': True, 'trap': trap}
 
 
-# ---- статика (SPA) ----
-if STATIC_DIR.exists():
-    app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets") \
-        if (STATIC_DIR / "assets").exists() else None
-
-    @app.get("/")
-    def index() -> FileResponse:
-        return FileResponse(STATIC_DIR / "index.html")
-
-    app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
+@app.post('/api/real/traps/{trap_id}/command')
+def command(trap_id: uuid.UUID, data: RealCommand):
+    return {'ok': True, 'command': real_api.send_command(str(trap_id), data.action)}
 
 
-def main() -> None:
-    import uvicorn
-    uvicorn.run("honeyforge.constructor.backend.app:app", host="127.0.0.1", port=8077, reload=False)
+@app.get('/')
+def index():
+    return FileResponse(STATIC_DIR / 'index.html')
 
 
-if __name__ == "__main__":
-    main()
+app.mount('/', StaticFiles(directory=STATIC_DIR), name='static')

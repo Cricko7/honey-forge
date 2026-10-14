@@ -63,8 +63,21 @@ func RunTrap(ctx context.Context) error {
 		return err
 	}
 
-	if allowed := os.Getenv("NM_ROLE"); allowed != "" && allowed != bootstrap.Snapshot.TypeID {
-		return fmt.Errorf("snapshot type does not match image")
+	if role := os.Getenv("NM_ROLE"); role != "" {
+		allowed, err := decoys.ForType(role)
+		if err != nil {
+			return fmt.Errorf("image capabilities: %w", err)
+		}
+		matches := false
+		for _, capability := range allowed {
+			if capability.TypeID == bootstrap.Snapshot.TypeID && int32(capability.TypeVersion) == bootstrap.Snapshot.TypeVersion {
+				matches = true
+				break
+			}
+		}
+		if !matches {
+			return fmt.Errorf("snapshot type does not match image")
+		}
 	}
 
 	start, err := decoys.Select(bootstrap.Snapshot)

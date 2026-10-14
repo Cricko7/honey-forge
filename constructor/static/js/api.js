@@ -1,8 +1,17 @@
 // Тонкий REST-клиент конструктора. Работает против FastAPI-бэкенда того же origin.
-const BASE = "";
+export const BASE = location.pathname.startsWith('/constructor/') ? '/constructor' : '';
+let csrf = '';
 
-async function req(method, path, body) {
+export async function req(method, path, body) {
   const opt = { method, headers: {} };
+  if (method !== 'GET') {
+    if (!csrf) {
+      const session = await fetch('/api/session');
+      if (!session.ok) throw new Error('Войдите в HoneyForge');
+      csrf = (await session.json()).csrf_token;
+    }
+    opt.headers['X-CSRF-Token'] = csrf;
+  }
   if (body !== undefined) {
     opt.headers["Content-Type"] = "application/json";
     opt.body = JSON.stringify(body);
@@ -10,7 +19,7 @@ async function req(method, path, body) {
   const res = await fetch(BASE + path, opt);
   if (!res.ok) {
     let msg = `${res.status} ${res.statusText}`;
-    try { const j = await res.json(); if (j.detail) msg = j.detail; } catch (_) {}
+    try { const j = await res.json(); msg = j.error?.message || j.detail || msg; } catch (_) {}
     throw new Error(msg);
   }
   if (res.status === 204) return null;

@@ -68,7 +68,7 @@ func (s *Service) CheckConfig(ctx context.Context, id string, version contract.T
 		return validationError(err, "config_invalid")
 	}
 
-	if id == "tcp-banner" && version == 1 {
+	if (id == "tcp-banner" || id == "custom-tcp") && version == 1 {
 		return checkTCPConfig(config)
 	}
 
@@ -94,7 +94,7 @@ func (s *Service) CheckEvent(ctx context.Context, id string, version contract.Ty
 		return validationError(err, "telemetry_invalid")
 	}
 
-	if id == "tcp-banner" && version == 1 && event == "tcp.payload_received" {
+	if (id == "tcp-banner" || id == "custom-tcp") && version == 1 && event == "tcp.payload_received" {
 		return checkTCPPayload(data)
 	}
 
@@ -171,5 +171,5 @@ func (s *Service) CheckActionResult(ctx context.Context, id string, version cont
 }
 
 func hasRuntimeRevision(id string, version contract.TypeVersion) bool {
-	return version == 1 && (id == "tcp-banner" || id == "redis-emulator" || id == "honeytoken-http" || id == "ssh-high-interaction") || id == "ssh-high-interaction" && version == 2
+	return version == 1 && (id == "tcp-banner" || id == "custom-tcp" || id == "redis-emulator" || id == "honeytoken-http" || id == "ssh-high-interaction") || id == "ssh-high-interaction" && version == 2
 }

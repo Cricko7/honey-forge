@@ -102,6 +102,7 @@
         <span>Сетка</span>
       </button>
       <span class="td-sep"></span>
+      <button class="td-btn" id="btnDeploy">Развернуть</button>
       <button class="td-btn" id="btnExport" title="Скачать цепочку в JSON">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
         <span>Экспорт</span>
@@ -109,6 +110,8 @@
     </div>
   </div>
 
+  <div id="kpiDock" class="hidden live-status">Работают: <span id="kpiTraps">0</span></div>
+  <aside id="feed" class="hidden live-feed"><b>События ловушек</b><div id="feedList"></div></aside>
   <!-- ======= Тост ======= -->
   <div class="toast hidden" id="toast"></div>
 

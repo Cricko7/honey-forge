@@ -50,3 +50,4 @@ incoming/
 
 # Constructor runtime data
 constructor/data/
+__pycache__/

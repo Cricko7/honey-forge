@@ -16,7 +16,7 @@ import (
 func (d DockerCLI) Deploy(ctx context.Context, target Target, token string, generation int64, ports []int) (err error) {
 	image := ""
 	switch {
-	case target.Snapshot.TypeID == "tcp-banner" && target.Snapshot.TypeVersion == 1:
+	case (target.Snapshot.TypeID == "tcp-banner" || target.Snapshot.TypeID == "custom-tcp") && target.Snapshot.TypeVersion == 1:
 		image = d.TCPImage
 	case target.Snapshot.TypeID == "redis-emulator" && target.Snapshot.TypeVersion == 1:
 		image = d.RedisImage

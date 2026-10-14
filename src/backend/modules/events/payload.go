@@ -12,7 +12,7 @@ import (
 )
 
 func (r *Repository) checkPayload(ctx context.Context, tx pgx.Tx, trapID string, event AgentEvent, snapshot profiles.Snapshot, cumulative bool) error {
-	if event.TypeID != "tcp-banner" || event.TypeVersion != 1 || event.EventType != "tcp.payload_received" {
+	if (event.TypeID != "tcp-banner" && event.TypeID != "custom-tcp") || event.TypeVersion != 1 || event.EventType != "tcp.payload_received" {
 		return nil
 	}
 

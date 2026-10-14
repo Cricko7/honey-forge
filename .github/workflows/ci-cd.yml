@@ -21,7 +21,7 @@ jobs:
       - name: Start TLS infrastructure
         run: |
           sh ./gen-certs.sh
-          docker compose up -d --wait --wait-timeout 180
+          docker compose -f compose.infra.yaml up -d --wait --wait-timeout 180
       - uses: actions/setup-go@v5
         with:
           go-version-file: src/backend/go.mod
@@ -63,6 +63,15 @@ jobs:
           docker build -f deploy/decoys/Dockerfile.sandbox -t "$NM_SANDBOX_IMAGE" .
           cd src/backend
           go test -race -tags=integration ./internal/decoys/sshtrap -run TestDockerRealLinuxShellSFTPAndIsolation -count=1 -timeout=120s
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Constructor tests and Docker build
+        run: |
+          python -m pip install -r constructor/requirements.txt -r constructor/requirements-test.txt
+          python -m unittest constructor.backend.test_integration deploy.nginx.test_constructor
+          docker compose config --quiet
+          docker build -f constructor/Dockerfile -t honeyforge/constructor:test .
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -76,7 +85,7 @@ jobs:
           npm run build
       - name: Stop test infrastructure
         if: always()
-        run: docker compose down
+        run: docker compose -f compose.infra.yaml down
 
   deploy:
     needs: build-and-test
@@ -145,10 +154,15 @@ jobs:
         run: |
           tag="$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           mkdir -p release
-          images=("honeyforge/api:$tag" "honeyforge/orchestrator:$tag")
+          images=("honeyforge/api:$tag" "honeyforge/orchestrator:$tag" "honeyforge/constructor:$tag")
           docker build -f Dockerfile.api -t "${images[0]}" .
           docker build -f deploy/decoys/Dockerfile.orchestrator -t "${images[1]}" .
+          docker build -f constructor/Dockerfile -t "${images[2]}" .
           printf 'API_IMAGE=%s\nORCHESTRATOR_IMAGE=%s\n' "${images[0]}" "${images[1]}" > release/release.env
+          printf 'CONSTRUCTOR_IMAGE=%s\n' "${images[2]}" >> release/release.env
+          cp deploy/compose.constructor.yml release/compose.constructor.yml
+          cp deploy/nginx/constructor.location.conf release/constructor.location.conf
+          cp deploy/nginx/install_constructor.py release/install_constructor.py
           for entry in 'tcp:tcp-decoy:DECOY_TCP_IMAGE' 'redis:redis-decoy:DECOY_REDIS_IMAGE' 'honeytokens:honeytoken-decoy:DECOY_HONEYTOKEN_IMAGE'; do
             IFS=: read -r target image key <<< "$entry"
             docker build -f deploy/decoys/Dockerfile --target "$target" -t "honeyforge/$image:$tag" .
@@ -210,6 +224,10 @@ jobs:
             test -f "$CONFIG"
             if grep -q 'REPLACE_WITH_' "$CONFIG"; then echo 'Configure production.env first'; exit 1; fi
             test -f "$INCOMING/release.env"
+            test -f "$INCOMING/compose.constructor.yml"
+            test -f "$INCOMING/constructor.location.conf"
+            test -f "$INCOMING/install_constructor.py"
+            command -v python3 >/dev/null
             test -f "$INCOMING/images.tar.gz"
             test -f "$INCOMING/frontend/index.html"
             test -L "$FRONT" || { echo 'Prepare the frontend symlink before first deployment'; exit 1; }
@@ -229,6 +247,11 @@ jobs:
               local ssh_override="${release_env%/*}/compose.ssh.yml"
               if [ -f "$ssh_override" ]; then
                 manifests+=(-f "$ssh_override")
+              fi
+
+              local constructor_override="${release_env%/*}/compose.constructor.yml"
+              if [ -f "$constructor_override" ]; then
+                manifests+=(-f "$constructor_override")
               fi
 
               docker compose --project-name honeyforge --env-file "$CONFIG" --env-file "$release_env" "${manifests[@]}" "$@"
@@ -270,12 +293,22 @@ jobs:
             rollback() {
               trap - EXIT
               echo 'Deployment failed; attempting application rollback (database migrations are not reverted)'
-              compose "$INCOMING/release.env" logs --tail=100 api orchestrator || true
+              compose "$INCOMING/release.env" logs --tail=100 api orchestrator constructor || true
               if [ -n "$PREVIOUS_ENV" ]; then
                 compose "$PREVIOUS_ENV" up -d --no-build --pull never api orchestrator || true
+                if [ -f "${PREVIOUS_ENV%/*}/compose.constructor.yml" ]; then
+                  compose "$PREVIOUS_ENV" up -d --no-build --pull never constructor || true
+                else
+                  compose "$INCOMING/release.env" stop constructor || true
+                fi
               elif [ "$OLD_SYSTEMD" -eq 1 ]; then
-                compose "$INCOMING/release.env" stop api orchestrator || true
+                compose "$INCOMING/release.env" stop api orchestrator constructor || true
                 sudo -n systemctl start honeyforge || true
+              fi
+              if [ -f "$INCOMING/nginx-backup/source-path" ]; then
+                nginx_config=$(cat "$INCOMING/nginx-backup/source-path")
+                sudo -n cp "$INCOMING/nginx-backup/original.conf" "$nginx_config" || true
+                sudo -n nginx -t && sudo -n systemctl reload nginx || true
               fi
               if [ -n "$PREVIOUS_ENV" ] || [ "$OLD_SYSTEMD" -eq 0 ]; then
                 compose "$INCOMING/release.env" start orchestrator || true
@@ -296,6 +329,9 @@ jobs:
               sleep 2
             done
             test "$healthy" -eq 1
+            compose "$INCOMING/release.env" up -d --no-build --pull never --wait --wait-timeout 90 constructor
+            constructor_code=$(curl --silent --show-error --max-time 10 --output /dev/null --write-out '%{http_code}' http://127.0.0.1:8077/api/chains)
+            test "$constructor_code" = 401
             compose "$INCOMING/release.env" up -d --no-build --pull never orchestrator
             ready=0
             for i in $(seq 1 60); do
@@ -347,17 +383,24 @@ jobs:
             chmod -R a+rX "$INCOMING/frontend"
             ln -s "$INCOMING/frontend" "$FRONT.next"
             mv -Tf "$FRONT.next" "$FRONT"
+            sudo -n install -d -m 0755 /etc/honey-forge/nginx
+            sudo -n install -m 0644 "$INCOMING/constructor.location.conf" /etc/honey-forge/nginx/constructor.location.conf
+            sudo -n python3 "$INCOMING/install_constructor.py" --origin "$EXPECTED_ORIGIN" --backup "$INCOMING/nginx-backup"
             sudo -n nginx -t
             sudo -n systemctl reload nginx
             operator_host=${EXPECTED_ORIGIN#https://}; operator_host=${operator_host%%:*}
             operator_ip=$(sed -n 's/^MGMT_BIND_IP=//p' "$CONFIG"); operator_ip=${operator_ip:-127.0.0.1}
             code=$(curl --silent --show-error --max-time 10 --cacert /etc/honey-forge/certs/public-ca.crt --resolve "$operator_host:443:$operator_ip" --output /dev/null --write-out '%{http_code}' "$EXPECTED_ORIGIN/api/session")
             test "$code" = 401
+            constructor_code=$(curl --silent --show-error --max-time 10 --cacert /etc/honey-forge/certs/public-ca.crt --resolve "$operator_host:443:$operator_ip" --output /dev/null --write-out '%{http_code}' "$EXPECTED_ORIGIN/constructor/")
+            test "$constructor_code" = 200
+            constructor_code=$(curl --silent --show-error --max-time 10 --cacert /etc/honey-forge/certs/public-ca.crt --resolve "$operator_host:443:$operator_ip" --output /dev/null --write-out '%{http_code}' "$EXPECTED_ORIGIN/constructor/api/chains")
+            test "$constructor_code" = 401
             ln -s "$INCOMING" "$ROOT/current.next"
             mv -Tf "$ROOT/current.next" "$ROOT/current"
             if [ "$OLD_SYSTEMD" -eq 1 ]; then sudo -n systemctl disable honeyforge; fi
             trap - EXIT
-            echo 'Docker API, orchestrator, TCP/Redis/HTTP/SSH traps and frontend updated'
+            echo 'Docker API, orchestrator, TCP/Redis/HTTP/SSH traps, constructor and frontend updated'
 
       - name: Management API, WSS and frontend smoke tests over SSH
         uses: appleboy/ssh-action@v1

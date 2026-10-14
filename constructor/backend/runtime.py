@@ -1,162 +1,172 @@
-"""Рантайм ловушек и живой поток — РЕАЛЬНЫЙ, поверх бэкенда дашборда HoneyForge.
-
-Enterprise-слой конструктора без синтетики:
-- развёртывание доски (deploy) → узлам-ловушкам, привязанным к реальным ловушкам
-  дашборда (config._real.id), шлётся настоящая команда start/stop через real_api;
-- живой поток: тянем РЕАЛЬНЫЕ события ловушек из `/api/events` бэкенда и отдаём их
-  фронту по SSE (`/api/chains/{id}/stream`), сопоставляя событие с узлом доски по trap_id;
-- KPI считаются по реальным событиям (события, уникальные источники, попытки входа).
-
-Если бэкенд дашборда недоступен — поток честно молчит (никаких фейковых атак).
-"""
-from __future__ import annotations
-
+"""Real deployments and telemetry; the simulator is never used for live events."""
 import asyncio
 import json
+import hashlib
+import threading
 import time
-from typing import Any, AsyncIterator
+import uuid
+from urllib.parse import urlencode
 
+from fastapi import HTTPException
 from . import real_api
+from .custom import compile_chain
+from .models import ChainUpdate
 from .store import store
 
 
-def _real_id(node: Any) -> str | None:
-    """trap_id реальной ловушки, к которой привязан узел доски (или None)."""
-    cfg = getattr(node, "config", None) or {}
-    real = cfg.get("_real") if isinstance(cfg, dict) else None
-    return real.get("id") if isinstance(real, dict) else None
-
-
-# Тип события бэкенда → попытка аутентификации (для KPI «попытки входа»).
-_AUTH_EVENTS = {"service.auth_attempt", "tcp.payload_received"}
+def trap_id(chain, node):
+    if node.type == 'custom/listener':
+        return chain.bindings.get('__custom__', {}).get('trap_id')
+    value = chain.bindings.get(node.id, {}).get('trap_id') or node.config.get('_real', {}).get('id')
+    if value:
+        try:
+            return str(uuid.UUID(value))
+        except (ValueError, TypeError, AttributeError) as error:
+            raise HTTPException(422, 'Invalid trap identifier') from error
+    return None
 
 
 class RuntimeManager:
-    """Состояние развёртывания и KPI по каждой доске (in-memory)."""
+    def __init__(self):
+        self.lock = threading.RLock()
 
-    def __init__(self) -> None:
-        self._state: dict[str, dict[str, Any]] = {}
-
-    def _init(self, chain_id: str) -> dict[str, Any]:
-        return self._state.setdefault(chain_id, {
-            "deployed": False,
-            "deployed_at": None,
-            "node_status": {},        # node_id -> "running" | "stopped" | "error"
-            "seen_events": set(),     # event_id, чтобы не дублировать в потоке
-            "kpi": {"events_total": 0, "sources": set(), "login_attempts": 0},
-        })
-
-    # ---- узлы доски, привязанные к реальным ловушкам ----
-    def _bound_nodes(self, chain_id: str) -> list[Any]:
+    def status(self, chain_id):
         chain = store.get(chain_id)
-        return [n for n in (chain.nodes if chain else []) if _real_id(n)]
-
-    def _trap_to_node(self, chain_id: str) -> dict[str, str]:
-        return {_real_id(n): n.id for n in self._bound_nodes(chain_id)}
-
-    def status(self, chain_id: str) -> dict[str, Any]:
-        st = self._init(chain_id)
-        bound = self._bound_nodes(chain_id)
-        running = sum(1 for n in bound if st["node_status"].get(n.id) == "running")
-        return {
-            "deployed": st["deployed"],
-            "deployed_at": st["deployed_at"],
-            "node_status": st["node_status"],
-            "kpi": self._kpi_public(chain_id, running, len(bound)),
-        }
-
-    def _kpi_public(self, chain_id: str, running: int, total_traps: int) -> dict[str, Any]:
-        k = self._state[chain_id]["kpi"]
-        return {
-            "active_traps": running,
-            "total_traps": total_traps,
-            "events_total": k["events_total"],
-            "attacks": k["events_total"],          # атаки = реальные события
-            "unique_sources": len(k["sources"]),
-            "login_attempts": k["login_attempts"],
-        }
-
-    def deploy(self, chain_id: str, action: str) -> dict[str, Any]:
-        """Развернуть/остановить доску — РЕАЛЬНЫЕ команды привязанным ловушкам."""
-        st = self._init(chain_id)
-        bound = self._bound_nodes(chain_id)
-        results: list[dict[str, Any]] = []
-        cmd = "start" if action == "deploy" else "stop"
-        for n in bound:
-            trap_id = _real_id(n)
+        states, traps = {}, {}
+        for node in chain.nodes:
+            tid = trap_id(chain, node)
+            if not tid:
+                continue
             try:
-                real_api.send_command(trap_id, cmd)
-                st["node_status"][n.id] = "running" if cmd == "start" else "stopped"
-                results.append({"node_id": n.id, "trap_id": trap_id, "ok": True})
-            except real_api.RealApiError as e:
-                st["node_status"][n.id] = "error"
-                results.append({"node_id": n.id, "trap_id": trap_id, "ok": False, "error": str(e)})
-        st["deployed"] = action == "deploy"
-        st["deployed_at"] = time.time() if st["deployed"] else None
-        out = self.status(chain_id)
-        out["commands"] = results
-        return out
+                trap = real_api._request('GET', '/api/traps/' + tid)
+                states[node.id] = trap['runtime_state']
+                traps[node.id] = trap
+            except real_api.RealApiError as error:
+                if error.status != 404:
+                    raise
+                states[node.id] = 'deleted'
+        return {'deployed': bool(traps), 'node_status': states, 'traps': traps,
+                'kpi': {'active_traps': len({t['id'] for t in traps.values() if t['runtime_state'] == 'running'}), 'total_traps': len({t['id'] for t in traps.values()})}}
 
-    # ---- живой поток РЕАЛЬНЫХ событий ----
-    async def stream(self, chain_id: str, _rng: Any = None) -> AsyncIterator[str]:
-        st = self._init(chain_id)
-
-        def sse(obj: dict[str, Any]) -> str:
-            return f"data: {json.dumps(obj, ensure_ascii=False)}\n\n"
-
-        yield sse({"kind": "hello", "status": self.status(chain_id)})
-        last_kpi = 0.0
-        while True:
-            if store.get(chain_id) is None:
-                yield sse({"kind": "bye"})
-                return
-
-            if st["deployed"]:
-                trap_node = self._trap_to_node(chain_id)
-                try:
-                    events = real_api.list_events(50)
-                except real_api.RealApiError:
-                    events = []
-                # свежие сверху → идём с конца, чтобы отдавать в хронологии
-                for ev in reversed(events):
-                    eid = ev.get("event_id")
-                    if not eid or eid in st["seen_events"]:
+    def deploy(self, chain_id, action):
+        with self.lock, store._lock:
+            chain = store.get(chain_id)
+            nodes = [n for n in chain.nodes if not n.type.startswith('custom/') and trap_id(chain, n)]
+            custom = compile_chain(chain) if action == 'deploy' else None
+            if custom:
+                nodes.append(custom)
+            elif action == 'stop' and chain.bindings.get('__custom__', {}).get('trap_id'):
+                from .models import Node
+                nodes.append(Node(id='__custom__', type='build/custom-tcp'))
+            if not nodes:
+                raise HTTPException(422, 'Добавьте блок реальной ловушки из каталога')
+            if action == 'deploy':
+                catalog = {e['type_id']: e for e in real_api.list_trap_types() if e['available_for_new_profiles']}
+                configs, ports = {}, set()
+                # Validate all new blocks before the first side effect.
+                for node in nodes:
+                    if trap_id(chain, node) and node.id != '__custom__':
                         continue
-                    node_id = trap_node.get(ev.get("trap_id"))
-                    if node_id is None:
-                        continue            # событие не по нашей доске — пропускаем
-                    st["seen_events"].add(eid)
-                    etype = ev.get("event_type", "")
-                    src_ip = (ev.get("source") or {}).get("ip", "—")
-                    dst = ev.get("destination") or {}
-                    proto = dst.get("protocol") or ""
-                    st["kpi"]["events_total"] += 1
-                    st["kpi"]["sources"].add(src_ip)
-                    if etype in _AUTH_EVENTS:
-                        st["kpi"]["login_attempts"] += 1
-                    yield sse({
-                        "kind": "hop",
-                        "attack_id": (ev.get("session_id") or eid)[:12],
-                        "edge_id": None,
-                        "node_id": node_id,
-                        "node_type": "real/" + str(ev.get("type_id", "")),
-                        "title": etype or "событие ловушки",
-                        "detail": f"{proto}:{dst.get('port', '')}".strip(":"),
-                        "tactic": "",
-                        "technique": "—",
-                        "is_detection": etype in _AUTH_EVENTS,
-                        "source_ip": src_ip,
-                        "cc": "",
-                        "country": "",
-                        "severity": "high" if etype in _AUTH_EVENTS else "low",
-                        "ts": time.time(),
-                    })
+                    type_id = node.type.removeprefix('build/')
+                    if type_id not in catalog:
+                        raise HTTPException(422, 'Тип ловушки недоступен')
+                    configs[node.id] = node.config['compiled']
+                    for listener in configs[node.id].get('listeners', configs[node.id].get('services', [])):
+                        if listener['port'] in ports:
+                            raise HTTPException(422, 'Блоки ловушек используют одинаковый TCP-порт')
+                        ports.add(listener['port'])
+                for node in nodes:
+                    tid = trap_id(chain, node)
+                    if tid:
+                        if node.id == '__custom__':
+                            digest = hashlib.sha256(json.dumps(configs[node.id], sort_keys=True).encode()).hexdigest()
+                            binding = chain.bindings[node.id]
+                            if binding.get('digest') != digest:
+                                profile = real_api._request('GET', '/api/profiles/' + binding['profile_id'])
+                                profile = real_api._request('PATCH', '/api/profiles/' + binding['profile_id'], {'config': configs[node.id]},
+                                    {'If-Match': '"profile:' + profile['id'] + ':' + str(profile['revision']) + '"'})
+                                binding['digest'] = digest
+                                binding['apply_revision'] = str(profile['revision'])
+                                store.update(chain_id, ChainUpdate())
+                            if binding.get('apply_revision'):
+                                if not binding.get('apply_command'):
+                                    command = real_api.send_command(tid, 'apply_config', {'profile_revision': int(binding['apply_revision'])})
+                                    binding['apply_command'] = command['id']
+                                    store.update(chain_id, ChainUpdate())
+                                deadline = time.monotonic() + 20
+                                while True:
+                                    command = real_api._request('GET', '/api/traps/' + tid + '/commands/' + binding['apply_command'])
+                                    if command['status'] == 'succeeded':
+                                        break
+                                    if command['status'] in ('failed', 'expired'):
+                                        binding.pop('apply_command')
+                                        store.update(chain_id, ChainUpdate())
+                                        raise HTTPException(409, 'Не удалось применить конфигурацию; проверьте ловушку и повторите развёртывание')
+                                    if time.monotonic() > deadline:
+                                        raise HTTPException(503, 'Конфигурация ещё применяется; повторите развёртывание после завершения команды')
+                                    time.sleep(0.2)
+                                binding.pop('apply_revision')
+                                binding.pop('apply_command')
+                                store.update(chain_id, ChainUpdate())
+                        current = real_api._request('GET', '/api/traps/' + tid)
+                        if current.get('desired_state') != 'running':
+                            real_api.send_command(tid, 'start')
+                        continue
+                    binding = chain.bindings.setdefault(node.id, {'profile_request': str(uuid.uuid4()), 'trap_request': str(uuid.uuid4())})
+                    store.update(chain_id, ChainUpdate())
+                    type_id = node.type.removeprefix('build/')
+                    name = (node.label or chain.name + ' ' + type_id)[:100]
+                    if not binding.get('profile_id'):
+                        profile = real_api._request('POST', '/api/profiles', {'request_id': binding['profile_request'], 'name': name,
+                            'type_id': type_id, 'type_version': catalog[type_id]['type_version'], 'config': configs[node.id]})
+                        binding['profile_id'] = profile['id']
+                        binding['digest'] = hashlib.sha256(json.dumps(configs[node.id], sort_keys=True).encode()).hexdigest()
+                        store.update(chain_id, ChainUpdate())
+                    digest = hashlib.sha256(json.dumps(configs[node.id], sort_keys=True).encode()).hexdigest()
+                    if binding.get('digest') != digest:
+                        profile = real_api._request('GET', '/api/profiles/' + binding['profile_id'])
+                        real_api._request('PATCH', '/api/profiles/' + binding['profile_id'], {'config': configs[node.id]},
+                            {'If-Match': '"profile:' + profile['id'] + ':' + str(profile['revision']) + '"'})
+                        binding['digest'] = digest
+                        store.update(chain_id, ChainUpdate())
+                    trap = real_api._request('POST', '/api/traps', {'request_id': binding['trap_request'], 'name': name, 'profile_id': binding['profile_id']})
+                    binding['trap_id'] = trap['id']
+                    binding['digest'] = hashlib.sha256(json.dumps(configs[node.id], sort_keys=True).encode()).hexdigest()
+                    node.config.pop('password', None)
+                    store.update(chain_id, ChainUpdate())
+            else:
+                for node in nodes:
+                    tid = trap_id(chain, node)
+                    if tid:
+                        real_api.send_command(tid, 'stop')
+            return self.status(chain_id)
 
-            now = time.time()
-            if now - last_kpi > 1.5:
-                yield sse({"kind": "kpi", "kpi": self.status(chain_id)["kpi"]})
-                last_kpi = now
-            await asyncio.sleep(2.0)
+    async def stream(self, chain_id):
+        seen = set()
+        def sse(value):
+            return 'data: ' + json.dumps(value, ensure_ascii=False) + '\n\n'
+        while store.get(chain_id):
+            # Session expiry and revocation are checked during a long-lived stream too.
+            await asyncio.to_thread(real_api._request, 'GET', '/api/session')
+            yield sse({'kind': 'hello', 'status': await asyncio.to_thread(self.status, chain_id)})
+            chain = store.get(chain_id)
+            for node in chain.nodes:
+                tid = trap_id(chain, node)
+                if not tid:
+                    continue
+                page = await asyncio.to_thread(real_api._request, 'GET', '/api/events?' + urlencode({'trap_id': tid, 'limit': 100}))
+                for event in reversed(page['items']):
+                    if node.type == 'custom/listener' and event.get('destination', {}).get('port') != node.config['port']:
+                        continue
+                    if event['event_id'] in seen:
+                        continue
+                    seen.add(event['event_id'])
+                    yield sse({'kind': 'hop', 'node_id': node.id, 'title': event['event_type'], 'detail': event['occurred_at'],
+                               'source_ip': event.get('source', {}).get('ip', ''), 'country': '', 'technique': '—',
+                               'severity': 'medium', 'is_detection': True, 'event_id': event['event_id']})
+            if len(seen) > 10000:
+                seen.clear()
+            await asyncio.sleep(2)
 
 
 runtime = RuntimeManager()

@@ -25,7 +25,7 @@ import type { SessionView } from '@/types'
 
 const nav = [
   { to: '/app', end: true, icon: LayoutDashboard, label: 'Дашборд' },
-  { to: '/app/constructor', icon: Workflow, label: 'Конструктор цепочек' },
+  { to: '/app/constructor', icon: Workflow, label: 'Конструктор ловушек' },
   { to: '/app/servers', icon: Server, label: 'Серверы' },
   { to: '/app/traps', icon: Bug, label: 'Ловушки' },
   { to: '/app/events', icon: ScrollText, label: 'События' },

@@ -5,7 +5,7 @@ import time
 import uuid
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 def _id(prefix: str) -> str:
@@ -18,7 +18,7 @@ class Position(BaseModel):
 
 
 class Node(BaseModel):
-    id: str = Field(default_factory=lambda: _id("node"))
+    id: str = Field(default_factory=lambda: _id("node"), pattern=r'^[a-zA-Z0-9_-]{1,64}$')
     type: str                      # ключ из node_registry
     position: Position = Field(default_factory=Position)
     label: str | None = None       # пользовательское имя узла
@@ -27,10 +27,10 @@ class Node(BaseModel):
 
 
 class Edge(BaseModel):
-    id: str = Field(default_factory=lambda: _id("edge"))
-    source: str                    # node id
+    id: str = Field(default_factory=lambda: _id("edge"), pattern=r'^[a-zA-Z0-9_-]{1,64}$')
+    source: str = Field(pattern=r'^[a-zA-Z0-9_-]{1,64}$')
     source_port: str               # port id
-    target: str
+    target: str = Field(pattern=r'^[a-zA-Z0-9_-]{1,64}$')
     target_port: str
     label: str = ""                # подпись на ребре (условие перехода)
 
@@ -51,6 +51,7 @@ class ChainMeta(BaseModel):
 
 
 class Chain(ChainMeta):
+    bindings: dict[str, dict[str, str]] = Field(default_factory=dict)
     nodes: list[Node] = Field(default_factory=list)
     edges: list[Edge] = Field(default_factory=list)
     viewport: Viewport = Field(default_factory=Viewport)
@@ -63,18 +64,20 @@ class ChainSummary(ChainMeta):
 
 # ---- входные DTO ----
 class ChainCreate(BaseModel):
-    name: str = "Новая цепочка"
+    model_config = ConfigDict(extra='forbid')
+    name: str = Field(default='Новая цепочка', min_length=1, max_length=100)
     description: str = ""
     tags: list[str] = Field(default_factory=list)
     template: str | None = None    # id встроенного шаблона
 
 
 class ChainUpdate(BaseModel):
-    name: str | None = None
+    model_config = ConfigDict(extra='forbid')
+    name: str | None = Field(default=None, min_length=1, max_length=100)
     description: str | None = None
     tags: list[str] | None = None
-    nodes: list[Node] | None = None
-    edges: list[Edge] | None = None
+    nodes: list[Node] | None = Field(default=None, max_length=512)
+    edges: list[Edge] | None = Field(default=None, max_length=1024)
     viewport: Viewport | None = None
 
 

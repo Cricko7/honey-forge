@@ -13,6 +13,11 @@ type tcpConfig struct {
 		Name   string        `json:"name"`
 		Port   schemaInteger `json:"port"`
 		Banner string        `json:"banner"`
+		Rules  []struct {
+			Match    string `json:"match"`
+			Input    string `json:"input"`
+			Response string `json:"response"`
+		} `json:"rules"`
 	} `json:"listeners"`
 	Logging struct {
 		Capture  bool          `json:"capture_payload"`
@@ -42,6 +47,11 @@ func checkTCPConfig(raw json.RawMessage) error {
 
 		names[listener.Name] = true
 		ports[listener.Port] = true
+		for _, rule := range listener.Rules {
+			if len(rule.Input) > 4096 || len(rule.Response) > 4096 || rule.Match != "any" && rule.Input == "" {
+				return contract.NewError("config_invalid")
+			}
+		}
 	}
 
 	if !config.Logging.Capture && config.Logging.MaxBytes != 0 || config.Logging.Capture && config.Logging.MaxBytes < 1 {
@@ -89,7 +99,7 @@ func (s *Service) CheckPayloadCapture(ctx context.Context, id string, version co
 		return capturedSoFar, err
 	}
 
-	if id != "tcp-banner" || version != 1 {
+	if (id != "tcp-banner" && id != "custom-tcp") || version != 1 {
 		return capturedSoFar, contract.NewError("telemetry_invalid")
 	}
 

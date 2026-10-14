@@ -1,0 +1,963 @@
+openapi: 3.1.0
+info:
+  title: HoneyForge Constructor
+  version: 1.0.0
+  description: Constructor uses the current HoneyForge browser session. Administrator,
+    matching Origin and X-CSRF-Token are required for all mutations. Boards are organization
+    scoped. Deploy compiles custom/listener, custom/banner and custom/rule blocks
+    into one custom-tcp/1 profile and managed trap. Rules compare LF/CRLF-terminated
+    lines and the first matching rule responds. Deleting a board does not delete deployed
+    traps. Runtime and SSE contain real telemetry only.
+paths:
+  /api/registry:
+    get:
+      summary: Registry
+      operationId: registry_api_registry_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: Browser session absent, expired or revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '403':
+          description: Insufficient role or invalid CSRF/Origin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '503':
+          description: HoneyForge API unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+  /api/templates:
+    get:
+      summary: Templates
+      operationId: templates_api_templates_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: Browser session absent, expired or revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '403':
+          description: Insufficient role or invalid CSRF/Origin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '503':
+          description: HoneyForge API unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+  /api/chains:
+    get:
+      summary: Chains
+      operationId: chains_api_chains_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: Browser session absent, expired or revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '403':
+          description: Insufficient role or invalid CSRF/Origin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '503':
+          description: HoneyForge API unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+    post:
+      summary: Create
+      operationId: create_api_chains_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChainCreate'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '401':
+          description: Browser session absent, expired or revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '403':
+          description: Insufficient role or invalid CSRF/Origin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '503':
+          description: HoneyForge API unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+      parameters:
+      - name: Origin
+        in: header
+        required: true
+        schema:
+          type: string
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+  /api/chains/{chain_id}:
+    get:
+      summary: Read
+      operationId: read_api_chains__chain_id__get
+      parameters:
+      - name: chain_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Chain Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '401':
+          description: Browser session absent, expired or revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '403':
+          description: Insufficient role or invalid CSRF/Origin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '503':
+          description: HoneyForge API unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+    patch:
+      summary: Update
+      operationId: update_api_chains__chain_id__patch
+      parameters:
+      - name: chain_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Chain Id
+      - name: Origin
+        in: header
+        required: true
+        schema:
+          type: string
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChainUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '401':
+          description: Browser session absent, expired or revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '403':
+          description: Insufficient role or invalid CSRF/Origin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '503':
+          description: HoneyForge API unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+    delete:
+      summary: Delete
+      operationId: delete_api_chains__chain_id__delete
+      parameters:
+      - name: chain_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Chain Id
+      - name: Origin
+        in: header
+        required: true
+        schema:
+          type: string
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '401':
+          description: Browser session absent, expired or revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '403':
+          description: Insufficient role or invalid CSRF/Origin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '503':
+          description: HoneyForge API unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+  /api/chains/{chain_id}/duplicate:
+    post:
+      summary: Duplicate
+      operationId: duplicate_api_chains__chain_id__duplicate_post
+      parameters:
+      - name: chain_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Chain Id
+      - name: Origin
+        in: header
+        required: true
+        schema:
+          type: string
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '401':
+          description: Browser session absent, expired or revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '403':
+          description: Insufficient role or invalid CSRF/Origin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '503':
+          description: HoneyForge API unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+  /api/chains/{chain_id}/runtime:
+    get:
+      summary: Status
+      operationId: status_api_chains__chain_id__runtime_get
+      parameters:
+      - name: chain_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Chain Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '401':
+          description: Browser session absent, expired or revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '403':
+          description: Insufficient role or invalid CSRF/Origin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '503':
+          description: HoneyForge API unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+  /api/chains/{chain_id}/deploy:
+    post:
+      summary: Deploy
+      operationId: deploy_api_chains__chain_id__deploy_post
+      parameters:
+      - name: chain_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Chain Id
+      - name: Origin
+        in: header
+        required: true
+        schema:
+          type: string
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeployRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '401':
+          description: Browser session absent, expired or revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '403':
+          description: Insufficient role or invalid CSRF/Origin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '503':
+          description: HoneyForge API unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+  /api/chains/{chain_id}/stream:
+    get:
+      summary: Stream
+      operationId: stream_api_chains__chain_id__stream_get
+      parameters:
+      - name: chain_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Chain Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '401':
+          description: Browser session absent, expired or revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '403':
+          description: Insufficient role or invalid CSRF/Origin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '503':
+          description: HoneyForge API unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+  /api/real/catalog:
+    get:
+      summary: Catalog
+      operationId: catalog_api_real_catalog_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: Browser session absent, expired or revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '403':
+          description: Insufficient role or invalid CSRF/Origin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '503':
+          description: HoneyForge API unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+  /api/real/traps:
+    get:
+      summary: Traps
+      operationId: traps_api_real_traps_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: Browser session absent, expired or revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '403':
+          description: Insufficient role or invalid CSRF/Origin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '503':
+          description: HoneyForge API unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+    post:
+      summary: Create Profile Trap
+      operationId: create_profile_trap_api_real_traps_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RealTrapCreate'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '401':
+          description: Browser session absent, expired or revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '403':
+          description: Insufficient role or invalid CSRF/Origin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '503':
+          description: HoneyForge API unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+      parameters:
+      - name: Origin
+        in: header
+        required: true
+        schema:
+          type: string
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+  /api/real/traps/{trap_id}/command:
+    post:
+      summary: Command
+      operationId: command_api_real_traps__trap_id__command_post
+      parameters:
+      - name: trap_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Trap Id
+      - name: Origin
+        in: header
+        required: true
+        schema:
+          type: string
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RealCommand'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '401':
+          description: Browser session absent, expired or revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '403':
+          description: Insufficient role or invalid CSRF/Origin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '503':
+          description: HoneyForge API unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+  /:
+    get:
+      summary: Index
+      operationId: index__get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: Browser session absent, expired or revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '403':
+          description: Insufficient role or invalid CSRF/Origin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '503':
+          description: HoneyForge API unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+  /api/real/profiles:
+    get:
+      summary: Profiles
+      operationId: profiles_api_real_profiles_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: Browser session absent, expired or revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '403':
+          description: Insufficient role or invalid CSRF/Origin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+        '503':
+          description: HoneyForge API unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstructorError'
+components:
+  schemas:
+    ChainCreate:
+      properties:
+        name:
+          type: string
+          maxLength: 100
+          minLength: 1
+          title: Name
+          default: Новая цепочка
+        description:
+          type: string
+          title: Description
+          default: ''
+        tags:
+          items:
+            type: string
+          type: array
+          title: Tags
+        template:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Template
+      additionalProperties: false
+      type: object
+      title: ChainCreate
+    ChainUpdate:
+      properties:
+        name:
+          anyOf:
+          - type: string
+            maxLength: 100
+            minLength: 1
+          - type: 'null'
+          title: Name
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        tags:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Tags
+        nodes:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/Node'
+            type: array
+            maxItems: 512
+          - type: 'null'
+          title: Nodes
+        edges:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/Edge'
+            type: array
+            maxItems: 1024
+          - type: 'null'
+          title: Edges
+        viewport:
+          anyOf:
+          - $ref: '#/components/schemas/Viewport'
+          - type: 'null'
+      additionalProperties: false
+      type: object
+      title: ChainUpdate
+    DeployRequest:
+      properties:
+        action:
+          type: string
+          enum:
+          - deploy
+          - stop
+          title: Action
+          default: deploy
+      additionalProperties: false
+      type: object
+      title: DeployRequest
+    Edge:
+      properties:
+        id:
+          type: string
+          pattern: ^[a-zA-Z0-9_-]{1,64}$
+          title: Id
+        source:
+          type: string
+          pattern: ^[a-zA-Z0-9_-]{1,64}$
+          title: Source
+        source_port:
+          type: string
+          title: Source Port
+        target:
+          type: string
+          pattern: ^[a-zA-Z0-9_-]{1,64}$
+          title: Target
+        target_port:
+          type: string
+          title: Target Port
+        label:
+          type: string
+          title: Label
+          default: ''
+      type: object
+      required:
+      - source
+      - source_port
+      - target
+      - target_port
+      title: Edge
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    Node:
+      properties:
+        id:
+          type: string
+          pattern: ^[a-zA-Z0-9_-]{1,64}$
+          title: Id
+        type:
+          type: string
+          title: Type
+        position:
+          $ref: '#/components/schemas/Position'
+        label:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Label
+        config:
+          additionalProperties: true
+          type: object
+          title: Config
+        notes:
+          type: string
+          title: Notes
+          default: ''
+      type: object
+      required:
+      - type
+      title: Node
+    Position:
+      properties:
+        x:
+          type: number
+          title: X
+          default: 0
+        y:
+          type: number
+          title: Y
+          default: 0
+      type: object
+      title: Position
+    RealCommand:
+      properties:
+        action:
+          type: string
+          enum:
+          - start
+          - stop
+          title: Action
+      additionalProperties: false
+      type: object
+      required:
+      - action
+      title: RealCommand
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+    Viewport:
+      properties:
+        x:
+          type: number
+          title: X
+          default: 0
+        y:
+          type: number
+          title: Y
+          default: 0
+        zoom:
+          type: number
+          title: Zoom
+          default: 1.0
+      type: object
+      title: Viewport
+    ConstructorError:
+      type: object
+      required:
+      - error
+      properties:
+        error:
+          type: object
+          required:
+          - code
+          - message
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+    RealTrapCreate:
+      properties:
+        request_id:
+          type: string
+          format: uuid
+          title: Request Id
+        name:
+          type: string
+          title: Name
+        profile_id:
+          type: string
+          format: uuid
+          title: Profile Id
+        description:
+          type: string
+          title: Description
+          default: ''
+      additionalProperties: false
+      type: object
+      required:
+      - request_id
+      - name
+      - profile_id
+      title: RealTrapCreate
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-session
+security:
+- sessionCookie: []

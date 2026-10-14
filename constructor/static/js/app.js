@@ -1,5 +1,5 @@
 // HoneyForge Chain Constructor — движок бесконечной доски (vanilla JS).
-import { api } from "./api.js";
+import { api, req, BASE } from "./api.js";
 
 // ---------- Геометрия узла (порты вычисляются детерминированно) ----------
 const NODE_W = 200;
@@ -18,7 +18,7 @@ const S = {
   selection: null,             // node id
   dirty: false,
   snap: false,                 // привязка к сетке
-  runtime: { deployed: false, status: {}, es: null, hits: {} },  // боевой режим (не используется)
+  runtime: { deployed: false, status: {}, es: null, hits: {} },  // состояние и реальные события
   realOnline: false,           // доступен ли бэкенд дашборда
   realTypes: {},               // type_id -> мета каталога
   realTraps: [],               // список реальных ловушек из дашборда
@@ -134,7 +134,7 @@ function buildNode(node) {
     <div class="node-body">${chips}</div>`;
 
   // статус ловушки в боевом режиме / реальной ловушки из бэкенда
-  if (node.type.startsWith("trap/") || node.type.startsWith("endpoint/") || isReal) {
+  if (node.type.startsWith("trap/") || node.type.startsWith("endpoint/") || node.type === 'custom/listener' || isReal) {
     const st = document.createElement("div");
     const running = isReal
       ? (node.config?._real?.runtime === "running")
@@ -394,7 +394,7 @@ function addNode(type, world) {
   };
   S.chain.nodes.push(node);
   renderNodes(); select(node.id); autosave();
-  $("canvasHint")?.style && ($("canvasHint").style.opacity = "0");
+  if ($("canvasHint")) $("canvasHint").style.opacity = "0";
 }
 function deleteNode(id) {
   S.chain.nodes = S.chain.nodes.filter(n => n.id !== id);
@@ -529,11 +529,11 @@ function bindInspector(node, spec) {
     }
   }
   $("btnDelNode").addEventListener("click", () => deleteNode(node.id));
+  $("btnMaterialize")?.addEventListener("click", () => materializeNode(node, spec));
   if (node.config && node.config._real) {
     $("btnRealStart")?.addEventListener("click", () => realNodeCommand(node, "start"));
     $("btnRealStop")?.addEventListener("click", () => realNodeCommand(node, "stop"));
   }
-  $("btnMaterialize")?.addEventListener("click", () => materializeNode(node, spec));
 }
 
 // Создать РЕАЛЬНУЮ ловушку на дашборде из блока-сервиса и привязать её к узлу.
@@ -544,7 +544,7 @@ async function materializeNode(node, spec) {
   if (btn) { btn.disabled = true; btn.textContent = "Создаётся…"; }
   try {
     const name = node.label || spec.name;
-    const res = await api.realCreateTrap({ name, profile_id: profileId, description: "Создано из конструктора" });
+    const res = await api.realCreateTrap({ name, profile_id: profileId, description: "Создано из конструктора", request_id: crypto.randomUUID() });
     const t = res.trap;
     node.config._real = {
       id: t.id, runtime: t.runtime_state || t.desired_state || "stopped",
@@ -566,12 +566,7 @@ async function realNodeCommand(node, action) {
   if (!r || !r.id) return;
   toast(`Команда «${action}» отправляется…`);
   try {
-    const res = await fetch(`/api/real/traps/${r.id}/command`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action }),
-    });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    r.runtime = action === "stop" ? "stopped" : "running";  // оптимистично
+    await req('POST', `/api/real/traps/${r.id}/command`, { action });
     renderNodes(); if (S.selection === node.id) renderInspector(); autosave();
     toast("Команда принята бэкендом", "ok");
     setTimeout(() => refreshRealState(node), 2600);  // подтянуть фактический статус
@@ -583,7 +578,7 @@ async function refreshRealState(node) {
   const r = node.config && node.config._real;
   if (!r || !r.id) return;
   try {
-    const res = await fetch("/api/real/traps").then(x => x.json());
+    const res = await req('GET', '/api/real/traps');
     const t = (res.items || []).find(x => x.id === r.id);
     if (t) {
       r.runtime = t.runtime_state; r.connectivity = t.connectivity;
@@ -673,7 +668,7 @@ function placeTrap(t, world) {
                        level: t.interaction_level, agent: t.agent?.hostname } },
   });
   renderNodes(); renderPalette($("paletteSearch")?.value || ""); select(S.chain.nodes.at(-1).id);
-  autosave(); $("canvasHint")?.style && ($("canvasHint").style.opacity = "0");
+  autosave(); if ($("canvasHint")) $("canvasHint").style.opacity = "0";
 }
 wrap.addEventListener("dragover", (e) => e.preventDefault());
 wrap.addEventListener("drop", (e) => {
@@ -692,6 +687,7 @@ wrap.addEventListener("drop", (e) => {
 function markDirty() { S.dirty = true; $("saveState").textContent = "не сохранено"; $("saveState").classList.add("dirty"); }
 let saveTimer = null;
 function autosave() {
+  if (!S.canManage) return;
   markDirty();
   clearTimeout(saveTimer);
   saveTimer = setTimeout(doSave, 650);
@@ -705,7 +701,8 @@ async function doSave() {
     });
     S.dirty = false;
     $("saveState").textContent = "сохранено"; $("saveState").classList.remove("dirty");
-  } catch (err) { toast("Ошибка сохранения: " + err.message, "err"); }
+    return true;
+  } catch (err) { toast("Ошибка сохранения: " + err.message, "err"); return false; }
 }
 
 // ================= Zoom-кнопки / fit =================
@@ -837,21 +834,25 @@ function animatePath(res) {
 // ================= БОЕВОЙ РЕЖИМ: развёртывание + живой поток атак =================
 async function toggleDeploy() {
   if (!S.chain) return;
-  const action = S.runtime.deployed ? "stop" : "deploy";
-  await doSave();
+  const action = Object.values(S.runtime.status).some(s => s === 'running') ? 'stop' : 'deploy';
+  if (!await doSave()) return;
   const st = await api.deploy(S.chain.id, action);
   applyRuntime(st);
-  if (st.deployed) { subscribeLive(); toast("Цепочка развёрнута — ловушки в эфире", "ok"); }
-  else { unsubscribeLive(); toast("Развёртывание остановлено"); }
+  subscribeLive();
+  toast(action === 'deploy' ? 'Развёртывание принято. Дождитесь запуска ловушек.' : 'Команды остановки приняты', 'ok');
 }
 
 function applyRuntime(st) {
   const wasDeployed = S.runtime.deployed;
   S.runtime.deployed = st.deployed;
   S.runtime.status = st.node_status || {};
+  for (const node of S.chain?.nodes || []) {
+    const trap = st.traps?.[node.id];
+    if (trap) node.config._real = { id: trap.id, runtime: trap.runtime_state, connectivity: trap.connectivity, agent: trap.agent?.hostname };
+  }
   if (!st.deployed && wasDeployed) S.runtime.hits = {};  // сброс счётчиков при остановке
   const btn = $("btnDeploy");
-  btn.textContent = st.deployed ? "В эфире" : "Развернуть";
+  btn.textContent = st.kpi?.active_traps ? 'Остановить' : 'Развернуть';
   btn.classList.toggle("live", st.deployed);
   $("kpiDock").classList.toggle("hidden", !st.deployed);
   $("feed").classList.toggle("hidden", !st.deployed);
@@ -861,7 +862,7 @@ function applyRuntime(st) {
 
 function subscribeLive() {
   unsubscribeLive();
-  const es = new EventSource(`/api/chains/${S.chain.id}/stream`);
+  const es = new EventSource(`${BASE}/api/chains/${S.chain.id}/stream`);
   S.runtime.es = es;
   es.onmessage = (e) => { try { handleLiveEvent(JSON.parse(e.data)); } catch (_) {} };
   es.onerror = () => { /* EventSource сам переподключится */ };
@@ -894,10 +895,6 @@ function handleLiveEvent(ev) {
 
 function updateKPI(k) {
   $("kpiTraps").textContent = k.active_traps ?? 0;
-  $("kpiAttacks").textContent = k.attacks ?? 0;
-  $("kpiEvents").textContent = k.events_total ?? 0;
-  $("kpiSources").textContent = k.unique_sources ?? 0;
-  $("kpiLogins").textContent = k.login_attempts ?? 0;
 }
 
 function addFeed(it) {
@@ -998,9 +995,9 @@ function realIcon(typeId) {
 async function loadRealData() {
   try {
     const [catRes, trapRes, profRes] = await Promise.all([
-      fetch("/api/real/catalog").then(r => r.json()),
-      fetch("/api/real/traps").then(r => r.json()),
-      fetch("/api/real/profiles").then(r => r.json()).catch(() => ({ items: [] })),
+      req('GET', '/api/real/catalog'),
+      req('GET', '/api/real/traps'),
+      api.realProfiles(),
     ]);
     S.realOnline = !!(catRes.online && trapRes.online);
     S.realProfiles = profRes.items || [];
@@ -1051,34 +1048,19 @@ function autoPlaceAll() {
     });
     n++;
   }
-  if (n) $("canvasHint")?.style && ($("canvasHint").style.opacity = "0");
+  if (n && $("canvasHint")) $("canvasHint").style.opacity = "0";
 }
 // Синхронизация доски с дашбордом: обновить статусы, убрать удалённые, авто-залить пустую доску.
 async function syncReal(auto = false) {
   await loadRealData();
   if (S.chain) {
-    const ids = new Set(S.realTraps.map(t => t.id));
-    // оставляем: проектные блоки известного типа + реальные ловушки, ещё живущие в дашборде.
-    // убираем: удалённые из дашборда ловушки и неизвестные (фейковые) остатки.
-    const keepIds = new Set(S.chain.nodes.filter(n => {
-      const r = n.config && n.config._real;
-      if (r) return ids.has(r.id);
-      return !!S.typesById[n.type];
-    }).map(n => n.id));
-    S.chain.nodes = S.chain.nodes.filter(n => keepIds.has(n.id));
-    S.chain.edges = S.chain.edges.filter(e => keepIds.has(e.source) && keepIds.has(e.target));
     // обновить статусы реальных ловушек
     for (const n of S.chain.nodes) {
       const r = n.config && n.config._real; if (!r) continue;
       const t = S.realTraps.find(x => x.id === r.id);
       if (t) { r.runtime = t.runtime_state; r.connectivity = t.connectivity; r.agent = t.agent?.hostname; }
     }
-    ensureRoot();  // всегда держим корневой узел «Интернет»
-    // под ключ: если реальных ловушек на доске ещё нет — разложить все и соединить цепочкой
-    const freshBoard = !S.chain.nodes.some(n => n.config?._real);
-    if (freshBoard && S.realTraps.length) autoPlaceAll();
-    renderNodes(); if (S.selection) renderInspector(); autosave();
-    if (freshBoard) setTimeout(fit, 40);
+    renderNodes(); if (S.selection) renderInspector();
   }
   renderPalette($("paletteSearch")?.value || "");
   if (!auto) toast(S.realOnline ? "Синхронизировано с дашбордом" : "Бэкенд дашборда недоступен",
@@ -1141,6 +1123,7 @@ function closeMenu() { $("chainMenu").classList.add("hidden"); }
 
 // ================= Загрузка цепочки =================
 async function loadChain(id) {
+  unsubscribeLive();
   if (!id) { S.chain = null; renderAll(); $("chainName").textContent = "—"; return; }
   S.chain = await api.getChain(id);
   S.vp = S.chain.viewport && S.chain.viewport.zoom ? { ...S.chain.viewport } : { x: 120, y: 80, zoom: 1 };
@@ -1149,6 +1132,8 @@ async function loadChain(id) {
   renderAll(); renderInspector();
   $("saveState").textContent = "сохранено"; $("saveState").classList.remove("dirty");
   if (S.chain.nodes.length) setTimeout(fit, 30);
+  applyRuntime(await api.runtime(id));
+  subscribeLive();
 }
 
 // ================= Тема =================
@@ -1174,9 +1159,6 @@ window.addEventListener("keydown", (e) => {
 function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 function rid() { return Math.random().toString(36).slice(2, 12); }
 
-// ================= Синхронизация темы с панелью (embed) =================
-// Когда модуль открыт внутри панели (iframe), темой управляет панель:
-// начальная тема приходит в ?theme=, живые смены — через postMessage.
 const _params = new URLSearchParams(location.search);
 const EMBEDDED = _params.has("embed") || _params.has("theme");
 function applyTheme(t) {
@@ -1185,19 +1167,18 @@ function applyTheme(t) {
   setTimeout(() => { try { drawMinimap(); } catch (_) {} }, 50);
 }
 window.addEventListener("message", (e) => {
+  if (e.origin !== location.origin || e.source !== parent) return;
   const d = e.data;
   if (d && d.type === "hf-theme") applyTheme(d.theme);
 });
 
 // ================= Старт =================
 async function init() {
-  const urlTheme = _params.get("theme");
-  if (urlTheme) document.documentElement.dataset.theme = urlTheme;   // тема от панели
-  else {
-    const saved = localStorage.getItem("hf_theme");
-    if (saved) document.documentElement.dataset.theme = saved;
-  }
-  if (EMBEDDED) document.body.classList.add("embedded");   // скрыть свой тумблер темы
+  const session = await fetch('/api/session');
+  if (!session.ok) throw new Error('Войдите в HoneyForge');
+  S.canManage = (await session.json()).user.role === 'admin';
+  applyTheme(_params.get("theme") || localStorage.getItem("hf_theme"));
+  if (EMBEDDED) document.body.classList.add("embedded");
 
   // Проектные блоки защиты (инфраструктура/защита/приманки) — из реестра конструктора.
   // Реальные ловушки дашборда добавляются поверх как типы real/* в syncReal().
@@ -1206,14 +1187,15 @@ async function init() {
   S.catsById = Object.fromEntries(S.registry.categories.map(c => [c.id, c]));
 
   await refreshChains();
+  if (!S.chains.length && S.canManage) { await api.createChain({ name: 'Новая ловушка' }); await refreshChains(); }
   await loadChain(S.chains[0]?.id);
   await syncReal(true);  // подтянуть реальные ловушки, корень «Интернет» и разложить под ключ
 
-  // Авто-синхронизация с дашбордом каждые 2 минуты (тихо, без тоста)
-  setInterval(() => { syncReal(true).catch(() => {}); }, 120000);
+  setInterval(() => syncReal(true).catch(() => {}), 120000);
 
   // обработчики UI
   $("btnTheme").addEventListener("click", toggleTheme);
+  $("btnDeploy").addEventListener('click', () => toggleDeploy().catch(e => toast(e.message, 'err')));
   $("btnZoomIn").addEventListener("click", () => zoomBy(1.2));
   $("btnZoomOut").addEventListener("click", () => zoomBy(1 / 1.2));
   $("btnFit").addEventListener("click", fit);

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
 	"time"
 
 	"honey-forge/internal/contract"
@@ -83,7 +84,7 @@ func serve(ctx context.Context, conn net.Conn, l Listener, config Config, snapsh
 		return sink(eventCtx, events.AgentEvent{
 			EventID:         string(contract.NewID()),
 			EventType:       kind,
-			TypeID:          "tcp-banner",
+			TypeID:          snapshot.TypeID,
 			TypeVersion:     1,
 			ProfileRevision: int64(snapshot.ProfileRevision),
 			OccurredAt:      time.Now().UTC().Format(time.RFC3339Nano),
@@ -120,6 +121,7 @@ func serve(ctx context.Context, conn net.Conn, l Listener, config Config, snapsh
 		}
 
 		captured := 0
+		pending := ""
 		buffer := make([]byte, 4096)
 		for {
 			if err := conn.SetReadDeadline(time.Now().Add(30 * time.Second)); err != nil {
@@ -142,6 +144,43 @@ func serve(ctx context.Context, conn net.Conn, l Listener, config Config, snapsh
 					}
 
 					captured += count
+				}
+
+				if snapshot.TypeID == "custom-tcp" {
+					pending += string(buffer[:n])
+					for {
+						end := strings.IndexByte(pending, '\n')
+						if end < 0 {
+							if len(pending) > 4096 {
+								reason = "network_error"
+								return nil
+							}
+							break
+						}
+						if end > 4096 {
+							reason = "network_error"
+							return nil
+						}
+						line := strings.TrimSuffix(pending[:end], "\r")
+						pending = pending[end+1:]
+						for _, rule := range l.Rules {
+							if !rule.matches(line) {
+								continue
+							}
+							if err := conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+								return err
+							}
+							if _, err := io.WriteString(conn, rule.Response); err != nil {
+								reason = "network_error"
+								return nil
+							}
+							if rule.Close {
+								reason = "banner_sent"
+								return nil
+							}
+							break
+						}
+					}
 				}
 			}
 

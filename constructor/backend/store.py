@@ -8,6 +8,8 @@
 from __future__ import annotations
 
 import json
+import os
+from contextvars import ContextVar
 import threading
 import time
 from pathlib import Path
@@ -18,8 +20,8 @@ from .models import (
 )
 from .node_registry import default_config
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
-DATA_FILE = DATA_DIR / "chains.json"
+DATA_DIR = Path(os.environ.get('CONSTRUCTOR_DATA_DIR', Path(__file__).resolve().parent.parent / 'data'))
+organization = ContextVar('organization')
 
 
 def _node(ntype: str, x: float, y: float, label: str | None = None,
@@ -97,29 +99,30 @@ def templates_payload() -> list[dict[str, str]]:
 
 
 class ChainStore:
-    def __init__(self) -> None:
+    def __init__(self, org: str) -> None:
+        self.data_file = DATA_DIR / (org + '.json')
         self._lock = threading.RLock()
         self._chains: dict[str, Chain] = {}
         self._load()
-        if not self._chains:
-            self._seed()
 
     # --- persistence ---
     def _load(self) -> None:
-        if not DATA_FILE.exists():
+        if not self.data_file.exists():
             return
         try:
-            raw = json.loads(DATA_FILE.read_text(encoding="utf-8"))
+            raw = json.loads(self.data_file.read_text(encoding="utf-8"))
             for item in raw.get("chains", []):
                 c = Chain.model_validate(item)
                 self._chains[c.id] = c
-        except Exception:
-            pass
+        except (ValueError, OSError) as error:
+            raise RuntimeError('Cannot load constructor chains') from error
 
     def _save(self) -> None:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         payload = {"chains": [c.model_dump() for c in self._chains.values()]}
-        DATA_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        temporary = self.data_file.with_suffix('.tmp')
+        temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        temporary.replace(self.data_file)
 
     def _seed(self) -> None:
         # Без демо-контента: одна пустая доска, оператор наполняет её сам.
@@ -155,7 +158,13 @@ class ChainStore:
             c = self._chains.get(chain_id)
             if not c:
                 return None
-            patch = data.model_dump(exclude_none=True)
+            patch = {k: getattr(data, k) for k in data.model_fields_set if getattr(data, k) is not None}
+            if data.nodes is not None:
+                previous = {n.id: n for n in c.nodes}
+                for node in data.nodes:
+                    old = previous.get(node.id)
+                    if old and 'password' not in node.config and 'password' in old.config:
+                        node.config['password'] = old.config['password']
             for k, v in patch.items():
                 setattr(c, k, v)
             c.updated_at = time.time()
@@ -178,6 +187,9 @@ class ChainStore:
                 return None
             clone = Chain.model_validate(src.model_dump())
             clone.id = Chain().id
+            clone.bindings = {}
+            for node in clone.nodes:
+                node.config.pop('_real', None)
             clone.name = f"{src.name} (копия)"
             clone.created_at = clone.updated_at = time.time()
             self._chains[clone.id] = clone
@@ -185,4 +197,17 @@ class ChainStore:
             return clone
 
 
-store = ChainStore()
+class OrganizationStore:
+    def __init__(self):
+        self.stores = {}
+        self.lock = threading.RLock()
+
+    def __getattr__(self, name):
+        with self.lock:
+            org = organization.get()
+            if org not in self.stores:
+                self.stores[org] = ChainStore(org)
+            return getattr(self.stores[org], name)
+
+
+store = OrganizationStore()

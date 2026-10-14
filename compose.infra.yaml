@@ -1,0 +1,90 @@
+x-logging: &bounded-logging
+  driver: local
+  options:
+    max-size: '10m'
+    max-file: '3'
+
+services:
+  redis:
+    logging: *bounded-logging
+    image: redis:7.4.6
+    entrypoint: ["/bin/sh", "/tls/redis.sh"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD}
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./deploy/tls/redis.sh:/tls/redis.sh:ro
+      - ./certs/redis.crt:/certs/redis.crt:ro
+      - ./certs/redis.key:/certs/redis.key:ro
+      - ./certs/ca.crt:/certs/ca.crt:ro
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$${REDIS_PASSWORD}\" redis-cli --tls --cacert /certs/ca.crt ping | grep -qx PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  kafka:
+    logging: *bounded-logging
+    image: apache/kafka:4.1.2
+    hostname: kafka
+    ports:
+      - "127.0.0.1:29092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: CONTROLLER://:29093,TLS_HOST://:9092,TLS://:19092
+      KAFKA_ADVERTISED_LISTENERS: TLS_HOST://127.0.0.1:29092,TLS://kafka:19092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:SSL,TLS:SSL,TLS_HOST:SSL
+      KAFKA_INTER_BROKER_LISTENER_NAME: TLS
+      KAFKA_SSL_KEYSTORE_TYPE: PEM
+      KAFKA_SSL_KEYSTORE_LOCATION: /certs/kafka.pem
+      KAFKA_SSL_TRUSTSTORE_TYPE: PEM
+      KAFKA_SSL_TRUSTSTORE_LOCATION: /certs/ca.crt
+      KAFKA_SSL_ENABLED_PROTOCOLS: TLSv1.2,TLSv1.3
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      CLUSTER_ID: 4L6g3nShT-eMCtK--X86sw
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_HEAP_OPTS: '-Xms128m -Xmx256m'
+      KAFKA_LOG_RETENTION_HOURS: 24
+      KAFKA_LOG_RETENTION_BYTES: 268435456
+      KAFKA_LOG_SEGMENT_BYTES: 16777216
+      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 60000
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+      - ./certs/kafka.pem:/certs/kafka.pem:ro
+      - ./certs/ca.crt:/certs/ca.crt:ro
+      - ./certs/kafka-client.properties:/certs/kafka-client.properties:ro
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server kafka:19092 --command-config /certs/kafka-client.properties >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+  postgres:
+    logging: *bounded-logging
+    image: postgres:17
+    entrypoint: ["/bin/sh", "/tls/postgres.sh"]
+    environment:
+      POSTGRES_USER: honey_forge
+      POSTGRES_DB: honey_forge
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./deploy/tls/postgres.sh:/tls/postgres.sh:ro
+      - ./certs/postgres.crt:/certs/postgres.crt:ro
+      - ./certs/postgres.key:/certs/postgres.key:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U honey_forge -d honey_forge"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+volumes:
+  redis_data:
+  kafka_data:
+  postgres_data:

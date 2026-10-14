@@ -45,7 +45,7 @@ func TestSupportedTypesAreStableAndDetached(t *testing.T) {
 		}
 	}
 
-	if !reflect.DeepEqual(ids, []string{"tcp-banner", "redis-emulator", "honeytoken-http", "ssh-high-interaction", "ssh-high-interaction"}) {
+	if !reflect.DeepEqual(ids, []string{"tcp-banner", "redis-emulator", "honeytoken-http", "ssh-high-interaction", "ssh-high-interaction", "custom-tcp"}) {
 		t.Fatal("capability ordering changed", ids)
 	}
 
@@ -61,7 +61,9 @@ func TestForType(t *testing.T) {
 		want  int
 		error bool
 	}{
-		{name: "", want: 5},
+		{name: "", want: 6},
+		{name: "tcp", want: 2},
+		{name: "custom-tcp", want: 1},
 		{name: "tcp-banner", want: 1},
 		{name: "redis-emulator", want: 1},
 		{name: "honeytoken-http", want: 1},

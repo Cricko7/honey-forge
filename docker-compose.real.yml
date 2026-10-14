@@ -148,6 +148,23 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  constructor:
+    logging: *bounded-logging
+    build:
+      context: .
+      dockerfile: constructor/Dockerfile
+    environment:
+      HONEYFORGE_API_BASE: https://api:8443
+      HONEYFORGE_CA_FILE: /certs/ca.crt
+      HONEYFORGE_ORIGIN: https://localhost:8443
+    volumes:
+      - constructor_data:/data
+      - tls_web:/certs:ro
+    depends_on:
+      api:
+        condition: service_started
+    restart: unless-stopped
+
   web:
     logging: *bounded-logging
     build:
@@ -166,6 +183,7 @@ services:
         aliases: [resources.localhost]
     depends_on:
       - api
+      - constructor
     restart: unless-stopped
 
   # Необязательный ручной агент для ловушек, созданных без AUTO_DEPLOY_TRAPS.
@@ -294,6 +312,7 @@ services:
     restart: "no"
 
 volumes:
+  constructor_data:
   tls_private:
   tls_postgres:
   tls_redis:

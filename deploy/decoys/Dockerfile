@@ -12,7 +12,7 @@ COPY deploy/decoys/entrypoint.sh /entrypoint.sh
 ENTRYPOINT ["/bin/sh", "/entrypoint.sh"]
 
 FROM runtime AS tcp
-ENV NM_ROLE=tcp-banner
+ENV NM_ROLE=tcp
 
 FROM redis:7.4.6-alpine AS redis-binary
 

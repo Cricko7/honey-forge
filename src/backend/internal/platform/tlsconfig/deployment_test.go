@@ -11,7 +11,7 @@ import (
 // Check deployment trust boundaries too: secure clients cannot compensate for
 // accidentally restoring plaintext listeners or disabling upstream verification.
 func TestComposeTelemetryTLS(t *testing.T) {
-	for _, name := range []string{"compose.yaml", "docker-compose.real.yml"} {
+	for _, name := range []string{"compose.infra.yaml", "docker-compose.real.yml"} {
 		t.Run(name, func(t *testing.T) {
 			raw, err := os.ReadFile("../../../../../" + name)
 			if err != nil {

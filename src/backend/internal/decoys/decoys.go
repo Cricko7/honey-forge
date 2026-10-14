@@ -31,26 +31,7 @@ type definition struct {
 }
 
 var builtins = []definition{
-	{
-		typeID:  "tcp-banner",
-		version: 1,
-		start: func(ctx context.Context, snapshot profiles.Snapshot, host string, sink func(context.Context, events.AgentEvent) error) (Runtime, error) {
-			return tcptrap.Start(ctx, snapshot, host, tcptrap.Sink(sink))
-		},
-		ports: func(ctx context.Context, snapshot profiles.Snapshot) ([]int, error) {
-			config, err := tcptrap.ParseConfig(ctx, snapshot)
-			if err != nil {
-				return nil, err
-			}
-
-			ports := make([]int, 0, len(config.Listeners))
-			for _, listener := range config.Listeners {
-				ports = append(ports, listener.Port)
-			}
-
-			return ports, nil
-		},
-	},
+	tcpDefinition("tcp-banner"),
 	{
 		typeID:  "redis-emulator",
 		version: 1,
@@ -83,6 +64,27 @@ var builtins = []definition{
 	},
 	sshDefinition(1),
 	sshDefinition(2),
+	tcpDefinition("custom-tcp"),
+}
+
+func tcpDefinition(typeID string) definition {
+	return definition{
+		typeID: typeID, version: 1,
+		start: func(ctx context.Context, snapshot profiles.Snapshot, host string, sink func(context.Context, events.AgentEvent) error) (Runtime, error) {
+			return tcptrap.Start(ctx, snapshot, host, tcptrap.Sink(sink))
+		},
+		ports: func(ctx context.Context, snapshot profiles.Snapshot) ([]int, error) {
+			config, err := tcptrap.ParseConfig(ctx, snapshot)
+			if err != nil {
+				return nil, err
+			}
+			ports := make([]int, 0, len(config.Listeners))
+			for _, listener := range config.Listeners {
+				ports = append(ports, listener.Port)
+			}
+			return ports, nil
+		},
+	}
 }
 
 func sshDefinition(version int32) definition {
@@ -135,7 +137,7 @@ func ForType(typeID string) ([]agentws.SupportedType, error) {
 
 	var matching []agentws.SupportedType
 	for _, supported := range all {
-		if supported.TypeID == typeID {
+		if supported.TypeID == typeID || typeID == "tcp" && (supported.TypeID == "tcp-banner" || supported.TypeID == "custom-tcp") {
 			matching = append(matching, supported)
 		}
 	}
