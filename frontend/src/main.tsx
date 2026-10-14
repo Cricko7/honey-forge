@@ -12,6 +12,7 @@ import { LoginPage } from '@/pages/Login'
 import { RegisterPage } from '@/pages/Register'
 import { DashboardPage } from '@/pages/Dashboard'
 import { NetworkBuilderPage } from '@/pages/NetworkBuilder'
+import { ConstructorPage } from '@/pages/Constructor'
 import { TrapsPage } from '@/pages/Traps'
 import { TrapDetailPage } from '@/pages/TrapDetail'
 import { EventsPage } from '@/pages/Events'
@@ -34,6 +35,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <DashboardPage /> },
       { path: 'network', element: <NetworkBuilderPage /> },
+      { path: 'constructor', element: <ConstructorPage /> },
       { path: 'traps', element: <TrapsPage /> },
       { path: 'traps/:id', element: <TrapDetailPage /> },
       { path: 'events', element: <EventsPage /> },
