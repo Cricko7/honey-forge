@@ -44,6 +44,11 @@ func (d DockerCLI) Prepare(ctx context.Context) error {
 		}
 	}
 
+	return d.RefreshConnections(ctx)
+}
+
+// RefreshConnections reattaches replaced Compose peers without repeating Swarm bootstrap.
+func (d DockerCLI) RefreshConnections(ctx context.Context) error {
 	hostname, err := os.Hostname()
 	if err != nil {
 		return fmt.Errorf("get orchestrator container ID: %w", err)

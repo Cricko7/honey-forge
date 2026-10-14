@@ -7,6 +7,8 @@ import subprocess
 import sys
 import threading
 import unittest
+import uuid
+import datetime
 
 
 class ServerTests(unittest.TestCase):
@@ -18,6 +20,7 @@ class ServerTests(unittest.TestCase):
         self.events = []
         self.frames = []
         self.ready = queue.Queue()
+        self.completed = queue.Queue()
         root = Path(__file__).parent
         code = '\n'.join((root / name).read_text(encoding='utf-8') for name in ('engine.py','pipeline_server.py','server.py'))
         self.process = subprocess.Popen([sys.executable, '-I', '-u', '-c', code], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -44,6 +47,8 @@ class ServerTests(unittest.TestCase):
             else:
                 event = message['event']
                 self.events.append(event)
+                if event['event_type'] == 'http.response' and 'pipeline_id' in event['data']:
+                    self.completed.put(event)
                 try:
                     self.process.stdin.write(json.dumps({'event_id': event['event_id'], 'ok': True}) + '\n')
                     self.process.stdin.flush()
@@ -98,6 +103,27 @@ class ServerTests(unittest.TestCase):
             response.read()
         finally:
             connection.close()
+
+    def test_pipeline_completion_and_duplicate_delivery(self):
+        delivery = {'request_id': str(uuid.uuid4()), 'token': str(uuid.uuid4()),
+                    'source_id': str(uuid.uuid4()), 'trace_id': str(uuid.uuid4()), 'hop': 1,
+                    'source_ip': '127.0.0.1', 'source_port': 1234, 'service': 'web',
+                    'method': 'POST', 'path': '/api', 'payload': {'count': 3},
+                    'expires_at': (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=1)).isoformat()}
+        message = json.dumps({'type': 'pipeline_receive', 'delivery': delivery}) + '\n'
+        self.process.stdin.write(message + message)
+        self.process.stdin.flush()
+        event = self.completed.get(timeout=5)
+        self.assertEqual(event['data']['pipeline_id'], delivery['trace_id'])
+        self.assertEqual(event['data']['status'], 201)
+        # A normal HTTP round trip is a barrier on the same event loop.
+        connection = http.client.HTTPConnection('127.0.0.1', self.port, timeout=5)
+        try:
+            connection.request('POST', '/api', body='{}')
+            connection.getresponse().read()
+        finally:
+            connection.close()
+        self.assertEqual(sum(e['event_type'] == 'http.pipeline_received' for e in self.events), 1)
 
 
 if __name__ == '__main__':

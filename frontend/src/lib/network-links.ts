@@ -1,5 +1,14 @@
 type Link = { source_id: string; target_id: string }
 
+export function trapLinkLabel(link: Link, config?: Record<string, unknown>): string {
+  const blocks = config?.blocks
+  if (!Array.isArray(blocks)) return 'копия трафика'
+
+  const sendsJSON = blocks.some((block) => block?.kind === 'send' && block.config?.target_id === link.target_id)
+
+  return sendsJSON ? 'передача JSON' : 'копия трафика'
+}
+
 export function trapLinkKey(link: Link): string {
   return `link:${link.source_id}:${link.target_id}`
 }

@@ -141,6 +141,9 @@ func (h *Handler) serveMessages(entry *sessionEntry, session *agentSession, hell
 				return err
 			}
 		case <-claimTicker.C:
+			if err := h.dispatchPipeline(entry, session); err != nil {
+				return err
+			}
 			if time.Since(time.Unix(0, session.heartbeatAt.Load())) > 30*time.Second {
 				_ = session.socket.CloseCode(4408, "heartbeat_timeout")
 				return nil

@@ -47,7 +47,7 @@ func TestSeparateHTTPRuntimesChainBeyondNestedCallLimit(t *testing.T) {
 			if !pipeline.AllowsSend(snapshot, r) {
 				t.Error("unconfigured send")
 			}
-			r.Token = ids[0]
+			r.Token = string(contract.NewID())
 			return runtimes[r.TargetID].Receive(ctx, pipeline.Delivery{Request: r, SourceID: id, TraceID: ids[0], Hop: 1, ExpiresAt: time.Now().Add(pipeline.Lifetime)})
 		})
 		runtime, err := Start(ctx, snapshot, "127.0.0.1", func(ctx context.Context, e events.AgentEvent) error {

@@ -16,7 +16,7 @@ import (
 const QueueCapacity = 16
 const MaxPayloadBytes = 8192
 const MaxHops = 4096
-const Lifetime = 30 * time.Second
+const Lifetime = 5 * time.Minute
 
 type Request struct {
 	RequestID  string          `json:"request_id" validate:"required,uuid"`

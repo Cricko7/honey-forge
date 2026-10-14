@@ -151,6 +151,7 @@ function buildNode(node) {
   badge.className = "node-hits" + (hits ? "" : " hidden");
   badge.dataset.hits = hits;
   badge.textContent = hits;
+  badge.title = `Событий узла за текущий просмотр: ${hits}. Начало и завершение блока считаются отдельно.`;
   el.appendChild(badge);
 
   // порты
@@ -871,7 +872,6 @@ function applyRuntime(st) {
   btn.textContent = st.kpi?.active_traps ? 'Остановить' : 'Развернуть';
   btn.classList.toggle("live", st.deployed);
   $("kpiDock").classList.toggle("hidden", !st.deployed);
-  $("feed").classList.toggle("hidden", !st.deployed);
   if (st.kpi) updateKPI(st.kpi);
   renderNodes();
 }
@@ -890,39 +890,17 @@ function unsubscribeLive() {
 function handleLiveEvent(ev) {
   if (ev.kind === "hello") { applyRuntime(ev.status); }
   else if (ev.kind === "kpi") { updateKPI(ev.kpi); }
-  else if (ev.kind === "attack_start") {
-    addFeed({ title: `Новая атака · ${ev.tool}`, ip: `${ev.source_ip} · ${ev.country}`,
-      detail: `нарушитель начал обход цепочки (${ev.steps} шагов)`, sev: "high", meta: ev.cc });
-  } else if (ev.kind === "hop") {
+  else if (ev.kind === "hop") {
     if (ev.edge_id) flashAttackEdge(ev.edge_id);
     if (ev.node_id) {
       pulseNode(ev.node_id, ev.is_detection);
       floatLabel(ev.node_id, ev.technique !== "—" ? ev.technique : ev.title);
     }
-    addFeed({
-      title: ev.title, ip: `${ev.source_ip} · ${ev.country}`, detail: ev.detail,
-      sev: ev.severity, meta: ev.technique !== "—" ? `${ev.tactic} · ${ev.technique}` : "",
-    });
-  } else if (ev.kind === "attack_end") {
-    addFeed({ title: ev.detected ? "Атака детектирована" : "Атака завершена",
-      ip: "", detail: ev.verdict, sev: ev.detected ? "critical" : "medium", meta: `узлов: ${ev.reached}` });
   }
 }
 
 function updateKPI(k) {
   $("kpiTraps").textContent = k.active_traps ?? 0;
-}
-
-function addFeed(it) {
-  const list = $("feedList");
-  const d = document.createElement("div");
-  d.className = "feed-item sev-" + (it.sev || "low");
-  d.innerHTML = `<div class="fi-top"><span class="fi-title">${esc(it.title)}</span>
-      <span class="fi-ip">${esc(it.ip || "")}</span></div>
-    <div class="fi-detail">${esc(it.detail || "")}</div>
-    ${it.meta ? `<div class="fi-meta">${esc(it.meta)}</div>` : ""}`;
-  list.prepend(d);
-  while (list.children.length > 60) list.removeChild(list.lastChild);
 }
 
 // найти узлы ребра по id и построить путь
@@ -977,6 +955,7 @@ function pulseNode(nodeId, isDetection) {
   if (badge) {
     badge.dataset.hits = S.runtime.hits[nodeId];
     badge.textContent = S.runtime.hits[nodeId];
+    badge.title = `Событий узла за текущий просмотр: ${S.runtime.hits[nodeId]}. Начало и завершение блока считаются отдельно.`;
     badge.classList.remove("hidden");
     badge.classList.remove("bump"); void badge.offsetWidth; badge.classList.add("bump");
   }
@@ -987,8 +966,12 @@ function floatLabel(nodeId, text) {
   if (!text) return;
   const node = S.chain?.nodes.find(n => n.id === nodeId);
   if (!node) return;
+
+  nodeLayer.querySelector(`.hit-float[data-node-id="${nodeId}"]`)?.remove();
+
   const d = document.createElement("div");
   d.className = "hit-float";
+  d.dataset.nodeId = nodeId;
   d.textContent = text;
   d.style.left = (node.position.x + NODE_W / 2) + "px";
   d.style.top = node.position.y + "px";

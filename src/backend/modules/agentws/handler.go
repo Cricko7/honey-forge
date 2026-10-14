@@ -24,6 +24,7 @@ import (
 )
 
 type Handler struct {
+	PipelineStore    PipelineStore
 	PipelineSnapshot func(context.Context, Identity, string) (profiles.Snapshot, error)
 	pipelineMu       sync.Mutex
 	pipelineTokens   map[string]pipelineCapability
@@ -167,6 +168,7 @@ func (h *Handler) run(session *agentSession) (runErr error) {
 
 	session.trafficEnabled = hello.TrafficMirroring
 	session.pipelineEnabled = hello.HTTPPipeline && session.identity.TypeID == "custom-http" && h.PipelineSnapshot != nil
+	session.pipelineReceipts = session.pipelineEnabled && hello.HTTPPipelineReceipts
 	session.pipeline = make(chan pipelineDelivery, pipeline.QueueCapacity)
 	session.traffic = make(chan traffic.Delivery, traffic.QueueCapacity)
 	entry := h.registry.entry(session.identity.TrapID)
@@ -200,7 +202,7 @@ func (h *Handler) run(session *agentSession) (runErr error) {
 
 	session.heartbeatAt.Store(time.Now().UnixNano())
 
-	if err := session.socket.Reply(session.ctx, first, "agent.welcome", map[string]any{
+	welcome := map[string]any{
 		"connection_id":                 session.connectionID,
 		"trap_id":                       session.identity.TrapID,
 		"traffic_mirroring":             h.TrafficTargets != nil && hello.TrafficMirroring,
@@ -214,7 +216,12 @@ func (h *Handler) run(session *agentSession) (runErr error) {
 		"current_configuration":         state.CurrentConfiguration,
 		"desired_profile_revision":      state.DesiredProfileRevision,
 		"desired_state":                 desiredState(state),
-	}); err != nil {
+	}
+	if hello.HTTPPipelineReceipts {
+		welcome["http_pipeline_receipts"] = session.pipelineReceipts && h.PipelineStore != nil
+	}
+
+	if err := session.socket.Reply(session.ctx, first, "agent.welcome", welcome); err != nil {
 		return fmt.Errorf("send welcome: %w", err)
 	}
 
@@ -260,18 +267,19 @@ func desiredState(state State) string {
 }
 
 type agentSession struct {
-	pipelineEnabled bool
-	pipeline        chan pipelineDelivery
-	trafficEnabled  bool
-	traffic         chan traffic.Delivery
-	identity        Identity
-	token           string
-	socket          *stream.Socket
-	ctx             context.Context
-	cancel          context.CancelFunc
-	connectionID    string
-	active          atomic.Bool
-	heartbeatAt     atomic.Int64
+	pipelineEnabled  bool
+	pipelineReceipts bool
+	pipeline         chan pipelineDelivery
+	trafficEnabled   bool
+	traffic          chan traffic.Delivery
+	identity         Identity
+	token            string
+	socket           *stream.Socket
+	ctx              context.Context
+	cancel           context.CancelFunc
+	connectionID     string
+	active           atomic.Bool
+	heartbeatAt      atomic.Int64
 }
 
 type sessionEntry struct {

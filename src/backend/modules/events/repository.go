@@ -157,6 +157,10 @@ func (r *Repository) Ingest(ctx context.Context, identity agentws.Identity, conn
 				continue
 			}
 
+			if err := completePipeline(ctx, tx, identity, event); err != nil {
+				return err
+			}
+
 			if err := tx.QueryRow(ctx, `UPDATE organization_changes SET sequence=sequence+1 WHERE organization_id=$1 RETURNING sequence`, org).Scan(&sequence); err != nil {
 				return fmt.Errorf("advance event journal: %w", err)
 			}

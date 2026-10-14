@@ -86,13 +86,17 @@ func (c *LocalClient) SendPipeline(ctx context.Context, r pipeline.Request) erro
 
 func (c *LocalClient) receivePipeline(raw json.RawMessage) error {
 	var d pipeline.Delivery
-	if json.Unmarshal(raw, &d) != nil || pipeline.Check(d.Request) != nil || !contract.ValidID(d.TraceID) || !contract.ValidID(d.Token) || d.Hop < 1 || d.Hop > pipeline.MaxHops || !time.Now().Before(d.ExpiresAt) {
+	if json.Unmarshal(raw, &d) != nil || pipeline.Check(d.Request) != nil || !contract.ValidID(d.TraceID) || !contract.ValidID(d.Token) || d.Hop < 1 || d.Hop > pipeline.MaxHops {
 		return fmt.Errorf("invalid pipeline delivery")
+	}
+	if !time.Now().Before(d.ExpiresAt) {
+		return nil
 	}
 	select {
 	case c.PipelineIncoming <- d:
 		return nil
 	default:
-		return fmt.Errorf("pipeline runtime queue full")
+		// The durable server queue retries admission; overload must not kill the worker.
+		return nil
 	}
 }

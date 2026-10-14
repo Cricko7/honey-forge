@@ -62,13 +62,14 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 	}
 
 	helloID, err := w.send("agent.hello", agentws.AgentHello{
-		HTTPPipeline:     true,
-		TrafficMirroring: true,
-		BootID:           opts.BootID,
-		AgentVersion:     "1.0",
-		Hostname:         opts.Hostname,
-		SupportedTypes:   supported,
-		Runtime:          s.Runtime(),
+		HTTPPipeline:         true,
+		HTTPPipelineReceipts: true,
+		TrafficMirroring:     true,
+		BootID:               opts.BootID,
+		AgentVersion:         "1.0",
+		Hostname:             opts.Hostname,
+		SupportedTypes:       supported,
+		Runtime:              s.Runtime(),
 	})
 	if err != nil {
 		return err
@@ -93,11 +94,12 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 	}
 
 	var body struct {
-		HTTPPipeline     bool               `json:"http_pipeline"`
-		TrafficMirroring bool               `json:"traffic_mirroring"`
-		TrapID           string             `json:"trap_id"`
-		Interval         int                `json:"heartbeat_interval_seconds"`
-		Configuration    *profiles.Snapshot `json:"current_configuration"`
+		HTTPPipeline         bool               `json:"http_pipeline"`
+		HTTPPipelineReceipts bool               `json:"http_pipeline_receipts"`
+		TrafficMirroring     bool               `json:"traffic_mirroring"`
+		TrapID               string             `json:"trap_id"`
+		Interval             int                `json:"heartbeat_interval_seconds"`
+		Configuration        *profiles.Snapshot `json:"current_configuration"`
 	}
 	if welcome.Type != "agent.welcome" || welcome.ReplyTo == nil || *welcome.ReplyTo != helloID || payload(welcome, &body) != nil || body.TrapID != opts.TrapID {
 		return fmt.Errorf("invalid backend welcome")
@@ -332,6 +334,8 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 				}
 
 				pending = nil
+				// Drain an acknowledged backlog immediately; the interval only batches idle arrivals.
+				flush.Reset(0)
 			case "command.dispatch":
 				var dispatch commands.Dispatch
 				if err := payload(message, &dispatch); err != nil {

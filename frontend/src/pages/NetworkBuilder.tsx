@@ -21,7 +21,7 @@ import { AddTrapModal, defaultConfig } from './network/AddTrapModal'
 import { useDeploymentNodes, useCanManage, useTraps, useCatalog, useCreateProfile, useCreateTrap, useLiveStream, useProfiles, useTrapLinks, useCreateTrapLink, useDeleteTrapLink } from '@/api/hooks'
 import { configPorts } from '@/lib/profile-config'
 import { ApiError } from '@/api/client'
-import { canConnectTraps, trapLinkKey } from '@/lib/network-links'
+import { canConnectTraps, trapLinkKey, trapLinkLabel } from '@/lib/network-links'
 import { useThemeColors } from '@/lib/theme'
 
 const ATTACK = '#f43f5e'
@@ -153,7 +153,8 @@ export function NetworkBuilderPage() {
           id: trapLinkKey(link), source: link.source_id, target: link.target_id,
           type: 'smoothstep',
           selected: prev.find((edge) => edge.id === trapLinkKey(link))?.selected,
-          label: 'копия трафика', style: { stroke: c.brand, strokeWidth: 2 },
+          label: trapLinkLabel(link, profilesPage?.items.find((p) => p.id === traps.find((t) => t.id === link.source_id)?.profile_id)?.config),
+          style: { stroke: c.brand, strokeWidth: 2 },
           labelStyle: { fill: c.brand, fontSize: 11 },
           labelBgStyle: { fill: c.panel },
           markerEnd: { type: MarkerType.ArrowClosed, color: c.brand },
@@ -161,7 +162,7 @@ export function NetworkBuilderPage() {
       return [...autoEdges, ...userEdges]
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [traps, links, attackPulse, c, canManage, layoutRevision])
+  }, [traps, links, profilesPage, attackPulse, c, canManage, layoutRevision])
 
   const onConnect = useCallback((connection: Connection) => {
     if (!canManage || createLink.isPending || !canConnectTraps(connection.source, connection.target, traps, links)) return
@@ -218,7 +219,7 @@ export function NetworkBuilderPage() {
         <div>
           <h1 className="text-xl font-semibold">Конструктор сети</h1>
           <p className="text-sm text-muted">
-            {canManage ? 'Тяните из правого выхода в верхний вход · A → B копирует входящий трафик агенту B' : 'Карта ловушек организации · только просмотр, кликните для деталей'}
+            {canManage ? 'A → B разрешает передачу данных · HTTP-сценарий отправки задаётся в конструкторе ловушек' : 'Карта ловушек организации · только просмотр, кликните для деталей'}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -275,7 +276,8 @@ export function NetworkBuilderPage() {
         {/* Легенда */}
         <div className="absolute bottom-4 left-4 card px-4 py-3 text-xs space-y-1.5 z-10">
           <div className="font-semibold text-fg mb-1">Легенда</div>
-          <div className="flex items-center gap-2 text-muted"><span className="text-brand-soft">→</span> Копия входящих байтов · онлайн-агенты</div>
+          <div className="flex items-center gap-2 text-muted"><span className="text-brand-soft">→</span> Передача JSON · настроенный HTTP-сценарий</div>
+          <div className="flex items-center gap-2 text-muted"><span className="text-brand-soft">→</span> Копия трафика · входящие байты</div>
           <div className="flex items-center gap-2 text-muted">
             <Server size={12} className="text-brand-soft" /> tcp-banner (Low)
           </div>

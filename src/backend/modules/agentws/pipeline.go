@@ -14,6 +14,13 @@ type pipelineDelivery struct {
 	delivery pipeline.Delivery
 	source   *agentSession
 }
+
+// PipelineStore persists admission and leases retries across agent/API restarts.
+type PipelineStore interface {
+	EnqueuePipeline(context.Context, Identity, pipeline.Request) error
+	ClaimPipeline(context.Context, Identity, string) (*pipeline.Delivery, error)
+}
+
 type pipelineTrace struct {
 	id, org, ip string
 	port, hops  int
@@ -32,38 +39,79 @@ func (h *Handler) handlePipeline(entry *sessionEntry, session *agentSession, mes
 	if err == nil {
 		err = pipeline.Check(r)
 	}
+
 	if err == nil && (!session.pipelineEnabled || h.PipelineSnapshot == nil) {
 		err = fmt.Errorf("pipeline unavailable")
 	}
+
 	if err == nil {
 		err = h.withActive(entry, session, func(ctx context.Context) error {
 			snapshot, err := h.PipelineSnapshot(ctx, session.identity, session.connectionID)
 			if err != nil {
 				return err
 			}
+
 			if !pipeline.AllowsSend(snapshot, r) {
 				return fmt.Errorf("unconfigured pipeline send")
 			}
+
 			return nil
 		})
 	}
-	if err == nil {
+
+	if err == nil && h.PipelineStore != nil && session.pipelineReceipts {
+		err = h.withActive(entry, session, func(ctx context.Context) error {
+			ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+			defer cancel()
+
+			return h.PipelineStore.EnqueuePipeline(ctx, session.identity, r)
+		})
+	} else if err == nil {
 		err = h.routePipeline(session, r)
 	}
+
 	return session.socket.Reply(session.ctx, message, "pipeline.ack", map[string]any{"request_id": r.RequestID, "accepted": err == nil})
+}
+
+func (h *Handler) dispatchPipeline(entry *sessionEntry, session *agentSession) error {
+	if h.PipelineStore == nil || !session.pipelineReceipts {
+		return nil
+	}
+
+	return h.withActive(entry, session, func(ctx context.Context) error {
+		ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		defer cancel()
+
+		for range pipeline.QueueCapacity {
+			delivery, err := h.PipelineStore.ClaimPipeline(ctx, session.identity, session.connectionID)
+			if err != nil || delivery == nil {
+				// A stopped receiver or temporary store failure is retried at the next tick.
+				return nil
+			}
+
+			if err := session.socket.Notify(ctx, "pipeline.received", map[string]any{"delivery": delivery}); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
 }
 
 func (h *Handler) routePipeline(source *agentSession, r pipeline.Request) error {
 	if h.TrafficTargets == nil || h.PipelineSnapshot == nil || source.identity.TypeID != "custom-http" {
 		return fmt.Errorf("pipeline unavailable")
 	}
+
 	targets, err := h.TrafficTargets(source.ctx, source.identity.OrganizationID, source.identity.TrapID)
 	if err != nil {
 		return err
 	}
+
 	if !slices.Contains(targets, r.TargetID) {
 		return fmt.Errorf("pipeline link missing")
 	}
+
 	entry := h.registry.lookup(r.TargetID)
 	if entry == nil {
 		return fmt.Errorf("pipeline target offline")
@@ -81,13 +129,16 @@ func (h *Handler) routePipeline(source *agentSession, r pipeline.Request) error 
 			return fmt.Errorf("pipeline target revoked")
 		}
 	}
+
 	snapshot, err := h.PipelineSnapshot(target.ctx, target.identity, target.connectionID)
 	if err != nil {
 		return err
 	}
+
 	if !pipeline.AllowsReceive(snapshot, r) {
 		return fmt.Errorf("pipeline endpoint unavailable")
 	}
+
 	d, err := h.pipelineHandoff(source, target, r, time.Now())
 	if err != nil {
 		return err
@@ -106,14 +157,17 @@ func (h *Handler) pipelineHandoff(source, target *agentSession, r pipeline.Reque
 	if h.pipelineTokens == nil {
 		h.pipelineTokens = map[string]pipelineCapability{}
 	}
+
 	for key, c := range h.pipelineTokens {
 		if !now.Before(c.trace.expires) {
 			delete(h.pipelineTokens, key)
 		}
 	}
+
 	if len(h.pipelineTokens) >= 4096 {
 		return pipeline.Delivery{}, fmt.Errorf("pipeline capacity reached")
 	}
+
 	trace := &pipelineTrace{id: string(contract.NewID()), org: source.identity.OrganizationID, ip: r.SourceIP, port: r.SourcePort, expires: now.Add(pipeline.Lifetime)}
 	if r.Token != "" {
 		c, ok := h.pipelineTokens[r.Token]
@@ -122,6 +176,7 @@ func (h *Handler) pipelineHandoff(source, target *agentSession, r pipeline.Reque
 		}
 		trace = c.trace
 	}
+
 	if trace.hops >= pipeline.MaxHops {
 		return pipeline.Delivery{}, fmt.Errorf("pipeline hop limit exceeded")
 	}

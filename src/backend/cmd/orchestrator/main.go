@@ -94,6 +94,10 @@ func run() error {
 
 		return orchestrator.ReconcileLocked(cycle, pool, controller)
 	}, func(cycle context.Context) error {
+		if err := docker.RefreshConnections(cycle); err != nil {
+			return err
+		}
+
 		return docker.CleanupSandboxes(cycle, time.Now())
 	})
 }

@@ -100,23 +100,29 @@ connection, organization, installed configuration, directed link and endpoint.
 Deleting a link revokes future sends. Passive copies on the same trap-link remain
 separate from pipeline execution.
 
-Send's `out` means acceptance into the server's bounded delivery queue; it does not
-wait for the receiver's response. Missing links, stopped/offline/old agents, wrong
-endpoints and full admission queues follow `error`. Delivery is asynchronous and
-in memory, with no automatic retries or restart replay. An accepted delivery may
-be discarded if the target stops, reconnects, changes its input or fills its local
-queue before execution. Technical events at the receiver show processing/failure.
-This mechanism does not provide durable or exactly-once workflow execution.
+Send's `out` means the server committed the delivery to PostgreSQL; it does not
+wait for the receiver's response. The sender's request ID makes admission
+idempotent. Receivers with an installed matching input can be temporarily stopped
+or offline: pending work survives agent reconnects and API restarts. Missing links,
+invalid endpoints and a full organization admission quota follow `error`.
 
-Chains are not tied to the local nested-call limit: independent receivers can
-forward onward without growing a call stack. Each chain shares a server-issued
-correlation ID, at most 4096 handoff attempts and a 30-second lifetime. Continuation
-tokens are internal, bound to the receiving organization/trap, credential generation
-and connection, and expire together;
-an external request cannot supply one. Total live tokens are capped at 4096 per
-server and queues at 16 per agent/runtime. Forwarded JSON is capped at 8 KiB including
-JSON escaping. These bounds stop cycles and branching from consuming unbounded
-resources. All participating agents/workers must run a build supporting pipelines.
+The server leases deliveries for 45 seconds and retries until a durable
+`http.response` or terminal `http.failure` receipt or chain expiry. A full local queue rejects
+admission without stopping the worker. The running worker suppresses duplicate
+delivery tokens until expiry. Receipts are persisted atomically with acknowledged
+telemetry; scenario success and failure are terminal. After a worker crash before
+its receipt is committed, the scenario can execute again. This is bounded
+at-least-once delivery, not exactly-once execution. Deleting links, rotating either
+trap credential, deleting traps or changing the receiving endpoint cancels retries.
+
+Each chain has a server-issued correlation ID, at most 4096 admitted handoffs and a
+five-minute lifetime. Continuations are stored in PostgreSQL, bound to the receiving
+organization/trap and credential generation, and survive connection replacement.
+An external request cannot supply one. Admissions/continuations are capped at 4096
+per organization until expiry; runtime concurrency stays bounded at 16. Forwarded
+JSON remains capped at 8 KiB including escaping. These limits bound cycles and
+branching. Updated agents advertise `http_pipeline_receipts: true`; old agents keep
+legacy best-effort sends and cannot consume the durable queue. Upgrade all workers.
 
 There are at most 32 inputs and 512 blocks per board. Default execution limits are
 512 total steps across all branches/calls, 10 seconds, 32 nested calls and 64 KiB
@@ -137,7 +143,10 @@ emitting a partial event. The server validates its name/severity against the iss
 profile snapshot. Existing technical events always remain enabled.
 
 Receivers emit `http.pipeline_received` with the sending trap, request ID and input
-block ID. All receiver telemetry additionally contains `pipeline_id` and
+block ID. A receiver response or terminal failure settles the delivery as
+succeeded/failed using its trace ID and step. This stops server retries only when
+persisted with telemetry. Receivers' processing events contain the shared trace.
+All receiver telemetry additionally contains `pipeline_id` and
 `pipeline_step`, allowing correlation across separate traps. Received requests use
 the target service/port and the original source address. Authentication headers,
 operator credentials and request cookies are never forwarded.

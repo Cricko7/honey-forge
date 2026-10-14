@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 from types import SimpleNamespace
 from fastapi import HTTPException
 from .models import Chain, Node, Edge
@@ -98,6 +98,7 @@ class HTTPStreamTests(unittest.IsolatedAsyncioTestCase):
         chain = Chain(nodes=[Node(id='web', type='http/input', config={'port': 32001}), Node(id='upper', type='http/transform')],
                       bindings={'__http__': {'trap_id': '11111111-1111-4111-8111-111111111111'}})
         summary = {'event_id': 'event-1', 'event_type': 'http.block', 'destination': {'port': 32001}, 'occurred_at': '2026-10-14T12:00:00Z'}
+        pages = iter([{'items': []}, {'items': [summary]}])
         def request(method, path):
             if path == '/api/session':
                 return {}
@@ -105,10 +106,11 @@ class HTTPStreamTests(unittest.IsolatedAsyncioTestCase):
                 return {'id': chain.bindings['__http__']['trap_id'], 'runtime_state': 'running'}
             if path == '/api/events/event-1':
                 return {**summary, 'data': {'node_id': 'upper'}}
-            return {'items': [summary]}
-        with patch('constructor.backend.runtime.store', SimpleNamespace(get=lambda _: chain)), patch.object(real_api, '_request', side_effect=request):
+            return next(pages)
+        with patch('constructor.backend.runtime.store', SimpleNamespace(get=lambda _: chain)), patch.object(real_api, '_request', side_effect=request), patch('constructor.backend.runtime.asyncio.sleep', new_callable=AsyncMock):
             stream = RuntimeManager().stream(chain.id)
             try:
+                await anext(stream)
                 await anext(stream)
                 hop = await anext(stream)
                 self.assertIn('"node_id": "upper"', hop)

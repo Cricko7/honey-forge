@@ -27,6 +27,7 @@ class Server(PipelineServerMixin):
         self.pending = {}
         self.pipeline_pending = {}
         self.pipeline_tasks = set()
+        self.pipeline_seen = {}
         self.stop = asyncio.Event()
         self.ready = asyncio.Event()
         self.connections = set()
@@ -50,8 +51,18 @@ class Server(PipelineServerMixin):
 
     def ack(self, message):
         if message.get('type') == 'pipeline_receive':
+            now = datetime.datetime.now(datetime.timezone.utc)
+            self.pipeline_seen = {key: expiry for key, expiry in self.pipeline_seen.items() if expiry > now}
+            delivery = message['delivery']
+            key = delivery['token']
+            expiry = datetime.datetime.fromisoformat(delivery['expires_at'].replace('Z', '+00:00'))
+
+            if key in self.pipeline_seen or expiry <= now:
+                return
+
             if len(self.pipeline_tasks) < 16:
-                task=asyncio.create_task(self.receive_pipeline(message['delivery']))
+                self.pipeline_seen[key] = expiry
+                task=asyncio.create_task(self.receive_pipeline(delivery))
                 self.pipeline_tasks.add(task)
                 task.add_done_callback(self.pipeline_tasks.discard)
             return

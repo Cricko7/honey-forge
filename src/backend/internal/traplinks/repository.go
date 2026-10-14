@@ -69,16 +69,27 @@ func (r *Repository) Create(ctx context.Context, org string, link Link) error {
 }
 
 func (r *Repository) Delete(ctx context.Context, org, source, target string) error {
-	result, err := r.pool.Exec(ctx, `DELETE FROM trap_links WHERE organization_id=$1 AND source_id=$2 AND target_id=$3`, org, source, target)
-	if err != nil {
-		return fmt.Errorf("delete trap link: %w", err)
-	}
+	return pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
+		// Fence concurrent durable admission so recreating a link cannot revive revoked work.
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 713))`, org); err != nil {
+			return fmt.Errorf("lock pipeline revocation: %w", err)
+		}
 
-	if result.RowsAffected() == 0 {
-		return contract.NewError("resource_not_found")
-	}
+		result, err := tx.Exec(ctx, `DELETE FROM trap_links WHERE organization_id=$1 AND source_id=$2 AND target_id=$3`, org, source, target)
+		if err != nil {
+			return fmt.Errorf("delete trap link: %w", err)
+		}
 
-	return nil
+		if result.RowsAffected() == 0 {
+			return contract.NewError("resource_not_found")
+		}
+
+		if _, err := tx.Exec(ctx, `UPDATE http_pipeline_deliveries SET status='cancelled',completed_at=now() WHERE organization_id=$1 AND source_id=$2 AND target_id=$3 AND status='pending'`, org, source, target); err != nil {
+			return fmt.Errorf("cancel revoked pipeline deliveries: %w", err)
+		}
+
+		return nil
+	})
 }
 
 func (r *Repository) Targets(ctx context.Context, org, source string) ([]string, error) {

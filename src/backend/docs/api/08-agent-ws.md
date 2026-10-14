@@ -38,6 +38,13 @@ credentials, connection_id, установленная конфигурация 
 `x-websockets.agent.http_pipeline` в [OpenAPI](../../../../api/openapi.yaml),
 сценарий сборки — [Custom HTTP](../../../../api/13-custom-http.md).
 
+Обновлённые агенты объявляют `http_pipeline_receipts: true`. Для них `pipeline.ack`
+означает сохранение передачи в PostgreSQL. Повторы переживают переподключение и
+перезапуск API и прекращаются после сохранения `http.response` or terminal `http.failure` вместе
+с телеметрией. Аренда доставки — 45 секунд, срок всей цепочки — 5 минут.
+После аварии рабочего процесса до подтверждения возможно повторное выполнение.
+Старые агенты без receipts сохраняют прежнюю отправку без гарантий доставки.
+
 `agent.hello` payload = AgentHello:
 
 | Поле | Тип / ограничение |

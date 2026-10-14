@@ -156,18 +156,36 @@ class RuntimeManager:
 
     async def stream(self, chain_id):
         seen = set()
+        initialized = set()
+
         def sse(value):
             return 'data: ' + json.dumps(value, ensure_ascii=False) + '\n\n'
+
         while store.get(chain_id):
             # Session expiry and revocation are checked during a long-lived stream too.
             await asyncio.to_thread(real_api._request, 'GET', '/api/session')
-            yield sse({'kind': 'hello', 'status': await asyncio.to_thread(self.status, chain_id)})
+            status = await asyncio.to_thread(self.status, chain_id)
             chain = store.get(chain_id)
+            pages = {}
+
+            for tid in dict.fromkeys(trap_id(chain, node) for node in chain.nodes):
+                if not tid:
+                    continue
+
+                pages[tid] = await asyncio.to_thread(real_api._request, 'GET', '/api/events?' + urlencode({'trap_id': tid, 'limit': 100}))
+                if tid not in initialized:
+                    # Opening/reconnecting establishes a baseline, not a replay animation.
+                    seen.update(event['event_id'] for event in pages[tid]['items'])
+                    initialized.add(tid)
+
+            yield sse({'kind': 'hello', 'status': status})
+
             for node in chain.nodes:
                 tid = trap_id(chain, node)
                 if not tid:
                     continue
-                page = await asyncio.to_thread(real_api._request, 'GET', '/api/events?' + urlencode({'trap_id': tid, 'limit': 100}))
+
+                page = pages[tid]
                 for event in reversed(page['items']):
                     if node.type in ('custom/listener', 'http/input') and event.get('destination', {}).get('port') != node.config['port']:
                         continue
@@ -181,8 +199,10 @@ class RuntimeManager:
                     yield sse({'kind': 'hop', 'node_id': event_node, 'title': event['event_type'], 'detail': event['occurred_at'],
                                'source_ip': event.get('source', {}).get('ip', ''), 'country': '', 'technique': '—',
                                'severity': event.get('data',{}).get('severity','medium'), 'is_detection': True, 'event_id': event['event_id']})
-            if len(seen) > 10000:
-                seen.clear()
+            # Retain only the current polling windows; clearing all IDs replays old events.
+            seen.intersection_update(event['event_id'] for page in pages.values() for event in page['items'])
+            initialized.intersection_update(pages)
+
             await asyncio.sleep(2)
 
 

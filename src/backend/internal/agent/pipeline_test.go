@@ -33,6 +33,7 @@ func TestLocalPipelineSeparatesNotificationsFromAcknowledgements(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	server := httptest.NewUnstartedServer(local.Handler(t.Context()))
 	server.TLS = tls
 	server.StartTLS()
@@ -74,7 +75,40 @@ func TestLocalPipelineSeparatesNotificationsFromAcknowledgements(t *testing.T) {
 	if err := client.SendPipeline(context.Background(), r); err == nil {
 		t.Fatal("unconfigured destination accepted")
 	}
+
 	if err := client.Ready(t.Context()); err != nil {
 		t.Fatal("rejection broke telemetry connection", err)
+	}
+}
+
+func TestPipelineOverloadAndExpiryAreNonFatal(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		full, expired bool
+	}{
+		{name: "full queue", full: true},
+		{name: "expired delivery", expired: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := &LocalClient{PipelineIncoming: make(chan pipeline.Delivery, 1)}
+			if tc.full {
+				c.PipelineIncoming <- pipeline.Delivery{}
+			}
+
+			d := pipeline.Delivery{Request: pipeline.Request{Path: "/pipeline", Service: "web", Payload: json.RawMessage(`{}`), SourceIP: "127.0.0.1"}, TraceID: string(contract.NewID()), Hop: 1, ExpiresAt: time.Now().Add(time.Minute)}
+			d.Token = string(contract.NewID())
+			if tc.expired {
+				d.ExpiresAt = time.Now().Add(-time.Second)
+			}
+
+			raw, err := json.Marshal(d)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if err := c.receivePipeline(raw); err != nil {
+				t.Fatalf("temporary delivery failure must not close the worker: %v", err)
+			}
+		})
 	}
 }

@@ -194,7 +194,8 @@ func (r *Runtime) read(ctx context.Context, output io.Reader, sink func(context.
 			if !initialized {
 				return fmt.Errorf("pipeline send before readiness")
 			}
-			forwardCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+			// Allow the local four-second admission timeout to reply before cancelling its pipe.
+			forwardCtx, cancel := context.WithTimeout(ctx, 6*time.Second)
 			err := pipeline.Send(forwardCtx, message.Request)
 			cancel()
 			id := message.Request.RequestID

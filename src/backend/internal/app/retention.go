@@ -48,6 +48,7 @@ func cleanHistory(ctx context.Context, pool *pgxpool.Pool, now time.Time, retent
 		{`DELETE FROM auth_changes WHERE ctid IN (SELECT ctid FROM auth_changes WHERE occurred_at<$1 ORDER BY occurred_at LIMIT 1000)`, []any{cutoff}},
 		{`DELETE FROM profile_changes WHERE ctid IN (SELECT ctid FROM profile_changes WHERE occurred_at<$1 ORDER BY occurred_at LIMIT 1000)`, []any{cutoff}},
 		{`DELETE FROM operator_sessions WHERE ctid IN (SELECT ctid FROM operator_sessions WHERE expires_at<$1 LIMIT 1000)`, []any{now}},
+		{`DELETE FROM http_pipeline_traces WHERE id IN (SELECT id FROM http_pipeline_traces WHERE expires_at<$1 ORDER BY expires_at LIMIT 1000)`, []any{now}},
 	}
 	for index, query := range queries {
 		for range 10 {

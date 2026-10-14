@@ -86,9 +86,18 @@ def main():
                 with client.stream('GET', '/constructor/api/chains/' + chain['id'] + '/stream', headers=headers) as response:
                     response.raise_for_status()
                     highlighted = set()
+                    triggered = False
                     for line in response.iter_lines():
                         if line.startswith('data: '):
                             hop = json.loads(line[6:])
+                            if hop['kind'] == 'hello' and not triggered:
+                                triggered = True
+                                # History is a baseline; verify fresh requests after subscribing.
+                                with httpx.Client(trust_env=False, timeout=15) as attacker:
+                                    accepted = attacker.post(f'http://127.0.0.1:{ports[0]}/login', json={'action': 'login', 'user': 'Alice'})
+                                    rejected = attacker.post(f'http://127.0.0.1:{ports[0]}/login', json={'action': 'unknown'})
+                                    assert accepted.status_code == 200 and rejected.status_code == 422
+
                             if hop['kind'] == 'hop':
                                 highlighted.add(hop['node_id'])
                                 if {'upper', 'final', 'no'} <= highlighted:

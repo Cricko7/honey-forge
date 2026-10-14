@@ -60,6 +60,50 @@ func TestPrepareBootstrapsSingleNodeAndConnectsComposeServices(t *testing.T) {
 	}
 }
 
+func TestRefreshConnectionsFindsReplacedWebContainer(t *testing.T) {
+	replaced, attached := false, true
+	var connections []string
+	d := DockerCLI{Network: "decoys", ManagementNetwork: "mgmt", ProxyService: "web", WSURL: "wss://resources.localhost/assets/stream"}
+	d.Run = func(_ context.Context, _ []byte, args ...string) ([]byte, error) {
+		call := strings.Join(args, " ")
+		switch {
+		case strings.HasPrefix(call, "container inspect"):
+			return []byte("demo"), nil
+		case strings.HasPrefix(call, "ps "):
+			if strings.Contains(call, "service=web") && replaced {
+				return []byte("new-web"), nil
+			}
+			return []byte("existing-peer"), nil
+		case strings.HasPrefix(call, "inspect new-web") && !attached:
+			return []byte(`{"bridge":{}}`), nil
+		case strings.HasPrefix(call, "inspect "):
+			return []byte(`{"mgmt":{}}`), nil
+		case strings.HasPrefix(call, "network connect"):
+			connections = append(connections, call)
+			attached = true
+			return nil, nil
+		default:
+			return nil, fmt.Errorf("unexpected bootstrap operation: %s", call)
+		}
+	}
+
+	if err := d.RefreshConnections(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+
+	replaced, attached = true, false
+	if err := d.RefreshConnections(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.RefreshConnections(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(connections) != 1 || connections[0] != "network connect --alias resources.localhost mgmt new-web" {
+		t.Fatalf("replaced proxy was not reattached exactly once: %v", connections)
+	}
+}
+
 func TestPrepareRemovesLegacyManagementAttachment(t *testing.T) {
 	for _, tt := range []struct {
 		name            string

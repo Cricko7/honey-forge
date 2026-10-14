@@ -18,7 +18,7 @@ func runLoop(ctx context.Context, prepare, reconcile, cleanup func(context.Conte
 				preparedAt = time.Now()
 				cleanedAt = preparedAt
 			}
-		} else if time.Since(cleanedAt) >= 30*time.Second {
+		} else if time.Since(cleanedAt) >= 15*time.Second {
 			err = cleanup(cycle)
 			if err == nil {
 				cleanedAt = time.Now()

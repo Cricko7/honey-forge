@@ -28,7 +28,7 @@ func TestLoopDoesNotPrepareDockerEveryCycle(t *testing.T) {
 			cleanups++
 			return nil
 		})
-		if err != nil || prepares != 1 || cycles != 10 || cleanups != 0 {
+		if err != nil || prepares != 1 || cycles != 10 || cleanups != 1 {
 			t.Fatalf("prepare=%d cycles=%d cleanup=%d err=%v", prepares, cycles, cleanups, err)
 		}
 	})
@@ -85,6 +85,32 @@ func TestLoopWaitsAfterSlowCycleAndBacksOffFailures(t *testing.T) {
 		})
 		if err != nil {
 			t.Fatal(err)
+		}
+	})
+}
+
+func TestLoopRefreshesManagementConnectionsBeforeAgentsBecomeOffline(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		prepares, refreshes := 0, 0
+		started := time.Now()
+		err := runLoop(ctx, func(context.Context) error {
+			prepares++
+			return nil
+		}, func(context.Context) error {
+			if time.Since(started) >= 27*time.Second {
+				cancel()
+			}
+
+			return nil
+		}, func(context.Context) error {
+			refreshes++
+			return nil
+		})
+		if err != nil || prepares != 1 || refreshes == 0 {
+			t.Fatalf("management peers were not refreshed within the 30-second offline window: prepare=%d refresh=%d err=%v", prepares, refreshes, err)
 		}
 	})
 }

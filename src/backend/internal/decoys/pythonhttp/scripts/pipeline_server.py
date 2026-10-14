@@ -17,7 +17,7 @@ class PipelineServerMixin:
                  'source_ip':data['_source_ip'],'source_port':data['_source_port']}
         try:
             send({'type':'pipeline_send','request':request})
-            async with asyncio.timeout(5):
+            async with asyncio.timeout(7):
                 if not await future:
                     raise FlowError('pipeline handoff rejected: check link, endpoint, agent and limits')
         except TimeoutError as error:
@@ -45,6 +45,7 @@ class PipelineServerMixin:
                 'data':{'service':service['name'],'pipeline_id':d['trace_id'],'pipeline_step':d['hop'],**data}})
         body=json.dumps(d['payload'],ensure_ascii=False,allow_nan=False,separators=(',',':'))
         reason='peer_closed'
+
         try:
             await emit('service.connection_opened',{})
             await emit('http.pipeline_received',{'request_id':d['request_id'],'source_id':d['source_id'],'node_id':service['entry']})
