@@ -41,9 +41,9 @@ func (r *Repository) Register(ctx context.Context, user authcore.User, org authc
 			user.OrganizationID = org.ID
 		} else {
 			_, err := tx.Exec(ctx, `
-				INSERT INTO organizations (id, name, created_at, join_code, join_code_revision, join_code_rotated_at)
-				VALUES ($1, $2, $3, $4, $5, $6)
-			`, org.ID, org.Name, org.CreatedAt, code.Code, code.Revision, code.RotatedAt)
+				INSERT INTO organizations (id, name, created_at, join_code, join_code_revision, join_code_rotated_at, creator_user_id)
+				VALUES ($1, $2, $3, $4, $5, $6, $7)
+			`, org.ID, org.Name, org.CreatedAt, code.Code, code.Revision, code.RotatedAt, user.ID)
 			if err != nil {
 				return fmt.Errorf("inserting organization: %w", err)
 			}
@@ -83,11 +83,11 @@ func (r *Repository) Credentials(ctx context.Context, email string) (authcore.Us
 	var hash string
 
 	err := r.pool.QueryRow(ctx, `
-		SELECT u.id::text, u.organization_id::text, u.email, u.role, u.created_at,
+		SELECT u.id::text, u.organization_id::text, u.email, u.role, u.created_at, (u.role = 'admin' OR u.trap_management),
 			o.id::text, o.name, o.created_at, u.password_hash
 		FROM users u JOIN organizations o ON o.id = u.organization_id
 		WHERE u.email = $1
-	`, email).Scan(&user.ID, &user.OrganizationID, &user.Email, &user.Role, &user.CreatedAt,
+	`, email).Scan(&user.ID, &user.OrganizationID, &user.Email, &user.Role, &user.CreatedAt, &user.CanManageTraps,
 		&org.ID, &org.Name, &org.CreatedAt, &hash)
 
 	return user, org, hash, databaseError("loading credentials", err)

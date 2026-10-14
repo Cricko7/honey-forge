@@ -19,6 +19,7 @@ type Principal struct {
 	OrganizationID ID
 	TrapID         ID
 	Role           Role
+	CanManageTraps bool
 }
 
 type principalKey struct{}

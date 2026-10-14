@@ -34,7 +34,7 @@ type Repository struct {
 }
 
 func New(pool *pgxpool.Pool, traps TrapBoundary) *Repository {
-	return &Repository{pool: pool, mutations: mutation.NewStore(pool), traps: traps}
+	return &Repository{pool: pool, mutations: mutation.NewTrapStore(pool), traps: traps}
 }
 
 type snapshotReader struct{ tx pgx.Tx }
@@ -98,7 +98,7 @@ func (r *Repository) Create(ctx context.Context, org, trapID, requestID string, 
 		return commands.CreateResult{}, commands.ErrUnavailable
 	}
 
-	if err := contract.AuthorizeCapability(ctx, contract.WriteResources); err != nil {
+	if err := contract.AuthorizeCapability(ctx, contract.ManageTraps); err != nil {
 		return commands.CreateResult{}, err
 	}
 

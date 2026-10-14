@@ -20,7 +20,7 @@ type Repository struct {
 }
 
 func NewRepository(pool *pgxpool.Pool) *Repository {
-	return &Repository{pool, mutation.NewStore(pool)}
+	return &Repository{pool, mutation.NewTrapStore(pool)}
 }
 
 const columns = `id::text,organization_id::text,profile_id::text,type_id,type_version,interaction_level,name,description,revision,state_version,created_at,updated_at,connectivity,last_seen_at,runtime_state,desired_state,desired_profile_revision,applied_profile_revision,agent,active_command_id::text,generation,token_hash,issued_at,connection_id::text,applied_configuration,(SELECT count(*) FROM trap_ingestions i WHERE i.trap_id=traps.id AND NOT i.finished),auto_deploy,deployment_node_id`

@@ -9,6 +9,7 @@ import {
   FileSliders,
   Link2,
   LogOut,
+  ShieldCheck,
 } from 'lucide-react'
 import { useSession, useLiveStream } from '@/api/hooks'
 import { USE_MOCK, api } from '@/api/client'
@@ -18,7 +19,8 @@ import { Logo } from '@/components/Logo'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { replaceSessionCache } from '@/api/cache'
-import { canManage, sessionDestination } from '@/lib/auth'
+import { canManage, canManageTraps, sessionDestination } from '@/lib/auth'
+import { usePresence } from '@/lib/presence'
 import { ApiError } from '@/api/client'
 import { AlertsProvider, AlertsBell, useAlerts } from '@/components/Alerts'
 import type { SessionView } from '@/types'
@@ -42,6 +44,7 @@ export function Layout() {
 }
 
 function AuthenticatedLayout({ session }: { session: SessionView }) {
+  usePresence(session.user.id)
   const qc = useQueryClient()
   const [logoutError, setLogoutError] = useState('')
   const [loggingOut, setLoggingOut] = useState(false)
@@ -72,7 +75,7 @@ function AuthenticatedLayout({ session }: { session: SessionView }) {
 
   // Активный раздел для контекстной шапки: самое длинное совпадение пути.
   const sections = canManage(session)
-    ? [...nav, { to: '/app/organization', end: false, icon: Link2, label: 'Приглашения' }]
+    ? [...nav, { to: '/app/admin', end: false, icon: ShieldCheck, label: 'Админ-панель' }, { to: '/app/organization', end: false, icon: Link2, label: 'Приглашения' }]
     : nav
   const active =
     sections
@@ -95,7 +98,7 @@ function AuthenticatedLayout({ session }: { session: SessionView }) {
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-0.5">
-          {[...nav, ...(canManage(session) ? [{ to: '/app/organization', icon: Link2, label: 'Приглашения' }] : [])].map((item) => (
+          {sections.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -124,7 +127,7 @@ function AuthenticatedLayout({ session }: { session: SessionView }) {
               <div className="min-w-0 leading-tight">
                 <div className="text-sm text-fg truncate">{session?.user.email ?? '—'}</div>
                 <div className="text-xs text-muted truncate">
-                  {session?.organization.name} · {canManage(session) ? 'Администратор' : 'Пользователь · только чтение'}
+                  {session?.organization.name} · {canManage(session) ? 'Администратор' : canManageTraps(session) ? 'Оператор ловушек' : 'Пользователь · только чтение'}
                 </div>
               </div>
             </div>

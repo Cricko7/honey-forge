@@ -32,6 +32,10 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) error {
 	}
 
 	group := r.Group("/api", bodyLimit)
+	private := func(c *gin.Context) { c.Header("Cache-Control", "no-store"); c.Next() }
+	group.GET("/organization/members", private, h.requireBrowserSession(), h.members)
+	group.PATCH("/organization/members/:id/trap-permission", private, h.requireBrowserSession(), rejectQuery, h.setTrapPermission)
+	group.POST("/session/presence", private, h.requireBrowserSession(), rejectQuery, h.presence)
 	limiter := newAuthLimiter()
 	group.POST("/registrations", limiter.middleware, rejectQuery, h.register)
 	group.POST("/sessions", limiter.middleware, rejectQuery, h.login)

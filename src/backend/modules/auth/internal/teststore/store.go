@@ -23,22 +23,28 @@ type storedOrg struct {
 }
 
 type Store struct {
-	mu       sync.Mutex
-	users    map[string]storedUser
-	orgs     map[string]storedOrg
-	Sessions map[string]authcore.Session
-	Err      error
-	Keys     map[string]authcore.APIKey
-	KeyQuota map[string]int
+	mu        sync.Mutex
+	users     map[string]storedUser
+	orgs      map[string]storedOrg
+	Sessions  map[string]authcore.Session
+	Err       error
+	Keys      map[string]authcore.APIKey
+	KeyQuota  map[string]int
+	creators  map[string]string
+	revisions map[string]int32
+	presence  map[string]time.Time
 }
 
 func New() *Store {
 	return &Store{
-		users:    make(map[string]storedUser),
-		orgs:     make(map[string]storedOrg),
-		Sessions: make(map[string]authcore.Session),
-		Keys:     make(map[string]authcore.APIKey),
-		KeyQuota: make(map[string]int),
+		users:     make(map[string]storedUser),
+		orgs:      make(map[string]storedOrg),
+		Sessions:  make(map[string]authcore.Session),
+		Keys:      make(map[string]authcore.APIKey),
+		KeyQuota:  make(map[string]int),
+		creators:  make(map[string]string),
+		revisions: make(map[string]int32),
+		presence:  make(map[string]time.Time),
 	}
 }
 
@@ -70,9 +76,11 @@ func (m *Store) Register(_ context.Context, user authcore.User, org authcore.Org
 		user.OrganizationID = org.ID
 	} else {
 		m.orgs[org.ID] = storedOrg{org, code}
+		m.creators[org.ID] = user.ID
 	}
 
 	m.users[user.Email] = storedUser{user, org, hash}
+	m.revisions[user.ID] = 1
 	m.Sessions[hex.EncodeToString(sess.Hash)] = sess
 
 	return org, nil

@@ -12,6 +12,10 @@ export function canManage(session: SessionView | null | undefined): boolean {
   return session?.user.role === 'admin'
 }
 
+export function canManageTraps(session: SessionView | null | undefined): boolean {
+  return canManage(session) || (session?.user.role === 'viewer' && session.user.can_manage_traps === true)
+}
+
 export function sessionDestination(
   session: SessionView | null | undefined,
   loading: boolean,

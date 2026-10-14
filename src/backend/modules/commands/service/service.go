@@ -34,7 +34,7 @@ func Authorize(a auth.AuthContext, write bool) error {
 		return commands.ErrUnauthorized
 	}
 
-	if a.Role != auth.RoleAdmin && (write || a.Role != auth.RoleViewer) {
+	if a.Role != auth.RoleAdmin && (a.Role != auth.RoleViewer || (write && !a.CanManageTraps)) {
 		return commands.ErrForbidden
 	}
 
@@ -165,5 +165,5 @@ func (s *Service) List(ctx context.Context, a auth.AuthContext, trapID string, q
 }
 
 func operatorContext(ctx context.Context, a auth.AuthContext) context.Context {
-	return contract.WithPrincipal(ctx, contract.Principal{UserID: contract.ID(a.UserID), OrganizationID: contract.ID(a.OrganizationID), Role: contract.Role(a.Role)})
+	return contract.WithPrincipal(ctx, contract.Principal{UserID: contract.ID(a.UserID), OrganizationID: contract.ID(a.OrganizationID), Role: contract.Role(a.Role), CanManageTraps: a.CanManageTraps})
 }

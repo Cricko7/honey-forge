@@ -11,6 +11,9 @@ import (
 )
 
 type store interface {
+	Members(context.Context, authcore.AuthContext, int, string) (authcore.MemberPage, error)
+	SetTrapPermission(context.Context, authcore.AuthContext, string, bool, int32) error
+	TouchPresence(context.Context, string, string) error
 	Register(context.Context, authcore.User, authcore.Organization, authcore.OrganizationInput, string, authcore.Session, authcore.JoinCode) (authcore.Organization, error)
 	Credentials(context.Context, string) (authcore.User, authcore.Organization, string, error)
 	CreateSession(context.Context, authcore.Session, []byte) error
@@ -52,10 +55,12 @@ func (s *Service) Register(ctx context.Context, req authcore.RegisterRequest, cu
 		OrganizationID: org.ID,
 		Email:          normalizeEmail(req.Email),
 		Role:           authcore.RoleAdmin,
+		CanManageTraps: true,
 		CreatedAt:      now,
 	}
 	if req.Organization.Mode == "join" {
 		user.Role = authcore.RoleViewer
+		user.CanManageTraps = false
 	}
 
 	sess, raw, csrf := authcore.NewSession(user.ID, now)

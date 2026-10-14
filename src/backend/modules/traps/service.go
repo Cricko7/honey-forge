@@ -56,13 +56,12 @@ func (s *Service) WithAutoDeploy(enabled bool) *Service {
 	return s
 }
 
-func access(ctx context.Context, admin bool) (string, error) {
-	roles := []contract.Role{contract.Admin, contract.Viewer}
-	if admin {
-		roles = []contract.Role{contract.Admin}
+func access(ctx context.Context, write bool) (string, error) {
+	capability := contract.ReadResources
+	if write {
+		capability = contract.ManageTraps
 	}
-
-	if err := contract.Authorize(ctx, roles...); err != nil {
+	if err := contract.AuthorizeCapability(ctx, capability); err != nil {
 		return "", err
 	}
 
@@ -185,6 +184,9 @@ func (s *Service) Delete(ctx context.Context, id string, expected int64) error {
 }
 
 func (s *Service) Credentials(ctx context.Context, id string) (CredentialsStatus, error) {
+	if err := contract.Authorize(ctx, contract.Admin); err != nil {
+		return CredentialsStatus{}, err
+	}
 	org, err := access(ctx, true)
 	if err != nil {
 		return CredentialsStatus{}, err
@@ -212,6 +214,9 @@ func (s *Service) IssueManagedCredentials(ctx context.Context, id string, expect
 }
 
 func (s *Service) issueCredentials(ctx context.Context, id string, expected int64, managed bool) (AgentCredentials, error) {
+	if err := contract.Authorize(ctx, contract.Admin); err != nil {
+		return AgentCredentials{}, err
+	}
 	org, err := access(ctx, true)
 	if err != nil {
 		return AgentCredentials{}, err
@@ -266,6 +271,9 @@ func (s *Service) issueCredentials(ctx context.Context, id string, expected int6
 }
 
 func (s *Service) RevokeCredentials(ctx context.Context, id, etag string) error {
+	if err := contract.Authorize(ctx, contract.Admin); err != nil {
+		return err
+	}
 	org, err := access(ctx, true)
 	if err != nil {
 		return err

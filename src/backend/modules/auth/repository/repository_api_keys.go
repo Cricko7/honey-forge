@@ -64,12 +64,12 @@ func (r *Repository) RevokeAPIKey(ctx context.Context, actor authcore.AuthContex
 func (r *Repository) ResolveAPIKey(ctx context.Context, hash []byte) (authcore.ResolvedSession, error) {
 	var sess authcore.ResolvedSession
 	err := r.pool.QueryRow(ctx, `SELECT k.id::text,
-		u.id::text, u.organization_id::text, u.email, u.role, u.created_at,
+		u.id::text, u.organization_id::text, u.email, u.role, u.created_at, (u.role = 'admin' OR u.trap_management),
 		o.id::text, o.name, o.created_at
 		FROM operator_api_keys k JOIN users u ON u.id = k.user_id
 		JOIN organizations o ON o.id = u.organization_id WHERE k.token_hash = $1`, hash).
 		Scan(&sess.ID, &sess.View.User.ID, &sess.View.User.OrganizationID,
-			&sess.View.User.Email, &sess.View.User.Role, &sess.View.User.CreatedAt,
+			&sess.View.User.Email, &sess.View.User.Role, &sess.View.User.CreatedAt, &sess.View.User.CanManageTraps,
 			&sess.View.Organization.ID, &sess.View.Organization.Name, &sess.View.Organization.CreatedAt)
 
 	return sess, databaseError("resolving API key", err)

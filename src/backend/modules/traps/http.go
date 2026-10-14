@@ -45,10 +45,16 @@ func (h *Handler) RegisterRoutes(router *gin.Engine, session gin.HandlerFunc) {
 
 func (h *Handler) authorize(c *gin.Context) {
 	if a, ok := authhttp.Context(c); ok {
-		contract.SetPrincipal(c, contract.Principal{UserID: contract.ID(a.UserID), OrganizationID: contract.ID(a.OrganizationID), Role: contract.Role(a.Role)})
+		contract.SetPrincipal(c, contract.Principal{UserID: contract.ID(a.UserID), OrganizationID: contract.ID(a.OrganizationID), Role: contract.Role(a.Role), CanManageTraps: a.CanManageTraps})
 	}
 
 	admin := c.Request.Method != http.MethodGet || strings.HasSuffix(c.FullPath(), "/agent-credentials")
+	if strings.HasSuffix(c.FullPath(), "/agent-credentials") {
+		if err := contract.Authorize(c.Request.Context(), contract.Admin); err != nil {
+			h.fail(c, err)
+			return
+		}
+	}
 	if _, err := access(c.Request.Context(), admin); err != nil {
 		h.fail(c, err)
 		return

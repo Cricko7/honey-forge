@@ -15,16 +15,25 @@ import (
 	"honey-forge/internal/contract"
 )
 
-type Store struct{ pool *pgxpool.Pool }
+type Store struct {
+	pool       *pgxpool.Pool
+	capability contract.Capability
+}
 
 func NewStore(pool *pgxpool.Pool) *Store {
-	return &Store{pool}
+	return &Store{pool: pool, capability: contract.WriteResources}
+}
+
+// NewTrapStore is used only by trap and command repositories. Profile and
+// credential administration retain the default administrator-only boundary.
+func NewTrapStore(pool *pgxpool.Pool) *Store {
+	return &Store{pool: pool, capability: contract.ManageTraps}
 }
 
 type WriteFunc func(context.Context, pgx.Tx) (Outcome, error)
 
 func (s *Store) Create(ctx context.Context, scope Scope, normalized json.RawMessage, write WriteFunc) (Result, error) {
-	if err := authorize(ctx, scope.OrganizationID); err != nil {
+	if err := s.authorize(ctx, scope.OrganizationID); err != nil {
 		return Result{}, err
 	}
 
@@ -93,7 +102,7 @@ func (s *Store) Create(ctx context.Context, scope Scope, normalized json.RawMess
 }
 
 func (s *Store) Write(ctx context.Context, organizationID contract.ID, write WriteFunc) error {
-	if err := authorize(ctx, organizationID); err != nil {
+	if err := s.authorize(ctx, organizationID); err != nil {
 		return err
 	}
 
@@ -114,7 +123,7 @@ func (s *Store) Write(ctx context.Context, organizationID contract.ID, write Wri
 }
 
 func (s *Store) Delete(ctx context.Context, organizationID, resourceID contract.ID, write WriteFunc) error {
-	if err := authorize(ctx, organizationID); err != nil {
+	if err := s.authorize(ctx, organizationID); err != nil {
 		return err
 	}
 
@@ -148,12 +157,12 @@ func (s *Store) Delete(ctx context.Context, organizationID, resourceID contract.
 	})
 }
 
-func authorize(ctx context.Context, organizationID contract.ID) error {
+func (s *Store) authorize(ctx context.Context, organizationID contract.ID) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 
-	if err := contract.AuthorizeCapability(ctx, contract.WriteResources); err != nil {
+	if err := contract.AuthorizeCapability(ctx, s.capability); err != nil {
 		return err
 	}
 

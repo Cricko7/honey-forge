@@ -9,6 +9,7 @@ import type {
   Page,
   Profile,
   SessionView,
+  MemberPage,
   StreamNotification,
   Trap,
   TrapLink,
@@ -42,6 +43,30 @@ let mockSignedOut = false
 const real = createHTTPClient(API_BASE, () => csrfToken)
 
 export const api = {
+  async listMembers(cursor?: string): Promise<MemberPage> {
+    if (USE_MOCK) {
+      const session = await api.getSession()
+      return { creator: session.user, items: [{ ...session.user, organization_id: session.organization.id,
+        created_at: session.organization.created_at, can_manage_traps: true, permission_revision: 1, online: true, last_seen_at: new Date().toISOString() }], next_cursor: null }
+    }
+    const query = new URLSearchParams({ limit: '50' })
+    if (cursor) query.set('cursor', cursor)
+    return real(`/api/organization/members?${query}`, { cache: 'no-store' })
+  },
+
+  async setTrapPermission(id: string, granted: boolean, expectedRevision: number): Promise<void> {
+    if (USE_MOCK) throw new ApiError(503, 'demo_unavailable', 'Выдача прав доступна с подключённым сервером')
+    await real(`/api/organization/members/${encodeURIComponent(id)}/trap-permission`, {
+      method: 'PATCH', cache: 'no-store',
+      body: JSON.stringify({ can_manage_traps: granted, expected_revision: expectedRevision }),
+    })
+  },
+
+  async sendPresence(signal?: AbortSignal): Promise<void> {
+    if (USE_MOCK) return
+    await real('/api/session/presence', { method: 'POST', cache: 'no-store', signal })
+  },
+
   async listAPIKeys(): Promise<{ items: APIKey[] }> {
     if (USE_MOCK) throw new ApiError(503, 'demo_unavailable', 'API-ключи доступны с подключённым сервером')
     return real('/api/api-keys')

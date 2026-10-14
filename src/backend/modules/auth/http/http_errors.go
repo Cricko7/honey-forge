@@ -19,6 +19,10 @@ func (h *Handler) fail(c *gin.Context, event string, err error) {
 	var rateError *authcore.APIKeyRateError
 
 	switch {
+	case errors.Is(err, authcore.ErrPermissionChanged):
+		status, code, message = 409, "permission_changed", "Member permissions have changed"
+	case errors.Is(err, authcore.ErrPermissionProtected):
+		status, code, message = 409, "permission_protected", "Administrator permissions cannot be changed here"
 	case errors.As(err, &rateError):
 		status, code, message = 429, "rate_limited", "API key rate limit exceeded"
 		c.Header("Retry-After", strconv.Itoa(rateError.RetryAfter))

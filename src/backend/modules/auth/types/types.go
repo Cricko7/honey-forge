@@ -13,6 +13,7 @@ type User struct {
 	OrganizationID string    `json:"organization_id"`
 	Email          string    `json:"email"`
 	Role           string    `json:"role"`
+	CanManageTraps bool      `json:"can_manage_traps"`
 	CreatedAt      time.Time `json:"created_at"`
 }
 
@@ -34,6 +35,7 @@ type AuthContext struct {
 	UserID         string
 	OrganizationID string
 	Role           string
+	CanManageTraps bool
 }
 
 type ResolvedSession struct {
@@ -43,7 +45,7 @@ type ResolvedSession struct {
 }
 
 func (s ResolvedSession) AuthContext() AuthContext {
-	return AuthContext{UserID: s.View.User.ID, OrganizationID: s.View.User.OrganizationID, Role: s.View.User.Role}
+	return AuthContext{UserID: s.View.User.ID, OrganizationID: s.View.User.OrganizationID, Role: s.View.User.Role, CanManageTraps: s.View.User.CanManageTraps}
 }
 
 type JoinCode struct {

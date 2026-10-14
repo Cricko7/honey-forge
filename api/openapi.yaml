@@ -1258,6 +1258,9 @@ components:
       type: object
     User:
       properties:
+        can_manage_traps:
+          type: boolean
+          description: Effective trap CRUD and command permission. Always true for administrators; viewers receive it only through explicit delegation. Does not grant administration, profile writes, trap links or agent credentials.
         created_at:
           format: date-time
           type: string
@@ -1280,7 +1283,51 @@ components:
       - email
       - role
       - created_at
+      - can_manage_traps
       type: object
+    OrganizationMember:
+      allOf:
+      - $ref: '#/components/schemas/User'
+      - type: object
+        required: [permission_revision, online, last_seen_at]
+        properties:
+          permission_revision:
+            $ref: '#/components/schemas/Revision'
+          online:
+            type: boolean
+            description: At least one unexpired browser session reported presence in the last 90 seconds.
+          last_seen_at:
+            type: [string, 'null']
+            format: date-time
+            description: Latest presence report among active browser sessions; null when none has reported. Not a historical last login.
+    OrganizationMemberPage:
+      type: object
+      additionalProperties: false
+      required: [creator, items, next_cursor]
+      properties:
+        creator:
+          oneOf:
+          - $ref: '#/components/schemas/User'
+          - type: 'null'
+          description: Persisted creator identity. Null if historical ownership could not be safely reconstructed.
+        items:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/OrganizationMember'
+        next_cursor:
+          type: [string, 'null']
+          format: uuid
+          description: Last returned user ID, ordered by UUID ascending. Boundaries always apply within the session organization. Not a snapshot; new registrations may appear on refresh.
+    TrapPermissionRequest:
+      type: object
+      additionalProperties: false
+      required: [can_manage_traps, expected_revision]
+      properties:
+        can_manage_traps:
+          type: boolean
+        expected_revision:
+          $ref: '#/components/schemas/Revision'
     CreateTrapRequest:
       type: object
       additionalProperties: false
@@ -1753,7 +1800,7 @@ components:
       properties:
         kind:
           type: string
-          enum: [organization, profile, trap, command, session]
+          enum: [organization, profile, trap, command, session, api_key, user]
         id:
           $ref: '#/components/schemas/ID'
     AuditDetails:
@@ -2225,6 +2272,7 @@ paths:
           $ref: '#/components/responses/Unavailable'
     post:
       operationId: createTrap
+      description: Administrator or viewer with can_manage_traps. Uses an existing profile; delegates cannot create profiles or obtain agent credentials.
       security:
       - sessionCookie: []
       - apiKeyBearer: []
@@ -2317,6 +2365,7 @@ paths:
           $ref: '#/components/responses/Unavailable'
     patch:
       operationId: patchTrap
+      description: Administrator or viewer with can_manage_traps, within the authenticated organization.
       security:
       - sessionCookie: []
       - apiKeyBearer: []
@@ -2367,6 +2416,7 @@ paths:
               $ref: '#/components/schemas/PatchTrapRequest'
     delete:
       operationId: deleteTrap
+      description: Administrator or viewer with can_manage_traps. Existing revision and lifecycle preconditions still apply.
       security:
       - sessionCookie: []
       - apiKeyBearer: []
@@ -2882,7 +2932,7 @@ paths:
       - apiKeyBearer: []
     post:
       operationId: createTrapCommand
-      description: Queues a command for up to 24 hours. A queued command expires after five minutes with error code agent_not_connected when its offline agent has never connected; this also releases pre-existing queued commands after an upgrade. Previously connected agents and running commands retain the normal deadline. Exactly one queued or running command per trap. Repeating request_id with the same content returns the initial queued command while retained, including after execution; read GET for current status. Changed content returns idempotency_conflict.
+      description: Administrator or viewer with can_manage_traps. Delegation covers start, stop and applying an existing profile revision. Revocation rejects subsequent requests; previously accepted commands may complete. Queues a command for up to 24 hours. A queued command expires after five minutes with error code agent_not_connected when its offline agent has never connected; this also releases pre-existing queued commands after an upgrade. Previously connected agents and running commands retain the normal deadline. Exactly one queued or running command per trap. Repeating request_id with the same content returns the initial queued command while retained, including after execution; read GET for current status. Changed content returns idempotency_conflict.
       parameters:
       - $ref: "#/components/parameters/TrapID"
       - $ref: "#/components/parameters/OriginOrBearer"
@@ -2991,6 +3041,112 @@ paths:
       - sessionCookie: []
       - apiKeyBearer: []
       summary: getOrganization
+  /api/organization/members:
+    get:
+      operationId: listOrganizationMembers
+      summary: List the authenticated administrator's organization team
+      description: Browser administrator session only; Bearer authentication is rejected even with a cookie. Returns no passwords, hashes, session identifiers, CSRF tokens or join codes. Unknown and repeated query parameters are rejected. Empty body required. Cache-Control is no-store. Presence is independent of session lifetime.
+      security:
+      - sessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - name: cursor
+        in: query
+        description: UUID returned in next_cursor; orders members by UUID ascending within the current organization.
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: A bounded page of members and the creator identity.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationMemberPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/organization/members/{id}/trap-permission:
+    patch:
+      operationId: setMemberTrapPermission
+      summary: Grant or revoke trap management for a viewer
+      description: Only the organization's creator with a browser administrator session can change this permission. Role and creator identity cannot be changed. Foreign and absent targets return 404; administrator targets return 409 permission_protected; stale revisions return 409 permission_changed. Actual changes increment revision and commit with member.trap_management_granted or member.trap_management_revoked audit entries targeting the user. No-op writes at the current revision return 204 without an audit entry. Authorization uses current database permissions on every subsequent request; previously accepted requests and queued commands may complete. No query parameters. Cache-Control is no-store.
+      security:
+      - sessionCookie: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/ID'
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRF'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrapPermissionRequest'
+      responses:
+        '204':
+          description: Permission saved; empty response.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/session/presence:
+    post:
+      operationId: reportBrowserPresence
+      summary: Report activity for the authenticated browser session
+      description: Browser admin or viewer session, Origin and CSRF required. Empty body and no query parameters; the session and user come exclusively from the verified cookie. Reports use server time, never extend session expiry, and update each session at most once per 30 seconds. The visible frontend tab reports every 30 seconds; online lasts 90 seconds. Revoked and expired sessions cannot report. Bearer keys never count as online. Cache-Control is no-store.
+      security:
+      - sessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRF'
+      responses:
+        '204':
+          description: Presence acknowledged; empty response.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
   /api/organization/join-code:
     get:
       operationId: getJoinCode

@@ -3,6 +3,8 @@ package auth
 import "errors"
 
 var (
+	ErrPermissionChanged    = errors.New("member permission changed")
+	ErrPermissionProtected  = errors.New("administrator permissions are protected")
 	ErrEmailTaken           = errors.New("email already registered")
 	ErrInvalidCredentials   = errors.New("invalid credentials")
 	ErrUnauthorized         = errors.New("unauthenticated")

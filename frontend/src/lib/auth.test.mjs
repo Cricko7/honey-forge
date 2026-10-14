@@ -1,6 +1,16 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { registrationOrganization, sessionDestination, canManage } from './auth.ts'
+import { registrationOrganization, sessionDestination, canManage, canManageTraps } from './auth.ts'
+
+test('delegated trap permissions never imply organization administration', () => {
+  const delegate = { user: { role: 'viewer', can_manage_traps: true } }
+  assert.equal(canManageTraps(delegate), true)
+  assert.equal(canManage(delegate), false)
+  assert.equal(canManageTraps({ user: { role: 'viewer', can_manage_traps: false } }), false)
+  assert.equal(canManageTraps({ user: { role: 'admin' } }), true)
+  assert.equal(canManageTraps({ user: { role: 'agent', can_manage_traps: true } }), false)
+  assert.equal(canManageTraps(undefined), false)
+})
 
 test('registration joins by code without accepting an administrator role', () => {
   assert.deepEqual(registrationOrganization('join', '  invite  '), { mode: 'join', join_code: 'invite' })

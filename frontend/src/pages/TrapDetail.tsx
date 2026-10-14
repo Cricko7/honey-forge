@@ -23,7 +23,7 @@ import {
   EmptyState,
 } from '@/components/ui'
 import {
-  useCanManage,
+  useCanManageTraps,
   useTrap,
   useCommands,
   useEvents,
@@ -37,7 +37,7 @@ import { commandControls } from '@/lib/command-controls'
 
 export function TrapDetailPage() {
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null)
-  const canManage = useCanManage()
+  const canManage = useCanManageTraps()
   const navigate = useNavigate()
   const { id = '' } = useParams()
   const { data: trap, isLoading } = useTrap(id)

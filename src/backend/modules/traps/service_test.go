@@ -160,6 +160,16 @@ func TestServiceAuthorization(t *testing.T) {
 	requireCode(t, err, "unauthenticated")
 }
 
+func TestDelegateCannotManageAgentCredentials(t *testing.T) {
+	s := NewService(nil, nil, "wss://center.example/ws/agent", nil)
+	ctx := contract.WithPrincipal(t.Context(), contract.Principal{Role: contract.Viewer, OrganizationID: contract.NewID(), CanManageTraps: true})
+	_, err := s.IssueCredentials(ctx, string(contract.NewID()), 0)
+	requireCode(t, err, "forbidden")
+	_, err = s.Credentials(ctx, string(contract.NewID()))
+	requireCode(t, err, "forbidden")
+	requireCode(t, s.RevokeCredentials(ctx, string(contract.NewID()), ""), "forbidden")
+}
+
 func ptr[T any](v T) *T {
 	return &v
 }

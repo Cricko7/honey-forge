@@ -17,6 +17,21 @@ export interface User {
   id: UUID
   email: string
   role: Role
+  can_manage_traps?: boolean
+}
+
+export interface OrganizationMember extends User {
+  organization_id: UUID
+  created_at: Timestamp
+  permission_revision: number
+  online: boolean
+  last_seen_at: Timestamp | null
+}
+
+export interface MemberPage {
+  creator: User | null
+  items: OrganizationMember[]
+  next_cursor: string | null
 }
 
 export interface Organization {

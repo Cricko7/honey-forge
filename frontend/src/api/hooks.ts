@@ -4,13 +4,14 @@ import type { CommandAction, EventSummary, StreamNotification } from '@/types'
 import type { EventFilter } from './event-filters'
 import { api, subscribeStream } from './client'
 import { qk } from './query-keys'
-import { canManage } from '@/lib/auth'
+import { canManage, canManageTraps } from '@/lib/auth'
 import { applyStreamNotification, removeDeletedTrap } from './cache'
 
 export { qk } from './query-keys'
 
-export const useSession = () => useQuery({ queryKey: qk.session, queryFn: api.getSession })
+export const useSession = () => useQuery({ queryKey: qk.session, queryFn: api.getSession, refetchInterval: 30_000, refetchOnWindowFocus: true })
 export const useCanManage = () => canManage(useSession().data)
+export const useCanManageTraps = () => canManageTraps(useSession().data)
 export const useDeploymentNodes = () => useQuery({ queryKey: ["deployment-nodes"], queryFn: api.listDeploymentNodes, refetchInterval: 5000 })
 export const useCatalog = () => useQuery({ queryKey: qk.catalog, queryFn: api.listCatalog })
 export const useProfiles = () => useQuery({ queryKey: qk.profiles, queryFn: api.listProfiles })

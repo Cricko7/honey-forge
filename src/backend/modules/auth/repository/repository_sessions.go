@@ -41,14 +41,14 @@ func (r *Repository) ResolveSession(ctx context.Context, hash []byte) (authcore.
 
 	err := r.pool.QueryRow(ctx, `
 		SELECT s.id::text, s.csrf_hash, s.expires_at,
-			u.id::text, u.organization_id::text, u.email, u.role, u.created_at,
+			u.id::text, u.organization_id::text, u.email, u.role, u.created_at, (u.role = 'admin' OR u.trap_management),
 			o.id::text, o.name, o.created_at
 		FROM operator_sessions s
 		JOIN users u ON u.id = s.user_id
 		JOIN organizations o ON o.id = u.organization_id
 		WHERE s.token_hash = $1 AND s.expires_at > now()
 	`, hash).Scan(&sess.ID, &sess.CSRFHash, &sess.View.ExpiresAt,
-		&sess.View.User.ID, &sess.View.User.OrganizationID, &sess.View.User.Email, &sess.View.User.Role, &sess.View.User.CreatedAt,
+		&sess.View.User.ID, &sess.View.User.OrganizationID, &sess.View.User.Email, &sess.View.User.Role, &sess.View.User.CreatedAt, &sess.View.User.CanManageTraps,
 		&sess.View.Organization.ID, &sess.View.Organization.Name, &sess.View.Organization.CreatedAt)
 
 	return sess, databaseError("loading active operator session", err)

@@ -15,6 +15,7 @@ type Capability string
 const (
 	ReadResources     Capability = "read_resources"
 	WriteResources    Capability = "write_resources"
+	ManageTraps       Capability = "manage_traps"
 	ManageCredentials Capability = "manage_credentials"
 	FrontendStream    Capability = "frontend_stream"
 	AgentStream       Capability = "agent_stream"
@@ -22,6 +23,15 @@ const (
 
 func AuthorizeCapability(ctx context.Context, capability Capability) error {
 	switch capability {
+	case ManageTraps:
+		p, ok := PrincipalFrom(ctx)
+		if !ok {
+			return NewError("unauthenticated")
+		}
+		if p.Role == Admin || (p.Role == Viewer && p.CanManageTraps) {
+			return nil
+		}
+		return NewError("forbidden")
 	case ReadResources, FrontendStream:
 		return Authorize(ctx, Admin, Viewer)
 	case WriteResources, ManageCredentials:
