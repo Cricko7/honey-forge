@@ -1,7 +1,9 @@
-"""Хранилище цепочек: in-memory + JSON-persistence на диск.
+"""Хранилище досок (цепочек): in-memory + JSON-persistence на диск.
 
-Данные синтетические (fake). При первом запуске засевается демо-контентом и
-встроенными шаблонами сценариев, чтобы доска не была пустой.
+Доски — это пользовательские схемы защиты. Демо-контент не засевается: при
+первом запуске создаётся одна пустая доска, которую оператор наполняет сам
+(реальными ловушками из дашборда через «Синхронизировать» и блоками палитры).
+Встроенные шаблоны-пресеты (TEMPLATES) доступны опционально при создании доски.
 """
 from __future__ import annotations
 
@@ -120,12 +122,9 @@ class ChainStore:
         DATA_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def _seed(self) -> None:
-        for tpl_id, tag in (("dmz", "demo"), ("internal", "demo")):
-            tpl = TEMPLATES[tpl_id]
-            nodes, edges = tpl["build"]()
-            c = Chain(name=tpl["name"], description=tpl["description"], tags=[tag],
-                      nodes=nodes, edges=edges)
-            self._chains[c.id] = c
+        # Без демо-контента: одна пустая доска, оператор наполняет её сам.
+        c = Chain(name="Моя схема", description="", tags=[], nodes=[], edges=[])
+        self._chains[c.id] = c
         self._save()
 
     # --- CRUD ---

@@ -1,7 +1,6 @@
 import { NavLink, Outlet, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
-  Network,
   Server,
   Bug,
   ScrollText,
@@ -26,7 +25,6 @@ import type { SessionView } from '@/types'
 
 const nav = [
   { to: '/app', end: true, icon: LayoutDashboard, label: 'Дашборд' },
-  { to: '/app/network', icon: Network, label: 'Конструктор сети' },
   { to: '/app/constructor', icon: Workflow, label: 'Конструктор цепочек' },
   { to: '/app/servers', icon: Server, label: 'Серверы' },
   { to: '/app/traps', icon: Bug, label: 'Ловушки' },

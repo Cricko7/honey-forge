@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Boxes, Maximize2, ExternalLink, X, Workflow, Zap, GitBranch, Radio } from 'lucide-react'
+import { Logo } from '@/components/Logo'
 
 // Полноценный конструктор цепочек ловушек — отдельный самостоятельный модуль
 // (honeyforge/constructor, бесконечная доска). Встраиваем «как есть» через
@@ -51,7 +52,7 @@ export function ConstructorPage() {
           <div className="p-5 flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-2 text-sm text-muted">
               <Boxes size={16} className="text-brand-soft" />
-              Отдельный модуль · бесконечная доска · fake-данные для демо
+              Отдельный модуль · бесконечная доска · реальные данные дашборда
             </div>
             <div className="flex items-center gap-2">
               <a className="btn-ghost" href={CONSTRUCTOR_URL} target="_blank" rel="noreferrer">
@@ -85,7 +86,9 @@ export function ConstructorPage() {
         <div className="fixed inset-0 z-50 flex flex-col bg-bg-base">
           <div className="h-12 shrink-0 flex items-center justify-between px-4 border-b border-line/60 bg-bg-panel/80 backdrop-blur-xl">
             <div className="flex items-center gap-2 text-sm font-medium">
-              <Boxes size={16} className="text-brand-soft" /> Конструктор цепочек ловушек
+              <Logo size={20} />
+              <span>HoneyForge</span>
+              <span className="text-muted font-normal">· Конструктор цепочек</span>
             </div>
             <div className="flex items-center gap-2">
               <a className="btn-ghost !py-1.5" href={CONSTRUCTOR_URL} target="_blank" rel="noreferrer">
@@ -96,7 +99,7 @@ export function ConstructorPage() {
               </button>
             </div>
           </div>
-          <iframe title="HoneyForge Конструктор" src={CONSTRUCTOR_URL} className="flex-1 w-full border-0" />
+          <iframe title="HoneyForge Конструктор" src={`${CONSTRUCTOR_URL}/?v=7`} className="flex-1 w-full border-0" />
         </div>
       )}
     </div>

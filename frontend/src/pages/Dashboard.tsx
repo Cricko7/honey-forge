@@ -105,7 +105,7 @@ export function DashboardPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Дашборд</h1>
           <p className="text-sm text-muted">Обзор ловушек и активности атак в реальном времени</p>
         </div>
-        <Link to="/app/network" className="btn-primary">
+        <Link to="/app/constructor" className="btn-primary">
           Открыть конструктор <ArrowUpRight size={16} />
         </Link>
       </div>

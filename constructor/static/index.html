@@ -6,7 +6,7 @@
   <title>HoneyForge · Конструктор цепочек</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./css/app.css?v=5" />
+  <link rel="stylesheet" href="./css/app.css?v=7" />
 </head>
 <body>
   <!-- ======= Полноэкранная бесконечная доска ======= -->
@@ -17,13 +17,23 @@
       <path id="tempEdge" class="edge temp hidden" />
     </svg>
     <div class="node-layer" id="nodeLayer"></div>
-    <div class="canvas-hint" id="canvasHint">Схема защиты строится автоматически: «Интернет» → ловушки. Слева — блоки инфраструктуры/защиты и реальные ловушки. «Синхронизировать» — обновить из дашборда.</div>
   </main>
 
   <!-- ======= Плавающая панель: бренд + переключатель цепочки ======= -->
   <div class="dock dock-tl">
     <div class="brand-pill">
-      <span class="logo" aria-hidden="true"></span>
+      <svg class="logo" width="28" height="28" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <defs>
+          <linearGradient id="hf-logo-grad" x1="5" y1="3" x2="27" y2="29" gradientUnits="userSpaceOnUse">
+            <stop stop-color="hsl(252 70% 62%)" />
+            <stop offset="1" stop-color="hsl(272 70% 52%)" />
+          </linearGradient>
+        </defs>
+        <path d="M16 2.6 L27.4 9.3 L27.4 22.7 L16 29.4 L4.6 22.7 L4.6 9.3 Z"
+              stroke="url(#hf-logo-grad)" stroke-width="2.1" stroke-linejoin="round" />
+        <path d="M16 9 C16.75 13.1 18.9 15.25 23 16 C18.9 16.75 16.75 18.9 16 23 C15.25 18.9 13.1 16.75 9 16 C13.1 15.25 15.25 13.1 16 9 Z"
+              fill="url(#hf-logo-grad)" />
+      </svg>
       <div class="brand-text">
         <strong>HoneyForge</strong>
         <span>Конструктор</span>
@@ -102,7 +112,7 @@
   <!-- ======= Тост ======= -->
   <div class="toast hidden" id="toast"></div>
 
-  <script type="module" src="./js/api.js?v=5"></script>
-  <script type="module" src="./js/app.js?v=5"></script>
+  <script type="module" src="./js/api.js?v=7"></script>
+  <script type="module" src="./js/app.js?v=7"></script>
 </body>
 </html>

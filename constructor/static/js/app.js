@@ -394,7 +394,7 @@ function addNode(type, world) {
   };
   S.chain.nodes.push(node);
   renderNodes(); select(node.id); autosave();
-  $("canvasHint").style.opacity = "0";
+  $("canvasHint")?.style && ($("canvasHint").style.opacity = "0");
 }
 function deleteNode(id) {
   S.chain.nodes = S.chain.nodes.filter(n => n.id !== id);
@@ -637,7 +637,7 @@ function placeTrap(t, world) {
                        level: t.interaction_level, agent: t.agent?.hostname } },
   });
   renderNodes(); renderPalette($("paletteSearch")?.value || ""); select(S.chain.nodes.at(-1).id);
-  autosave(); $("canvasHint").style.opacity = "0";
+  autosave(); $("canvasHint")?.style && ($("canvasHint").style.opacity = "0");
 }
 wrap.addEventListener("dragover", (e) => e.preventDefault());
 wrap.addEventListener("drop", (e) => {
@@ -1013,7 +1013,7 @@ function autoPlaceAll() {
     });
     n++;
   }
-  if (n) $("canvasHint").style.opacity = "0";
+  if (n) $("canvasHint")?.style && ($("canvasHint").style.opacity = "0");
 }
 // Синхронизация доски с дашбордом: обновить статусы, убрать удалённые, авто-залить пустую доску.
 async function syncReal(auto = false) {
@@ -1051,35 +1051,53 @@ async function syncReal(auto = false) {
 async function refreshChains() {
   S.chains = await api.listChains();
   const menu = $("chainMenu");
-  menu.innerHTML = `<div class="dd-head">Мои цепочки</div>` +
-    S.chains.map(c => `<div class="dd-item" data-id="${c.id}">
-        <div><div>${esc(c.name)}</div><small>${c.node_count} узлов · ${c.edge_count} связей</small></div>
-        <small>${c.tags.join(", ")}</small>
+  const activeId = S.chain?.id;
+  menu.innerHTML = `<div class="dd-head">Мои доски</div>` +
+    S.chains.map(c => `<div class="dd-item ${c.id === activeId ? "active" : ""}" data-id="${c.id}">
+        <div class="dd-item-main"><div>${esc(c.name)}</div><small>${c.node_count} узлов · ${c.edge_count} связей</small></div>
+        <div class="dd-actions">
+          <button class="dd-act" data-act="rename" data-id="${c.id}" title="Переименовать">✎</button>
+          <button class="dd-act" data-act="dup" data-id="${c.id}" title="Дублировать">⧉</button>
+          <button class="dd-act danger" data-act="del" data-id="${c.id}" title="Удалить">🗑</button>
+        </div>
       </div>`).join("") +
     `<div class="dd-sep"></div>
-     <div class="dd-item" id="ddNew"><strong>+ Новая цепочка</strong></div>
-     <div class="dd-item" id="ddDup">Дублировать текущую</div>
-     <div class="dd-item" id="ddDel" style="color:hsl(var(--err))">Удалить текущую</div>`;
-  menu.querySelectorAll(".dd-item[data-id]").forEach(it =>
-    it.addEventListener("click", () => { closeMenu(); loadChain(it.dataset.id); }));
+     <div class="dd-item" id="ddNew"><strong>+ Новая доска</strong></div>`;
+  // переход к доске по клику на название
+  menu.querySelectorAll(".dd-item[data-id] .dd-item-main").forEach(main =>
+    main.addEventListener("click", () => { closeMenu(); loadChain(main.closest("[data-id]").dataset.id); }));
+  // per-board действия
+  menu.querySelectorAll(".dd-act").forEach(btn => btn.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const id = btn.dataset.id, act = btn.dataset.act;
+    const chain = S.chains.find(c => c.id === id);
+    if (act === "rename") {
+      const name = prompt("Новое название доски:", chain?.name || "");
+      if (name === null || !name.trim()) return;
+      await api.updateChain(id, { name: name.trim() });
+      await refreshChains();
+      if (id === activeId) $("chainName").textContent = name.trim();
+    } else if (act === "dup") {
+      closeMenu(); const c = await api.duplicateChain(id); await refreshChains(); loadChain(c.id);
+      toast("Доска продублирована", "ok");
+    } else if (act === "del") {
+      if (S.chains.length <= 1) { toast("Нельзя удалить единственную доску", "err"); return; }
+      if (!confirm(`Удалить доску «${chain?.name}»?`)) return;
+      closeMenu(); await api.deleteChain(id); await refreshChains();
+      if (id === activeId) loadChain(S.chains[0]?.id);
+      toast("Доска удалена", "ok");
+    }
+  }));
   $("ddNew").addEventListener("click", newChainFlow);
-  $("ddDup").addEventListener("click", async () => {
-    closeMenu(); const c = await api.duplicateChain(S.chain.id); await refreshChains(); loadChain(c.id);
-  });
-  $("ddDel").addEventListener("click", async () => {
-    if (!confirm("Удалить текущую цепочку?")) return;
-    closeMenu(); await api.deleteChain(S.chain.id); await refreshChains();
-    loadChain(S.chains[0]?.id);
-  });
 }
 async function newChainFlow() {
   closeMenu();
   const name = prompt("Название новой доски:", "Новая доска");
   if (name === null) return;
-  const c = await api.createChain({ name });
+  const c = await api.createChain({ name: name.trim() || "Новая доска" });
   await refreshChains();
-  await loadChain(c.id);
-  await syncReal(true);  // сразу разложить реальные ловушки на новую доску
+  await loadChain(c.id);   // новая доска создаётся пустой — холст под свою схему
+  toast("Доска создана", "ok");
 }
 function closeMenu() { $("chainMenu").classList.add("hidden"); }
 

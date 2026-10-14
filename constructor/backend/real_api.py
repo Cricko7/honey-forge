@@ -87,6 +87,12 @@ def list_profiles() -> list[dict[str, Any]]:
     return page.get("items", []) if isinstance(page, dict) else []
 
 
+def list_events(limit: int = 50) -> list[dict[str, Any]]:
+    """Реальные события ловушек с бэкенда дашборда (свежие сверху)."""
+    page = _request("GET", f"/api/events?limit={int(limit)}")
+    return page.get("items", []) if isinstance(page, dict) else []
+
+
 def send_command(trap_id: str, action: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
     """Отправить команду ловушке (start | stop | apply_config)."""
     import uuid

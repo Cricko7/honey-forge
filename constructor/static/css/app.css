@@ -112,12 +112,9 @@ code, .mono { font-family: "JetBrains Mono", monospace; }
   box-shadow: 0 6px 24px hsl(var(--shadow) / .12);
 }
 .logo {
-  width: 28px; height: 28px; border-radius: 9px;
-  background: linear-gradient(135deg, hsl(252 70% 62%), hsl(272 70% 52%));
-  box-shadow: 0 3px 14px hsl(var(--brand) / .5); position: relative; flex-shrink: 0;
+  width: 28px; height: 28px; flex-shrink: 0;
+  filter: drop-shadow(0 3px 10px hsl(var(--brand) / .45));
 }
-.logo::after { content: ""; position: absolute; inset: 7px; border-radius: 4px;
-  background: radial-gradient(circle at 50% 40%, #fff6, transparent 60%); }
 .brand-text { display: flex; flex-direction: column; line-height: 1.12; }
 .brand-text strong { font-size: 14px; letter-spacing: .2px; }
 .brand-text span { font-size: 10.5px; color: hsl(var(--text-soft)); }
@@ -159,6 +156,15 @@ code, .mono { font-family: "JetBrains Mono", monospace; }
 .dropdown .dd-sep { height: 1px; background: hsl(var(--line)); margin: 6px 4px; }
 .dropdown .dd-head { font-size: 11px; text-transform: uppercase; letter-spacing: .6px;
   color: hsl(var(--text-soft)); padding: 6px 11px 2px; }
+.dropdown .dd-item.active { background: hsl(var(--brand) / .12); box-shadow: inset 0 0 0 1px hsl(var(--brand) / .35); }
+.dropdown .dd-item-main { flex: 1; min-width: 0; cursor: pointer; }
+.dropdown .dd-actions { display: flex; gap: 4px; opacity: .35; transition: opacity .15s; }
+.dropdown .dd-item:hover .dd-actions { opacity: 1; }
+.dropdown .dd-act { font: inherit; font-size: 13px; line-height: 1; width: 26px; height: 26px;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  border-radius: 7px; border: 1px solid transparent; background: transparent; color: hsl(var(--text-soft)); }
+.dropdown .dd-act:hover { background: hsl(var(--bg-sub)); border-color: hsl(var(--line)); color: hsl(var(--text)); }
+.dropdown .dd-act.danger:hover { color: hsl(var(--err)); border-color: hsl(var(--err) / .4); }
 
 /* ======== Выезжающие drawer'ы ======== */
 .drawer {
