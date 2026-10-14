@@ -1,11 +1,32 @@
 """Install the shared-origin route in the existing HTTPS management virtual host."""
 import argparse
+import glob
 from pathlib import Path
 import re
-import subprocess
 from urllib.parse import urlparse
 
 INCLUDE = 'include /etc/honey-forge/nginx/constructor.location.conf;'
+
+
+def configuration_files(config):
+    files, visited = [], set()
+    prefix = config.resolve().parent
+
+    def visit(path):
+        path = path.resolve()
+        if path in visited:
+            return
+        visited.add(path)
+        files.append(path)
+        for match in re.finditer(r'(?m)^\s*include\s+([^;]+);', path.read_text()):
+            pattern = Path(match.group(1).strip().strip('"\''))
+            if not pattern.is_absolute():
+                pattern = prefix / pattern
+            for included in sorted(glob.glob(str(pattern))):
+                visit(Path(included))
+
+    visit(config)
+    return files
 
 
 def update_config(source, hostname):
@@ -39,12 +60,23 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--origin', required=True)
     parser.add_argument('--backup', type=Path, required=True)
+    parser.add_argument('--restore', action='store_true')
+    parser.add_argument('--route-source', type=Path)
     args = parser.parse_args()
+    if args.restore:
+        target = Path((args.backup / 'source-path').read_text()).resolve()
+        if not target.is_relative_to('/etc/nginx'):
+            raise ValueError('Backup target is outside nginx configuration')
+        target.write_bytes((args.backup / 'original.conf').read_bytes())
+        return
     hostname = urlparse(args.origin).hostname
     if not hostname:
         raise ValueError('Management origin has no hostname')
-    output = subprocess.run(['nginx', '-T'], check=True, capture_output=True, text=True).stdout
-    files = re.findall(r'^# configuration file (.+):$', output, re.MULTILINE)
+    if args.route_source:
+        route = Path('/etc/honey-forge/nginx/constructor.location.conf')
+        route.parent.mkdir(parents=True, exist_ok=True)
+        route.write_bytes(args.route_source.read_bytes())
+    files = configuration_files(Path('/etc/nginx/nginx.conf'))
     candidates = []
     for filename in files:
         path = Path(filename).resolve()
@@ -57,16 +89,13 @@ def main():
     if len(candidates) != 1:
         raise ValueError('Cannot uniquely find HTTPS management nginx configuration')
     path, source, updated = candidates[0]
+    if not path.is_relative_to('/etc/nginx'):
+        raise ValueError('Management configuration is outside the mounted nginx directory')
     args.backup.mkdir(parents=True, exist_ok=True)
     (args.backup / 'source-path').write_text(str(path))
     (args.backup / 'original.conf').write_text(source)
     if updated != source:
         path.write_text(updated)
-        try:
-            subprocess.run(['nginx', '-t'], check=True)
-        except Exception:
-            path.write_text(source)
-            raise
 
 
 if __name__ == '__main__':

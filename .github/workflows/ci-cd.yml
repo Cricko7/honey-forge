@@ -227,7 +227,6 @@ jobs:
             test -f "$INCOMING/compose.constructor.yml"
             test -f "$INCOMING/constructor.location.conf"
             test -f "$INCOMING/install_constructor.py"
-            command -v python3 >/dev/null
             test -f "$INCOMING/images.tar.gz"
             test -f "$INCOMING/frontend/index.html"
             test -L "$FRONT" || { echo 'Prepare the frontend symlink before first deployment'; exit 1; }
@@ -285,6 +284,18 @@ jobs:
               }
             fi
             gzip -dc "$INCOMING/images.tar.gz" | docker load
+            constructor_image=$(sed -n 's/^CONSTRUCTOR_IMAGE=//p' "$INCOMING/release.env")
+            test -n "$constructor_image"
+            nginx_route() {
+              docker run --rm --user 0 --read-only --network none \
+                -v /etc/nginx:/etc/nginx \
+                -v /etc/honey-forge/nginx:/etc/honey-forge/nginx \
+                -v "$INCOMING/install_constructor.py:/installer.py:ro" \
+                -v "$INCOMING/constructor.location.conf:/route.conf:ro" \
+                -v "$INCOMING/nginx-backup:/backup" \
+                --entrypoint python "$constructor_image" /installer.py \
+                --origin "$EXPECTED_ORIGIN" --backup /backup "$@"
+            }
             PREVIOUS_ENV=''
             if [ -f "$ROOT/current/release.env" ]; then PREVIOUS_ENV=$(readlink -f "$ROOT/current/release.env"); fi
             PREVIOUS_FRONT=$(readlink -f "$FRONT")
@@ -306,8 +317,7 @@ jobs:
                 sudo -n systemctl start honeyforge || true
               fi
               if [ -f "$INCOMING/nginx-backup/source-path" ]; then
-                nginx_config=$(cat "$INCOMING/nginx-backup/source-path")
-                sudo -n cp "$INCOMING/nginx-backup/original.conf" "$nginx_config" || true
+                nginx_route --restore || true
                 sudo -n nginx -t && sudo -n systemctl reload nginx || true
               fi
               if [ -n "$PREVIOUS_ENV" ] || [ "$OLD_SYSTEMD" -eq 0 ]; then
@@ -383,9 +393,8 @@ jobs:
             chmod -R a+rX "$INCOMING/frontend"
             ln -s "$INCOMING/frontend" "$FRONT.next"
             mv -Tf "$FRONT.next" "$FRONT"
-            sudo -n install -d -m 0755 /etc/honey-forge/nginx
-            sudo -n install -m 0644 "$INCOMING/constructor.location.conf" /etc/honey-forge/nginx/constructor.location.conf
-            sudo -n python3 "$INCOMING/install_constructor.py" --origin "$EXPECTED_ORIGIN" --backup "$INCOMING/nginx-backup"
+            mkdir -p "$INCOMING/nginx-backup"
+            nginx_route --route-source /route.conf
             sudo -n nginx -t
             sudo -n systemctl reload nginx
             operator_host=${EXPECTED_ORIGIN#https://}; operator_host=${operator_host%%:*}
