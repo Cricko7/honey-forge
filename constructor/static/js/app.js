@@ -1171,6 +1171,9 @@ async function init() {
   await loadChain(S.chains[0]?.id);
   await syncReal(true);  // подтянуть реальные ловушки, корень «Интернет» и разложить под ключ
 
+  // Авто-синхронизация с дашбордом каждые 2 минуты (тихо, без тоста)
+  setInterval(() => { syncReal(true).catch(() => {}); }, 120000);
+
   // обработчики UI
   $("btnTheme").addEventListener("click", toggleTheme);
   $("btnZoomIn").addEventListener("click", () => zoomBy(1.2));
