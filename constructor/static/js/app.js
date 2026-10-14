@@ -444,6 +444,17 @@ function renderInspector() {
         <button class="btn-mini" id="btnRealStop">Остановить</button>
       </div>
     </div>`;
+  } else if (node.type.startsWith("asset/")) {
+    // Блок-сервис ещё не привязан к реальной ловушке → предложить создать её на дашборде.
+    const profs = S.realProfiles || [];
+    html += `<div class="insp-real insp-materialize">
+      <div class="im-hint">Сделать блок боевым: создать ловушку на дашборде по профилю и привязать к узлу.</div>` +
+      (profs.length
+        ? `<select class="input" id="f_profile">${profs.map(p =>
+             `<option value="${esc(p.id)}">${esc(p.name)} · ${esc(p.type_id || "")}</option>`).join("")}</select>
+           <button class="btn-mini btn-mini-primary" id="btnMaterialize" style="width:100%;margin-top:8px">＋ Создать ловушку на дашборде</button>`
+        : `<div class="ir-soft">Нет доступных профилей (бэкенд офлайн или профили не заданы). Нажмите «Синхронизировать».</div>`) +
+      `</div>`;
   }
 
   for (const f of spec.config) html += renderField(f, node.config[f.key]);
@@ -521,6 +532,31 @@ function bindInspector(node, spec) {
   if (node.config && node.config._real) {
     $("btnRealStart")?.addEventListener("click", () => realNodeCommand(node, "start"));
     $("btnRealStop")?.addEventListener("click", () => realNodeCommand(node, "stop"));
+  }
+  $("btnMaterialize")?.addEventListener("click", () => materializeNode(node, spec));
+}
+
+// Создать РЕАЛЬНУЮ ловушку на дашборде из блока-сервиса и привязать её к узлу.
+async function materializeNode(node, spec) {
+  const profileId = $("f_profile")?.value;
+  if (!profileId) { toast("Выберите профиль", "err"); return; }
+  const btn = $("btnMaterialize");
+  if (btn) { btn.disabled = true; btn.textContent = "Создаётся…"; }
+  try {
+    const name = node.label || spec.name;
+    const res = await api.realCreateTrap({ name, profile_id: profileId, description: "Создано из конструктора" });
+    const t = res.trap;
+    node.config._real = {
+      id: t.id, runtime: t.runtime_state || t.desired_state || "stopped",
+      connectivity: t.connectivity || "offline",
+      level: t.interaction_level, agent: t.agent?.hostname,
+    };
+    toast(`Ловушка «${name}» создана на дашборде`, "ok");
+    await loadRealData();            // подтянуть её в список реальных
+    renderInspector(); refreshNodeCard(node); autosave();
+  } catch (e) {
+    toast(e.message || "Не удалось создать ловушку", "err");
+    if (btn) { btn.disabled = false; btn.textContent = "＋ Создать ловушку на дашборде"; }
   }
 }
 
@@ -961,11 +997,13 @@ function realIcon(typeId) {
 // Загрузить типы и ловушки из реального бэкенда дашборда.
 async function loadRealData() {
   try {
-    const [catRes, trapRes] = await Promise.all([
+    const [catRes, trapRes, profRes] = await Promise.all([
       fetch("/api/real/catalog").then(r => r.json()),
       fetch("/api/real/traps").then(r => r.json()),
+      fetch("/api/real/profiles").then(r => r.json()).catch(() => ({ items: [] })),
     ]);
     S.realOnline = !!(catRes.online && trapRes.online);
+    S.realProfiles = profRes.items || [];
     S.realTypes = {};
     for (const e of (catRes.items || [])) {
       S.realTypes[e.type_id] = e;

@@ -173,6 +173,30 @@ def real_command(trap_id: str, req: RealCommand) -> dict:
         raise HTTPException(502, f"Бэкенд отклонил команду: {e}")
 
 
+@app.get("/api/real/profiles")
+def real_profiles() -> dict:
+    try:
+        return {"online": True, "items": real_api.list_profiles()}
+    except real_api.RealApiError as e:
+        return {"online": False, "items": [], "error": str(e)}
+
+
+class RealTrapCreate(BaseModel):
+    name: str
+    profile_id: str
+    description: str = ""
+
+
+@app.post("/api/real/traps", status_code=201)
+def real_create_trap(req: RealTrapCreate) -> dict:
+    """Создать настоящую ловушку на дашборде из блока конструктора."""
+    try:
+        trap = real_api.create_trap(req.name, req.profile_id, req.description)
+        return {"ok": True, "trap": trap}
+    except real_api.RealApiError as e:
+        raise HTTPException(502, f"Бэкенд отклонил создание ловушки: {e}")
+
+
 # ---- статика (SPA) ----
 if STATIC_DIR.exists():
     app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets") \

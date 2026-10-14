@@ -261,6 +261,11 @@ body.embedded #btnTheme { display: none; }
   cursor: pointer; border: 1px solid hsl(var(--line)); background: hsl(var(--bg-panel)); color: hsl(var(--text));
   transition: border-color .15s, background .15s; }
 .btn-mini:hover { border-color: hsl(var(--brand) / .5); background: hsl(var(--brand-soft)); }
+.btn-mini[disabled] { opacity: .6; cursor: default; }
+.btn-mini-primary { background: hsl(var(--brand)); color: #fff; border-color: transparent; }
+.btn-mini-primary:hover { background: hsl(var(--brand) / .88); border-color: transparent; }
+.insp-materialize .im-hint { font-size: 12px; color: hsl(var(--text-soft)); margin-bottom: 9px; line-height: 1.4; }
+.insp-real .ir-soft { font-size: 12px; color: hsl(var(--text-soft)); line-height: 1.4; }
 
 /* ======== Сворачиваемый островок инструментов ======== */
 .tooldock {

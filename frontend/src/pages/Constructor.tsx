@@ -107,7 +107,7 @@ export function ConstructorPage() {
           <iframe
             ref={iframeRef}
             title="HoneyForge Конструктор"
-            src={`${CONSTRUCTOR_URL}/?v=9&embed=1&theme=${theme}`}
+            src={`${CONSTRUCTOR_URL}/?v=10&embed=1&theme=${theme}`}
             className="flex-1 w-full border-0"
           />
         </div>

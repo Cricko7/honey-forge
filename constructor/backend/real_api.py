@@ -100,3 +100,11 @@ def send_command(trap_id: str, action: str, params: dict[str, Any] | None = None
     headers = {"X-CSRF-Token": _csrf} if _csrf else {}
     body = {"request_id": str(uuid.uuid4()), "action": action, "params": params or {}}
     return _request("POST", f"/api/traps/{trap_id}/commands", body, headers)
+
+
+def create_trap(name: str, profile_id: str, description: str = "") -> dict[str, Any]:
+    """Создать РЕАЛЬНУЮ ловушку на дашборде (по профилю). Возвращает объект ловушки."""
+    _ensure_session()
+    headers = {"X-CSRF-Token": _csrf} if _csrf else {}
+    body = {"name": name, "profile_id": profile_id, "description": description}
+    return _request("POST", "/api/traps", body, headers)
