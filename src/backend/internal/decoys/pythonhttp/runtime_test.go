@@ -47,7 +47,7 @@ func TestPythonHTTPManagedRuntime(t *testing.T) {
 	}
 	for i := 0; i < 10; i++ {
 		event := <-received
-		if event.TypeID != "custom-http" || event.SessionSequence != int64(i+1) {
+		if event.TypeID != "custom-http" || event.TypeVersion != int64(snapshot.TypeVersion) || event.SessionSequence != int64(i+1) {
 			t.Fatalf("event: %+v", event)
 		}
 		if event.EventType == "http.response" {

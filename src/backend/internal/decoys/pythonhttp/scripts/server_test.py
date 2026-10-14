@@ -33,7 +33,7 @@ class ServerTests(unittest.TestCase):
             {'id': 'reply', 'kind': 'response', 'config': {'status': 201, 'format': 'json', 'body': '"${json}"', 'headers': '{"X-Trap":"custom"}'}, 'outputs': {}},
             {'id': 'error', 'kind': 'response', 'config': {'status': 422, 'format': 'json', 'body': '{"error":"invalid JSON"}', 'headers': '{}'}, 'outputs': {}},
         ], 'limits': {'max_steps': 512, 'timeout_ms': 10000, 'max_body_bytes': 128}}
-        self.process.stdin.write(json.dumps({'snapshot': {'config': config, 'profile_revision': 1}, 'host': '127.0.0.1'}) + '\n')
+        self.process.stdin.write(json.dumps({'snapshot': {'config': config, 'type_version': 2, 'profile_revision': 1}, 'host': '127.0.0.1'}) + '\n')
         self.process.stdin.flush()
         self.ready.get(timeout=5)
 

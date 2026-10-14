@@ -29,7 +29,7 @@ func TestDurablePipelineRetryIdempotencyAndRevocation(t *testing.T) {
 		"management": map[string]any{"heartbeat_interval_seconds": 10, "telemetry_flush_interval_ms": 500},
 	}
 
-	profile := decodeIntegration[profiles.Profile](t, sendOperator(t, r, "POST", "/api/profiles", integrationJSON(t, profiles.CreateRequest{RequestID: string(contract.NewID()), Name: "Queue", TypeID: "custom-http", TypeVersion: 1, Config: config}), a, 201))
+	profile := decodeIntegration[profiles.Profile](t, sendOperator(t, r, "POST", "/api/profiles", integrationJSON(t, profiles.CreateRequest{RequestID: string(contract.NewID()), Name: "Queue", TypeID: "custom-http", TypeVersion: 2, Config: config}), a, 201))
 	create := func(name string) traps.Trap {
 		return decodeIntegration[traps.Trap](t, sendOperator(t, r, "POST", "/api/traps", integrationJSON(t, traps.CreateRequest{RequestID: string(contract.NewID()), Name: name, ProfileID: profile.ID}), a, 201))
 	}
@@ -94,7 +94,7 @@ func TestDurablePipelineRetryIdempotencyAndRevocation(t *testing.T) {
 	}
 
 	data := integrationJSON(t, map[string]any{"service": "web", "pipeline_id": completed.TraceID, "pipeline_step": completed.Hop, "status": 200, "bytes_sent": 0, "payload_base64": "", "truncated": false})
-	event := events.AgentEvent{EventID: string(contract.NewID()), EventType: "http.response", TypeID: "custom-http", TypeVersion: 1, ProfileRevision: 1, OccurredAt: time.Now().UTC().Format(time.RFC3339Nano), SessionID: string(contract.NewID()), SessionSequence: 1, Source: events.Source{IP: "127.0.0.1", Port: 1234}, Destination: events.Destination{Protocol: "tcp", Port: 32089}, Data: json.RawMessage(data)}
+	event := events.AgentEvent{EventID: string(contract.NewID()), EventType: "http.response", TypeID: "custom-http", TypeVersion: 2, ProfileRevision: 1, OccurredAt: time.Now().UTC().Format(time.RFC3339Nano), SessionID: string(contract.NewID()), SessionSequence: 1, Source: events.Source{IP: "127.0.0.1", Port: 1234}, Destination: events.Destination{Protocol: "tcp", Port: 32089}, Data: json.RawMessage(data)}
 	encoded := json.RawMessage(integrationJSON(t, event))
 	batch := agentws.TelemetryBatch{BatchID: string(contract.NewID()), Events: []agentws.Event{{EventID: event.EventID, Raw: encoded}}}
 	if _, err := r.Agents.Ingest(targetCtx, targetIdentity, connection, batch); err != nil {

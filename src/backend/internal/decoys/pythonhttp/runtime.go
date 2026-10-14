@@ -42,7 +42,7 @@ type Runtime struct {
 }
 
 func Ports(ctx context.Context, snapshot profiles.Snapshot) ([]int, error) {
-	if snapshot.TypeID != "custom-http" || snapshot.TypeVersion != 1 || snapshot.ProfileRevision < 1 {
+	if snapshot.TypeID != "custom-http" || (snapshot.TypeVersion != 1 && snapshot.TypeVersion != 2) || snapshot.ProfileRevision < 1 {
 		return nil, fmt.Errorf("unsupported HTTP snapshot")
 	}
 	raw, err := json.Marshal(snapshot.Config)
@@ -50,7 +50,7 @@ func Ports(ctx context.Context, snapshot profiles.Snapshot) ([]int, error) {
 		return nil, fmt.Errorf("encode HTTP config: %w", err)
 	}
 	for _, definition := range catalog.BuiltinDefinitions() {
-		if definition.Entry.TypeID != "custom-http" {
+		if definition.Entry.TypeID != "custom-http" || int32(definition.Entry.TypeVersion) != snapshot.TypeVersion {
 			continue
 		}
 		schema, err := configschema.Compile(definition.Entry.ConfigSchema)

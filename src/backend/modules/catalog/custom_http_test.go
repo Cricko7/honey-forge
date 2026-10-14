@@ -34,7 +34,7 @@ func TestCustomHTTPEventBlock(t *testing.T) {
 		{"invalid payload JSON", strings.Replace(raw, `"payload":"{\"user\":\"${json.user}\"}"`, `"payload":"{"`, 1), "config_invalid"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			wantCode(t, service.CheckConfig(t.Context(), "custom-http", 1, json.RawMessage(tc.raw)), tc.code)
+			wantCode(t, service.CheckConfig(t.Context(), "custom-http", 2, json.RawMessage(tc.raw)), tc.code)
 		})
 	}
 	for _, tc := range []struct{ name, data, code string }{
@@ -43,7 +43,7 @@ func TestCustomHTTPEventBlock(t *testing.T) {
 		{"oversized payload", `{"service":"web","node_id":"notify","name":"stage","severity":"high","payload":"` + strings.Repeat("x", 4096) + `"}`, "telemetry_invalid"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			wantCode(t, service.CheckEvent(t.Context(), "custom-http", 1, "http.custom", json.RawMessage(tc.data)), tc.code)
+			wantCode(t, service.CheckEvent(t.Context(), "custom-http", 2, "http.custom", json.RawMessage(tc.data)), tc.code)
 		})
 	}
 }

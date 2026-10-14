@@ -6,7 +6,7 @@ info:
     matching Origin and X-CSRF-Token are required for all mutations. Boards are organization
     scoped. Deploy compiles custom/listener, custom/banner and custom/rule blocks
     into one custom-tcp/1 profile and managed trap, and http/* behavior blocks into
-    one custom-http/1 profile and managed Python trap per board. Multiple HTTP inputs
+    one custom-http/2 profile and managed Python trap per board. Multiple HTTP inputs
     expose separate ports within that trap. Calls between inputs on the same board
     pass JSON and return results without outgoing network access. Conditions, switches,
     transforms, session state, fork/join, delay, responses and error branches are supported.

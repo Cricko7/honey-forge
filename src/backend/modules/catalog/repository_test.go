@@ -60,6 +60,17 @@ func TestRepositoryInstall(t *testing.T) {
 	}
 
 	repo := NewRepository(pool)
+	var previous []Definition
+	for _, definition := range BuiltinDefinitions() {
+		if definition.Entry.TypeID != "custom-http" || definition.Entry.TypeVersion == 1 {
+			previous = append(previous, definition)
+		}
+	}
+
+	if err := repo.Install(t.Context(), testService(t, previous...)); err != nil {
+		t.Fatal(err)
+	}
+
 	s := testService(t)
 	if err := repo.Install(t.Context(), s); err != nil {
 		t.Fatal(err)

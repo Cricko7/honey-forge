@@ -1043,145 +1043,6 @@
                 "config",
                 "outputs"
               ]
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "pattern": "^[a-zA-Z0-9_-]{1,64}$"
-                },
-                "kind": {
-                  "const": "event"
-                },
-                "config": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "properties": {
-                    "name": {
-                      "type": "string",
-                      "pattern": "^[a-z][a-z0-9_.-]{0,63}$"
-                    },
-                    "severity": {
-                      "type": "string",
-                      "enum": [
-                        "low",
-                        "medium",
-                        "high",
-                        "critical"
-                      ]
-                    },
-                    "payload": {
-                      "type": "string",
-                      "maxLength": 8192
-                    }
-                  },
-                  "required": [
-                    "name",
-                    "severity",
-                    "payload"
-                  ]
-                },
-                "outputs": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "properties": {
-                    "out": {
-                      "type": "string",
-                      "pattern": "^[a-zA-Z0-9_-]{1,64}$"
-                    },
-                    "error": {
-                      "type": "string",
-                      "pattern": "^[a-zA-Z0-9_-]{1,64}$"
-                    }
-                  },
-                  "required": [
-                    "out"
-                  ]
-                }
-              },
-              "required": [
-                "id",
-                "kind",
-                "config",
-                "outputs"
-              ]
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "pattern": "^[a-zA-Z0-9_-]{1,64}$"
-                },
-                "kind": {
-                  "const": "send"
-                },
-                "config": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "properties": {
-                    "target_id": {
-                      "type": "string",
-                      "format": "uuid"
-                    },
-                    "service": {
-                      "type": "string",
-                      "pattern": "^[a-z][a-z0-9_-]{0,31}$"
-                    },
-                    "method": {
-                      "type": "string",
-                      "enum": [
-                        "POST",
-                        "PUT",
-                        "PATCH"
-                      ]
-                    },
-                    "path": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 2048,
-                      "pattern": "^/[^?#\\r\\n]*$"
-                    },
-                    "payload": {
-                      "type": "string",
-                      "maxLength": 8192
-                    }
-                  },
-                  "required": [
-                    "target_id",
-                    "service",
-                    "method",
-                    "path",
-                    "payload"
-                  ]
-                },
-                "outputs": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "properties": {
-                    "out": {
-                      "type": "string",
-                      "pattern": "^[a-zA-Z0-9_-]{1,64}$"
-                    },
-                    "error": {
-                      "type": "string",
-                      "pattern": "^[a-zA-Z0-9_-]{1,64}$"
-                    }
-                  },
-                  "required": [
-                    "out"
-                  ]
-                }
-              },
-              "required": [
-                "id",
-                "kind",
-                "config",
-                "outputs"
-              ]
             }
           ]
         }
@@ -1257,15 +1118,6 @@
           "service": {
             "type": "string",
             "pattern": "^[a-z][a-z0-9_-]{0,31}$"
-          },
-          "pipeline_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "pipeline_step": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 4096
           }
         }
       }
@@ -1305,15 +1157,6 @@
               "network_error",
               "quit"
             ]
-          },
-          "pipeline_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "pipeline_step": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 4096
           }
         }
       }
@@ -1350,9 +1193,7 @@
               "delay",
               "response",
               "redirect",
-              "error",
-              "event",
-              "send"
+              "error"
             ]
           },
           "phase": {
@@ -1375,15 +1216,6 @@
           "message": {
             "type": "string",
             "maxLength": 256
-          },
-          "pipeline_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "pipeline_step": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 4096
           }
         },
         "required": [
@@ -1439,15 +1271,6 @@
           },
           "truncated": {
             "type": "boolean"
-          },
-          "pipeline_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "pipeline_step": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 4096
           }
         },
         "required": [
@@ -1489,15 +1312,6 @@
           },
           "truncated": {
             "type": "boolean"
-          },
-          "pipeline_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "pipeline_step": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 4096
           }
         },
         "required": [
@@ -1524,113 +1338,11 @@
           "message": {
             "type": "string",
             "maxLength": 256
-          },
-          "pipeline_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "pipeline_step": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 4096
           }
         },
         "required": [
           "service",
           "message"
-        ]
-      }
-    },
-    {
-      "event_type": "http.custom",
-      "title": "Pipeline event",
-      "data_schema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "service": {
-            "type": "string",
-            "pattern": "^[a-z][a-z0-9_-]{0,31}$"
-          },
-          "node_id": {
-            "type": "string",
-            "pattern": "^[a-zA-Z0-9_-]{1,64}$"
-          },
-          "name": {
-            "type": "string",
-            "pattern": "^[a-z][a-z0-9_.-]{0,63}$"
-          },
-          "severity": {
-            "type": "string",
-            "enum": [
-              "low",
-              "medium",
-              "high",
-              "critical"
-            ]
-          },
-          "payload": {},
-          "pipeline_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "pipeline_step": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 4096
-          }
-        },
-        "required": [
-          "service",
-          "node_id",
-          "name",
-          "severity",
-          "payload"
-        ]
-      }
-    },
-    {
-      "event_type": "http.pipeline_received",
-      "title": "Pipeline handoff received",
-      "data_schema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "service": {
-            "type": "string",
-            "pattern": "^[a-z][a-z0-9_-]{0,31}$"
-          },
-          "pipeline_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "pipeline_step": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 4096
-          },
-          "request_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "source_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "node_id": {
-            "type": "string",
-            "pattern": "^[a-zA-Z0-9_-]{1,64}$"
-          }
-        },
-        "required": [
-          "service",
-          "pipeline_id",
-          "pipeline_step",
-          "request_id",
-          "source_id",
-          "node_id"
         ]
       }
     }

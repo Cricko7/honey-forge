@@ -116,7 +116,7 @@ class Server(PipelineServerMixin):
             nonlocal sequence
             sequence += 1
             await self.emit({'event_id': str(uuid.uuid4()), 'event_type': kind,
-                'type_id': 'custom-http', 'type_version': 1, 'profile_revision': self.snapshot['profile_revision'],
+                'type_id': 'custom-http', 'type_version': self.snapshot['type_version'], 'profile_revision': self.snapshot['profile_revision'],
                 'occurred_at': datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00', 'Z'),
                 'session_id': session, 'session_sequence': sequence,
                 'source': {'ip': str(ipaddress.ip_address(peer[0])), 'port': peer[1]},

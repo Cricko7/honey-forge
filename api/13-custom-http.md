@@ -1,6 +1,6 @@
 # Custom HTTP constructor
 
-`custom-http/1` is a managed trap type. Operators build behavior using blocks on the
+`custom-http/2` is a managed trap type. Operators build behavior using blocks on the
 constructor board; deploying creates a regular profile and trap. Start, Stop,
 configuration revisions, agent credentials, organization access, deployment node
 placement and durable telemetry use the existing API and agent lifecycle.
@@ -164,3 +164,5 @@ Delivery to the main server uses the existing durable buffer, retries and ingest
 validation. A disconnected main server may delay delivery while the agent buffers it;
 an unavailable telemetry buffer stops the runtime. Metadata continues to use the
 entry service and port, while block IDs identify internal handoffs.
+
+Version 1 remains available with its original immutable schemas. New constructor deployments select version 2, which adds custom events and JSON handoffs. Existing version 1 profiles and traps keep their version.

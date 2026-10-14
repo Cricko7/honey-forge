@@ -51,7 +51,7 @@ func TestSeparateHTTPRuntimesChainBeyondNestedCallLimit(t *testing.T) {
 			return runtimes[r.TargetID].Receive(ctx, pipeline.Delivery{Request: r, SourceID: id, TraceID: ids[0], Hop: 1, ExpiresAt: time.Now().Add(pipeline.Lifetime)})
 		})
 		runtime, err := Start(ctx, snapshot, "127.0.0.1", func(ctx context.Context, e events.AgentEvent) error {
-			if err := cat.CheckEvent(ctx, e.TypeID, 1, e.EventType, e.Data); err != nil {
+			if err := cat.CheckEvent(ctx, e.TypeID, contract.TypeVersion(e.TypeVersion), e.EventType, e.Data); err != nil {
 				t.Logf("invalid %s: %s (%v)", e.EventType, e.Data, err)
 				return err
 			}
@@ -102,7 +102,7 @@ func pipelineSnapshot(port int, target string) profiles.Snapshot {
 	block := func(id, kind string, c map[string]any, out map[string]string) any {
 		return map[string]any{"id": id, "kind": kind, "config": c, "outputs": out}
 	}
-	return profiles.Snapshot{TypeID: "custom-http", TypeVersion: 1, ProfileRevision: 1, Config: profiles.Object{
+	return profiles.Snapshot{TypeID: "custom-http", TypeVersion: 2, ProfileRevision: 1, Config: profiles.Object{
 		"services": []any{map[string]any{"name": "web", "port": port, "entry": "web"}},
 		"blocks": []any{
 			block("web", "input", map[string]any{"name": "web", "port": port, "method": "POST", "path": "/pipeline"}, map[string]string{"out": "parse"}),

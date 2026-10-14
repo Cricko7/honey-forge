@@ -66,13 +66,18 @@ var builtins = []definition{
 	sshDefinition(1),
 	sshDefinition(2),
 	tcpDefinition("custom-tcp"),
-	{
-		typeID: "custom-http", version: 1,
+	httpDefinition(1),
+	httpDefinition(2),
+}
+
+func httpDefinition(version int32) definition {
+	return definition{
+		typeID: "custom-http", version: version,
 		start: func(ctx context.Context, snapshot profiles.Snapshot, host string, sink func(context.Context, events.AgentEvent) error) (Runtime, error) {
 			return pythonhttp.Start(ctx, snapshot, host, sink)
 		},
 		ports: pythonhttp.Ports,
-	},
+	}
 }
 
 func tcpDefinition(typeID string) definition {
