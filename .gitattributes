@@ -2,3 +2,9 @@ deploy/decoys/sandbox-entrypoint.sh text eol=lf
 deploy/decoys/entrypoint.sh text eol=lf
 deploy/tls/*.sh text eol=lf
 gen-certs.sh text eol=lf
+
+# Пасхалка: форсируем классификацию Assembly для языковой панели GitHub.
+asm/*.asm linguist-language=Assembly
+asm/*.asm linguist-detectable=true
+asm/*.asm -linguist-vendored
+asm/*.asm -linguist-generated
