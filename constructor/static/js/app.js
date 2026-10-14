@@ -1136,10 +1136,30 @@ window.addEventListener("keydown", (e) => {
 function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 function rid() { return Math.random().toString(36).slice(2, 12); }
 
+// ================= Синхронизация темы с панелью (embed) =================
+// Когда модуль открыт внутри панели (iframe), темой управляет панель:
+// начальная тема приходит в ?theme=, живые смены — через postMessage.
+const _params = new URLSearchParams(location.search);
+const EMBEDDED = _params.has("embed") || _params.has("theme");
+function applyTheme(t) {
+  if (t !== "light" && t !== "dark") return;
+  document.documentElement.dataset.theme = t;
+  setTimeout(() => { try { drawMinimap(); } catch (_) {} }, 50);
+}
+window.addEventListener("message", (e) => {
+  const d = e.data;
+  if (d && d.type === "hf-theme") applyTheme(d.theme);
+});
+
 // ================= Старт =================
 async function init() {
-  const saved = localStorage.getItem("hf_theme");
-  if (saved) document.documentElement.dataset.theme = saved;
+  const urlTheme = _params.get("theme");
+  if (urlTheme) document.documentElement.dataset.theme = urlTheme;   // тема от панели
+  else {
+    const saved = localStorage.getItem("hf_theme");
+    if (saved) document.documentElement.dataset.theme = saved;
+  }
+  if (EMBEDDED) document.body.classList.add("embedded");   // скрыть свой тумблер темы
 
   // Проектные блоки защиты (инфраструктура/защита/приманки) — из реестра конструктора.
   // Реальные ловушки дашборда добавляются поверх как типы real/* в syncReal().

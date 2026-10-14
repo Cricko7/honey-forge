@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Boxes, Maximize2, ExternalLink, X, Workflow, Zap, GitBranch, Radio } from 'lucide-react'
+import { useTheme } from '@/lib/theme'
 
 // Полноценный конструктор цепочек ловушек — отдельный самостоятельный модуль
 // (honeyforge/constructor, бесконечная доска). Встраиваем «как есть» через
@@ -15,6 +16,13 @@ const features = [
 
 export function ConstructorPage() {
   const [open, setOpen] = useState(false)
+  const { theme } = useTheme()
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+
+  // Тема панели = тема модуля. Смену темы шлём в iframe вживую (postMessage).
+  useEffect(() => {
+    iframeRef.current?.contentWindow?.postMessage({ type: 'hf-theme', theme }, '*')
+  }, [theme, open])
 
   return (
     <div className="h-full overflow-y-auto">
@@ -96,7 +104,12 @@ export function ConstructorPage() {
               </button>
             </div>
           </div>
-          <iframe title="HoneyForge Конструктор" src={`${CONSTRUCTOR_URL}/?v=7`} className="flex-1 w-full border-0" />
+          <iframe
+            ref={iframeRef}
+            title="HoneyForge Конструктор"
+            src={`${CONSTRUCTOR_URL}/?v=8&embed=1&theme=${theme}`}
+            className="flex-1 w-full border-0"
+          />
         </div>
       )}
     </div>

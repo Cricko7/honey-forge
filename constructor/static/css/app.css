@@ -115,6 +115,8 @@ code, .mono { font-family: "JetBrains Mono", monospace; }
   width: 28px; height: 28px; flex-shrink: 0;
   filter: drop-shadow(0 3px 10px hsl(var(--brand) / .45));
 }
+/* Встроен в панель — темой управляет панель, свой тумблер прячем */
+body.embedded #btnTheme { display: none; }
 .brand-text { display: flex; flex-direction: column; line-height: 1.12; }
 .brand-text strong { font-size: 14px; letter-spacing: .2px; }
 .brand-text span { font-size: 10.5px; color: hsl(var(--text-soft)); }
