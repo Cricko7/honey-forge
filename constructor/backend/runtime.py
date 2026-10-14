@@ -10,6 +10,7 @@ from urllib.parse import urlencode
 from fastapi import HTTPException
 from . import real_api
 from .custom import compile_chain
+from .http_pipeline import validate_destinations, connect_destinations
 from .models import ChainUpdate
 from .store import store
 
@@ -83,6 +84,8 @@ class RuntimeManager:
                         if listener['port'] in ports:
                             raise HTTPException(422, 'Блоки ловушек используют одинаковый TCP-порт')
                         ports.add(listener['port'])
+                if '__http__' in configs:
+                    validate_destinations(configs['__http__'],chain.bindings.get('__http__',{}).get('trap_id'))
                 for node in nodes:
                     tid = trap_id(chain, node)
                     if tid:
@@ -142,6 +145,8 @@ class RuntimeManager:
                     binding['digest'] = hashlib.sha256(json.dumps(configs[node.id], sort_keys=True).encode()).hexdigest()
                     node.config.pop('password', None)
                     store.update(chain_id, ChainUpdate())
+                if '__http__' in configs:
+                    connect_destinations(configs['__http__'],chain.bindings['__http__']['trap_id'])
             else:
                 for node in nodes:
                     tid = trap_id(chain, node)
@@ -168,14 +173,14 @@ class RuntimeManager:
                         continue
                     if event['event_id'] in seen:
                         continue
-                    if event['event_type'] == 'http.block':
+                    if event['event_type'] in ('http.block','http.custom','http.pipeline_received'):
                         # Event lists intentionally omit payload; details identify the behavior block.
                         event = await asyncio.to_thread(real_api._request, 'GET', '/api/events/' + event['event_id'])
                     seen.add(event['event_id'])
-                    event_node = event.get('data', {}).get('node_id', node.id) if event['event_type'] == 'http.block' else node.id
+                    event_node = event.get('data', {}).get('node_id', node.id) if event['event_type'] in ('http.block','http.custom','http.pipeline_received') else node.id
                     yield sse({'kind': 'hop', 'node_id': event_node, 'title': event['event_type'], 'detail': event['occurred_at'],
                                'source_ip': event.get('source', {}).get('ip', ''), 'country': '', 'technique': '—',
-                               'severity': 'medium', 'is_detection': True, 'event_id': event['event_id']})
+                               'severity': event.get('data',{}).get('severity','medium'), 'is_detection': True, 'event_id': event['event_id']})
             if len(seen) > 10000:
                 seen.clear()
             await asyncio.sleep(2)

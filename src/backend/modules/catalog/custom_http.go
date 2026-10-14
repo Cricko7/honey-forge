@@ -1,7 +1,10 @@
 package catalog
 
 import (
+	"bytes"
 	"encoding/json"
+	"net/url"
+	"strings"
 
 	"honey-forge/internal/contract"
 )
@@ -90,6 +93,27 @@ func CheckCustomHTTPConfig(raw json.RawMessage) error {
 				return invalid
 			}
 		}
+		if block.Kind == "send" {
+			var path string
+			if json.Unmarshal(block.Config["path"], &path) != nil {
+				return invalid
+			}
+			parsed, err := url.ParseRequestURI(path)
+			if err != nil || parsed.IsAbs() || parsed.Host != "" || strings.HasPrefix(path, "//") || strings.ContainsAny(path, "?#\r\n") {
+				return invalid
+			}
+		}
+	}
+	return nil
+}
+
+func checkCustomHTTPEvent(raw json.RawMessage) error {
+	var data struct {
+		Payload json.RawMessage `json:"payload"`
+	}
+	var compact bytes.Buffer
+	if json.Unmarshal(raw, &data) != nil || json.Compact(&compact, data.Payload) != nil || compact.Len() > 4096 {
+		return contract.NewError("telemetry_invalid")
 	}
 	return nil
 }

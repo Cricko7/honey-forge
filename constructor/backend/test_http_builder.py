@@ -50,6 +50,45 @@ class HTTPBuilderTests(unittest.TestCase):
         self.assertIn('http/input', types)
         self.assertIn('http/transform', types)
         self.assertIn('http/response', types)
+        self.assertIn('http/event', types)
+
+    def test_compile_event_and_reject_invalid_configuration(self):
+        for name, config, valid in [
+            ('valid', {'name': 'login.processed', 'severity': 'high', 'payload': '{"user":"${json.user}"}'}, True),
+            ('invalid name', {'name': '${json.name}'}, False),
+            ('invalid severity', {'severity': 'urgent'}, False),
+            ('invalid payload', {'payload': '{'}, False),
+        ]:
+            with self.subTest(name=name):
+                board = self.board()
+                board.nodes.append(Node(id='notify', type='http/event', config=config))
+                board.edges[0].target = 'notify'
+                board.edges.append(Edge(source='notify', source_port='out', target='parse', target_port='in'))
+                if valid:
+                    compiled = compile_chain(board).config['compiled']
+                    self.assertEqual(compiled['blocks'][-1]['kind'], 'event')
+                else:
+                    with self.assertRaises(HTTPException):
+                        compile_chain(board)
+
+    def test_compile_separate_trap_send_and_validate_destination_shape(self):
+        for name,config,valid in [
+            ('valid',{'target_id':'11111111-1111-4111-8111-111111111111','service':'web','method':'POST','path':'/pipeline','payload':'{"count":"${json.count}"}'},True),
+            ('invalid trap',{'target_id':'http://localhost/'},False),
+            ('invalid endpoint',{'target_id':'11111111-1111-4111-8111-111111111111','path':'//localhost/'},False),
+            ('query',{'target_id':'11111111-1111-4111-8111-111111111111','path':'/ingest?token=x'},False),
+            ('bad json',{'target_id':'11111111-1111-4111-8111-111111111111','payload':'{'},False),
+        ]:
+            with self.subTest(name=name):
+                board=self.board()
+                board.nodes.append(Node(id='send',type='http/send',config=config))
+                board.edges[0].target='send'
+                board.edges.append(Edge(source='send',source_port='out',target='parse',target_port='in'))
+                if valid:
+                    compiled=compile_chain(board).config['compiled']
+                    self.assertEqual(compiled['blocks'][-1]['kind'],'send')
+                else:
+                    with self.assertRaises(HTTPException):compile_chain(board)
 
 
 class HTTPStreamTests(unittest.IsolatedAsyncioTestCase):

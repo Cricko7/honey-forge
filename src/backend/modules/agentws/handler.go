@@ -15,18 +15,23 @@ import (
 	"github.com/gorilla/websocket"
 
 	"honey-forge/internal/contract"
+	"honey-forge/internal/platform/pipeline"
 	"honey-forge/internal/platform/tlsconfig"
 	"honey-forge/internal/platform/traffic"
 	"honey-forge/internal/stream"
 	"honey-forge/modules/commands"
+	"honey-forge/modules/profiles"
 )
 
 type Handler struct {
-	TrafficTargets func(context.Context, string, string) ([]string, error)
-	ClientCAFile   string
-	gateway        Gateway
-	commands       CommandService
-	registry       sessionRegistry
+	PipelineSnapshot func(context.Context, Identity, string) (profiles.Snapshot, error)
+	pipelineMu       sync.Mutex
+	pipelineTokens   map[string]pipelineCapability
+	TrafficTargets   func(context.Context, string, string) ([]string, error)
+	ClientCAFile     string
+	gateway          Gateway
+	commands         CommandService
+	registry         sessionRegistry
 }
 
 func NewHandler(gateway Gateway, commands CommandService) *Handler {
@@ -161,6 +166,8 @@ func (h *Handler) run(session *agentSession) (runErr error) {
 	}
 
 	session.trafficEnabled = hello.TrafficMirroring
+	session.pipelineEnabled = hello.HTTPPipeline && session.identity.TypeID == "custom-http" && h.PipelineSnapshot != nil
+	session.pipeline = make(chan pipelineDelivery, pipeline.QueueCapacity)
 	session.traffic = make(chan traffic.Delivery, traffic.QueueCapacity)
 	entry := h.registry.entry(session.identity.TrapID)
 	entry.mu.Lock()
@@ -197,6 +204,7 @@ func (h *Handler) run(session *agentSession) (runErr error) {
 		"connection_id":                 session.connectionID,
 		"trap_id":                       session.identity.TrapID,
 		"traffic_mirroring":             h.TrafficTargets != nil && hello.TrafficMirroring,
+		"http_pipeline":                 session.pipelineEnabled,
 		"server_time":                   time.Now().UTC(),
 		"heartbeat_interval_seconds":    interval(state),
 		"offline_after_seconds":         30,
@@ -252,16 +260,18 @@ func desiredState(state State) string {
 }
 
 type agentSession struct {
-	trafficEnabled bool
-	traffic        chan traffic.Delivery
-	identity       Identity
-	token          string
-	socket         *stream.Socket
-	ctx            context.Context
-	cancel         context.CancelFunc
-	connectionID   string
-	active         atomic.Bool
-	heartbeatAt    atomic.Int64
+	pipelineEnabled bool
+	pipeline        chan pipelineDelivery
+	trafficEnabled  bool
+	traffic         chan traffic.Delivery
+	identity        Identity
+	token           string
+	socket          *stream.Socket
+	ctx             context.Context
+	cancel          context.CancelFunc
+	connectionID    string
+	active          atomic.Bool
+	heartbeatAt     atomic.Int64
 }
 
 type sessionEntry struct {

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"honey-forge/internal/configschema"
+	"honey-forge/internal/platform/pipeline"
 	"honey-forge/internal/platform/traffic"
 	"honey-forge/modules/catalog"
 	"honey-forge/modules/events"
@@ -27,13 +28,17 @@ var engine string
 //go:embed scripts/server.py
 var server string
 
+//go:embed scripts/pipeline_server.py
+var pipelineServer string
+
 type Runtime struct {
-	cmd   *exec.Cmd
-	input io.WriteCloser
-	done  chan struct{}
-	once  sync.Once
-	mu    sync.Mutex // protects the terminal error
-	err   error
+	writeMu sync.Mutex // serializes acknowledgements and incoming pipeline deliveries
+	cmd     *exec.Cmd
+	input   io.WriteCloser
+	done    chan struct{}
+	once    sync.Once
+	mu      sync.Mutex // protects the terminal error
+	err     error
 }
 
 func Ports(ctx context.Context, snapshot profiles.Snapshot) ([]int, error) {
@@ -92,7 +97,7 @@ func Start(ctx context.Context, snapshot profiles.Snapshot, host string, sink fu
 	if executable == "" {
 		executable = "python3"
 	}
-	cmd := exec.Command(executable, "-I", "-u", "-c", engine+"\n"+server)
+	cmd := exec.Command(executable, "-I", "-u", "-c", engine+"\n"+pipelineServer+"\n"+server)
 	cmd.Stderr = os.Stderr
 	input, err := cmd.StdinPipe()
 	if err != nil {
@@ -151,9 +156,10 @@ func (r *Runtime) read(ctx context.Context, output io.Reader, sink func(context.
 	initialized := false
 	for scanner.Scan() {
 		var message struct {
-			Type  string            `json:"type"`
-			Event events.AgentEvent `json:"event"`
-			Frame traffic.Frame     `json:"frame"`
+			Type    string            `json:"type"`
+			Event   events.AgentEvent `json:"event"`
+			Frame   traffic.Frame     `json:"frame"`
+			Request pipeline.Request  `json:"request"`
 		}
 		if err := json.Unmarshal(scanner.Bytes(), &message); err != nil {
 			return fmt.Errorf("decode Python message: %w", err)
@@ -172,7 +178,7 @@ func (r *Runtime) read(ctx context.Context, output io.Reader, sink func(context.
 			eventCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 			err := sink(eventCtx, message.Event)
 			cancel()
-			writeErr := json.NewEncoder(r.input).Encode(map[string]any{"event_id": message.Event.EventID, "ok": err == nil})
+			writeErr := r.write(map[string]any{"event_id": message.Event.EventID, "ok": err == nil})
 			if err != nil || writeErr != nil {
 				return fmt.Errorf("Python telemetry: %w", errors.Join(err, writeErr))
 			}
@@ -184,11 +190,44 @@ func (r *Runtime) read(ctx context.Context, output io.Reader, sink func(context.
 				return err
 			}
 			traffic.Mirror(ctx, message.Frame)
+		case "pipeline_send":
+			if !initialized {
+				return fmt.Errorf("pipeline send before readiness")
+			}
+			forwardCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+			err := pipeline.Send(forwardCtx, message.Request)
+			cancel()
+			id := message.Request.RequestID
+			if err != nil {
+				id = ""
+			}
+			if err := r.write(map[string]any{"pipeline_request_id": message.Request.RequestID, "accepted": id != ""}); err != nil {
+				return err
+			}
 		default:
 			return fmt.Errorf("unexpected Python message")
 		}
 	}
 	return scanner.Err()
+}
+
+func (r *Runtime) write(value any) error {
+	r.writeMu.Lock()
+	defer r.writeMu.Unlock()
+	return json.NewEncoder(r.input).Encode(value)
+}
+
+func (r *Runtime) Receive(ctx context.Context, d pipeline.Delivery) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := pipeline.Check(d.Request); err != nil {
+		return err
+	}
+	if !time.Now().Before(d.ExpiresAt) {
+		return nil
+	}
+	return r.write(map[string]any{"type": "pipeline_receive", "delivery": d})
 }
 
 func (r *Runtime) Stop() {

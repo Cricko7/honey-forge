@@ -35,3 +35,34 @@ func TestCustomHTTPSnapshot(t *testing.T) {
 		})
 	}
 }
+
+func TestCustomHTTPEventSnapshot(t *testing.T) {
+	snapshot := profiles.Snapshot{TypeID: "custom-http", TypeVersion: 1, ProfileRevision: 1, Config: profiles.Object{
+		"services": []any{profiles.Object{"name": "web", "port": 8080}},
+		"blocks": []any{
+			profiles.Object{"id": "notify", "kind": "event", "config": profiles.Object{"name": "stage.processed", "severity": "high"}},
+			profiles.Object{"id": "reply", "kind": "response"},
+		},
+	}}
+	for _, tc := range []struct {
+		name, node, eventName, severity string
+		valid                           bool
+	}{
+		{"configured event", "notify", "stage.processed", "high", true},
+		{"unknown block", "missing", "stage.processed", "high", false},
+		{"wrong block kind", "reply", "stage.processed", "high", false},
+		{"spoofed name", "notify", "other", "high", false},
+		{"spoofed severity", "notify", "stage.processed", "critical", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			raw, err := json.Marshal(map[string]any{"service": "web", "node_id": tc.node, "name": tc.eventName, "severity": tc.severity, "payload": map[string]any{"count": 3}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			event := AgentEvent{TypeID: "custom-http", TypeVersion: 1, ProfileRevision: 1, EventType: "http.custom", Destination: Destination{Protocol: "tcp", Port: 8080}, Data: raw}
+			if err := checkSnapshot(event, snapshot); (err == nil) != tc.valid {
+				t.Fatalf("snapshot: %v", err)
+			}
+		})
+	}
+}

@@ -167,6 +167,11 @@ func Open(ctx context.Context, config Config) (*Runtime, error) {
 	}
 
 	agentHandler := agentws.NewHandler(gateway, agentCommands)
+	if pipelineGateway, ok := gateway.(interface {
+		PipelineSnapshot(context.Context, agentws.Identity, string) (profiles.Snapshot, error)
+	}); ok {
+		agentHandler.PipelineSnapshot = pipelineGateway.PipelineSnapshot
+	}
 	links := traplinks.NewService(traplinks.NewRepository(pool))
 	agentHandler.TrafficTargets = links.Targets
 	agentHandler.ClientCAFile = config.AgentClientCAFile

@@ -458,6 +458,17 @@ function renderInspector() {
   }
 
   for (const f of spec.config) html += renderField(f, node.config[f.key]);
+  if (node.type === 'http/send') {
+    const target = S.realTraps.find(t => t.id === node.config.target_id);
+    const profile = S.realProfiles?.find(p => p.id === target?.profile_id);
+    if (profile?.config?.services) {
+      const inputs = profile.config.services.map(s => {
+        const entry = profile.config.blocks?.find(b => b.id === s.entry);
+        return `${s.name}: ${entry?.config?.method || 'ANY'} ${entry?.config?.path || '*'} · порт ${s.port}`;
+      });
+      html += `<div class="insp-doc">HTTP-входы получателя:<br>${inputs.map(esc).join('<br>')}</div>`;
+    }
+  }
 
   html += `<div class="insp-doc">${esc(spec.doc || "")}</div>`;
   html += `<div class="insp-actions">
@@ -473,7 +484,9 @@ function renderInspector() {
 function renderField(f, val) {
   const id = "f_" + f.key;
   let ctrl = "";
-  if (f.type === "node") {
+  if (f.type === "trap") {
+    ctrl = `<select class="input" id="${id}"><option value="">Выберите HTTP-ловушку</option>${S.realTraps.filter(t => t.type_id === 'custom-http').map(t => `<option value="${esc(t.id)}" ${t.id === val ? 'selected' : ''}>${esc(t.name)} · ${esc(t.runtime_state)}</option>`).join('')}</select>`;
+  } else if (f.type === "node") {
     ctrl = `<select class="input" id="${id}"><option value="">Выберите HTTP-вход</option>${S.chain.nodes.filter(n => n.type === 'http/input').map(n => `<option value="${esc(n.id)}" ${n.id === val ? 'selected' : ''}>${esc(n.label || n.config.name || n.id)} · ${esc(n.config.port)}</option>`).join('')}</select>`;
   } else if (f.type === "toggle") {
     ctrl = `<div class="field-row"><div class="toggle ${val ? "on" : ""}" id="${id}" role="switch"></div>
@@ -527,6 +540,7 @@ function bindInspector(node, spec) {
       el.addEventListener("input", () => {
         node.config[f.key] = f.type === "number" ? (el.value === "" ? null : +el.value) : el.value;
         refreshNodeCard(node); autosave();
+        if (f.type === 'trap') renderInspector();
       });
     }
   }

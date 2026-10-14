@@ -14,18 +14,20 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	"honey-forge/internal/platform/pipeline"
 	"honey-forge/internal/platform/traffic"
 	"honey-forge/modules/events"
 )
 
 type LocalClient struct {
-	traffic        chan traffic.Frame
-	TrafficDropped atomic.Uint64
-	conn           *websocket.Conn
-	mu             sync.Mutex // serializes event/ack exchanges
-	replies        chan map[string]json.RawMessage
-	done           chan struct{}
-	readErr        error // read only after done closes
+	PipelineIncoming chan pipeline.Delivery
+	traffic          chan traffic.Frame
+	TrafficDropped   atomic.Uint64
+	conn             *websocket.Conn
+	mu               sync.Mutex // serializes event/ack exchanges
+	replies          chan map[string]json.RawMessage
+	done             chan struct{}
+	readErr          error // read only after done closes
 }
 
 func DialLocal(ctx context.Context, address, token string, certificate []byte) (*LocalClient, error) {
@@ -60,6 +62,7 @@ func dialLocalPipe(ctx context.Context, address, token string, certificate []byt
 
 	conn.SetReadLimit(16 * 1024)
 	c := &LocalClient{conn: conn, replies: make(chan map[string]json.RawMessage, 1), done: make(chan struct{})}
+	c.PipelineIncoming = make(chan pipeline.Delivery, pipeline.QueueCapacity)
 	c.traffic = make(chan traffic.Frame, traffic.QueueCapacity)
 	go c.readReplies()
 	go c.sendTraffic()
@@ -75,6 +78,13 @@ func (c *LocalClient) readReplies() {
 		if err := c.conn.ReadJSON(&reply); err != nil {
 			c.readErr = err
 			return
+		}
+		if string(reply["type"]) == `"trap.pipeline"` {
+			if err := c.receivePipeline(reply["delivery"]); err != nil {
+				c.readErr = errors.Join(err, c.conn.Close())
+				return
+			}
+			continue
 		}
 
 		select {

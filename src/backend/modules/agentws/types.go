@@ -56,6 +56,7 @@ type SupportedType struct {
 }
 
 type AgentHello struct {
+	HTTPPipeline     bool                  `json:"http_pipeline,omitempty"`
 	TrafficMirroring bool                  `json:"traffic_mirroring,omitempty"`
 	BootID           string                `json:"boot_id" validate:"required,uuid"`
 	AgentVersion     string                `json:"agent_version" validate:"required,min=1,max=64"`

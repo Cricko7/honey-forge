@@ -1,6 +1,7 @@
 """HTTP behavior blocks compiled to the Python managed runtime contract."""
 import json
 import re
+import uuid
 from fastapi import HTTPException
 from .models import Node
 from .node_registry import field, port
@@ -22,8 +23,10 @@ HTTP_TYPES = [
     spec('transform', 'Преобразовать данные', [field('key', 'Переменная', 'text', 'data'), field('operation', 'Операция', 'select', 'assign', options=['assign', 'upper', 'lower', 'add', 'merge', 'remove']), field('value', 'Значение JSON / шаблон', 'textarea', '"${json}"')], ('out', 'error')),
     spec('state', 'Данные сессии', [field('operation', 'Операция', 'select', 'get', options=['get', 'set', 'delete']), field('key', 'Ключ', 'text', 'step'), field('value', 'Значение JSON / шаблон', 'textarea', '1')], ('out', 'error'), 'Сессия определяется cookie hf_session, срок хранения 30 минут.'),
     spec('call', 'Вызвать другую ловушку', [field('target', 'HTTP-вход получателя', 'node', ''), field('payload', 'Передаваемый JSON', 'textarea', '"${json}"'), field('key', 'Переменная результата', 'text', 'result')], ('out', 'error'), 'Выберите HTTP-вход на этой доске. Результат доступен в vars.result, статус — vars.result_status.'),
+    spec('send', 'Передать в отдельную ловушку', [field('target_id', 'Ловушка-получатель', 'trap', ''), field('service', 'Имя HTTP-входа получателя', 'text', 'web'), field('method', 'Метод', 'select', 'POST', options=['POST', 'PUT', 'PATCH']), field('path', 'Эндпоинт получателя', 'text', '/pipeline'), field('payload', 'Передаваемый JSON', 'textarea', '"${json}"')], ('out', 'error'), 'Передаёт JSON в отдельно развёрнутую HTTP-ловушку вашей организации. out означает принятие в очередь агента; обработка продолжается у получателя. На получателе настройте HTTP-вход с этим именем, методом и путём. Ошибки связи идут в error. Развёртывание создаёт разрешённую связь.'),
     spec('fork', 'Параллельные ветки', [], ('branch1', 'branch2', 'branch3', 'out', 'error'), 'Каждая ветка имеет свою копию данных и должна закончиться ответом. out продолжается после завершения всех веток.'),
     spec('join', 'Собрать результаты', [field('key', 'Переменная результатов', 'text', 'results')], ('out', 'error'), 'Собирает результаты предшествующего разветвления по именам branch1, branch2, branch3.'),
+    spec('event', 'Отправить событие', [field('name', 'Имя события', 'text', 'pipeline.stage'), field('severity', 'Важность', 'select', 'medium', options=['low', 'medium', 'high', 'critical']), field('payload', 'Данные события (JSON / шаблон)', 'textarea', '"${json}"')], ('out', 'error'), 'Поставьте блок на нужном этапе или ветке. Отправляет http.custom с вашим именем и JSON; технический журнал сохраняется. Данные события — до 4 КБ.'),
     spec('delay', 'Задержка', [field('milliseconds', 'Миллисекунды', 'number', 250, min=0, max=5000)], ('out', 'error')),
     spec('response', 'HTTP-ответ', [field('format', 'Формат', 'select', 'json', options=['json', 'text', 'html']), field('status', 'HTTP-статус', 'number', 200, min=200, max=599), field('body', 'Тело / шаблон', 'textarea', '{"status":"ok"}'), field('headers', 'Заголовки и Set-Cookie (JSON)', 'textarea', '{}')], (), 'Формирует ответ клиенту либо возвращает результат вызывающему блоку.'),
     spec('redirect', 'Перенаправить', [field('status', 'Статус', 'select', '302', options=['301', '302', '303', '307', '308']), field('url', 'Адрес / шаблон', 'text', '/login')], ()),
@@ -61,10 +64,19 @@ def compile_http(chain):
             services.append({'name': config['name'], 'port': config['port'], 'entry': node.id})
         if node.type == 'http/call' and (config['target'] not in nodes or nodes[config['target']].type != 'http/input'):
             raise HTTPException(422, f'{node.id}: выберите HTTP-вход получателя')
+        if node.type == 'http/event' and not re.fullmatch(r'[a-z][a-z0-9_.-]{0,63}', config['name']):
+            raise HTTPException(422, f'{node.id}: неверное имя события')
+        if node.type == 'http/send':
+            try:
+                config['target_id']=str(uuid.UUID(config['target_id']))
+            except (ValueError,AttributeError) as error:
+                raise HTTPException(422,f'{node.id}: выберите ловушку-получатель') from error
+            if not re.fullmatch(r'[a-z][a-z0-9_-]{0,31}',config['service']) or not config['path'].startswith('/') or config['path'].startswith('//') or any(ch in config['path'] for ch in ('?', '#', '\r', '\n')):
+                raise HTTPException(422,f'{node.id}: неверный HTTP-вход или эндпоинт')
         json_fields = []
         if node.type in ('http/transform', 'http/state'):
             json_fields.append('value')
-        if node.type == 'http/call':
+        if node.type in ('http/call', 'http/event', 'http/send'):
             json_fields.append('payload')
         if node.type == 'http/response':
             json_fields.append('headers')

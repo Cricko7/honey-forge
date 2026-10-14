@@ -27,6 +27,17 @@ MASK-7: для upgrade обязательны mTLS и Bearer-токен одно
 
 ## AgentHello и AgentWelcome
 
+Кастомные HTTP-агенты могут указать `http_pipeline: true` в hello. Welcome
+подтверждает эту возможность только для поддерживаемой HTTP-ловушки. Сообщение
+`pipeline.send` передаёт JSON в отдельно развёрнутую ловушку той же организации;
+`pipeline.ack` подтверждает принятие в очередь; `pipeline.received` доставляет данные
+на объявленный HTTP-вход через локальный защищённый канал. Проверяются текущие
+credentials, connection_id, установленная конфигурация отправителя/получателя,
+направленная trap-link и метод/путь. Технические события сохраняются; `http.custom`
+создаётся только блоком отправки события. Контракт сообщений и ограничения —
+`x-websockets.agent.http_pipeline` в [OpenAPI](../../../../api/openapi.yaml),
+сценарий сборки — [Custom HTTP](../../../../api/13-custom-http.md).
+
 `agent.hello` payload = AgentHello:
 
 | Поле | Тип / ограничение |

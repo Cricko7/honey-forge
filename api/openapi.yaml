@@ -3744,6 +3744,48 @@ x-limits:
   websocket_message_bytes: 262144
 x-websockets:
   agent:
+    http_pipeline:
+      opt_in: agent.hello http_pipeline=true; agent.welcome returns http_pipeline=true for supported custom-http agents. Old agents receive no pipeline messages.
+      authorization: Requires a directed trap-link, current custom-http snapshots, live credentials/connections in the same organization and matching service/method/path. No arbitrary URL or outgoing decoy socket.
+      delivery: Asynchronous in-memory queues; acknowledgement means queued, not processed. No retries or restart replay. Target replacement, Stop, configuration changes or full runtime queues may discard accepted deliveries.
+      limits: 8192 JSON payload bytes; 16 queued deliveries per agent/runtime; 4096 shared handoff attempts and 30 seconds per chain; 4096 live continuation tokens per server. Tokens are server-issued, bound to the receiving organization/trap, credential generation and connection, and expire with the chain.
+      messages:
+        pipeline.send:
+          type: object
+          additionalProperties: false
+          required: [request_id, node_id, target_id, service, method, path, payload, source_ip, source_port]
+          properties:
+            request_id: {type: string, format: uuid}
+            node_id: {type: string, minLength: 1, maxLength: 64}
+            target_id: {type: string, format: uuid}
+            service: {type: string, pattern: '^[a-z][a-z0-9_-]{0,31}$'}
+            method: {type: string, enum: [POST, PUT, PATCH]}
+            path: {type: string, minLength: 1, maxLength: 2048, description: Absolute endpoint path without host, query, fragment or control characters}
+            payload: {}
+            token: {type: string, description: Internal continuation UUID or empty for a new external request}
+            source_ip: {type: string, description: Original client IP; continuations preserve server-pinned origin}
+            source_port: {type: integer, minimum: 1, maximum: 65535}
+        pipeline.ack:
+          type: object
+          additionalProperties: false
+          required: [request_id, accepted]
+          properties:
+            request_id: {type: string, description: Echoes the submitted request ID}
+            accepted: {type: boolean}
+        pipeline.received:
+          type: object
+          required: [delivery]
+          properties:
+            delivery:
+              description: pipeline.send fields plus authenticated source_id, server trace_id, hop (1-4096) and expires_at. token is replaced by a capability bound to this receiving trap. Source IP/port are pinned by the initial handoff. Payload does not contain operator authentication or cookies.
+              type: object
+              required: [source_id, trace_id, hop, expires_at, token]
+              properties:
+                source_id: {type: string, format: uuid}
+                trace_id: {type: string, format: uuid}
+                hop: {type: integer, minimum: 1, maximum: 4096}
+                expires_at: {type: string, format: date-time}
+                token: {type: string, format: uuid}
     traffic_mirroring:
       opt_in: agent.hello payload traffic_mirroring=true; agent.welcome returns traffic_mirroring=true when supported. Old agents receive no traffic messages.
       messages:

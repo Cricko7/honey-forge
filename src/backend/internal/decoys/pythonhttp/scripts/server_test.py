@@ -19,7 +19,7 @@ class ServerTests(unittest.TestCase):
         self.frames = []
         self.ready = queue.Queue()
         root = Path(__file__).parent
-        code = (root / 'engine.py').read_text(encoding='utf-8') + '\n' + (root / 'server.py').read_text(encoding='utf-8')
+        code = '\n'.join((root / name).read_text(encoding='utf-8') for name in ('engine.py','pipeline_server.py','server.py'))
         self.process = subprocess.Popen([sys.executable, '-I', '-u', '-c', code], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         self.addCleanup(self.cleanup)
         self.thread = threading.Thread(target=self.control, daemon=True)

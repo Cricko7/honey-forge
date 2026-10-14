@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"honey-forge/internal/decoys"
+	"honey-forge/internal/platform/pipeline"
 	"honey-forge/internal/platform/traffic"
 	"honey-forge/modules/profiles"
 )
@@ -98,7 +99,7 @@ func RunTrap(ctx context.Context) error {
 
 	defer client.Close()
 
-	runtime, err := start(traffic.WithSink(ctx, client.Mirror), bootstrap.Snapshot, "", client.Emit)
+	runtime, err := start(pipeline.WithSender(traffic.WithSink(ctx, client.Mirror), client.SendPipeline), bootstrap.Snapshot, "", client.Emit)
 	if err != nil {
 		return err
 	}
@@ -132,6 +133,14 @@ func RunTrap(ctx context.Context) error {
 			return nil
 		case <-client.Done():
 			return fmt.Errorf("local agent connection closed")
+		case delivery := <-client.PipelineIncoming:
+			if receiver, ok := runtime.(interface {
+				Receive(context.Context, pipeline.Delivery) error
+			}); ok {
+				if err := receiver.Receive(ctx, delivery); err != nil {
+					return fmt.Errorf("pipeline delivery: %w", err)
+				}
+			}
 		case <-ticker.C:
 			if err := runtime.Err(); err != nil {
 				return fmt.Errorf("trap runtime failed: %w", err)

@@ -13,6 +13,7 @@ import (
 
 	"honey-forge/internal/beacon"
 	"honey-forge/internal/contract"
+	"honey-forge/internal/platform/pipeline"
 	"honey-forge/internal/platform/traffic"
 	"honey-forge/modules/agentws"
 	"honey-forge/modules/commands"
@@ -61,6 +62,7 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 	}
 
 	helloID, err := w.send("agent.hello", agentws.AgentHello{
+		HTTPPipeline:     true,
 		TrafficMirroring: true,
 		BootID:           opts.BootID,
 		AgentVersion:     "1.0",
@@ -91,6 +93,7 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 	}
 
 	var body struct {
+		HTTPPipeline     bool               `json:"http_pipeline"`
 		TrafficMirroring bool               `json:"traffic_mirroring"`
 		TrapID           string             `json:"trap_id"`
 		Interval         int                `json:"heartbeat_interval_seconds"`
@@ -153,6 +156,12 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 	resultMessages := map[contract.ID]string{}
 	acknowledgedResults := map[string]commands.Status{}
 	resultSent := map[string]time.Time{}
+	pipelinePending := map[contract.ID]pipelineOutgoing{}
+	defer func() {
+		for _, item := range pipelinePending {
+			item.result <- false
+		}
+	}()
 	forgetResult := func(commandID string) {
 		for id, sentCommandID := range resultMessages {
 			if sentCommandID == commandID {
@@ -191,6 +200,17 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 					return err
 				}
 			}
+		case item := <-local.PipelineOutgoing:
+			if !body.HTTPPipeline || len(pipelinePending) >= pipeline.QueueCapacity || !time.Now().Before(item.expires) {
+				item.result <- false
+				continue
+			}
+			id, err := w.send("pipeline.send", item.request)
+			if err != nil {
+				item.result <- false
+				return err
+			}
+			pipelinePending[id] = item
 		case <-heartbeat.C:
 			heartbeat.Reset(beacon.Delay(s.HeartbeatInterval()))
 			if err := s.PollRunner(p); err != nil {
@@ -201,6 +221,12 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 				return err
 			}
 		case <-flush.C:
+			for id, item := range pipelinePending {
+				if !time.Now().Before(item.expires) {
+					item.result <- false
+					delete(pipelinePending, id)
+				}
+			}
 			flush.Reset(beacon.Delay(s.FlushInterval()))
 			if err := j.CheckStorage(ctx); err != nil {
 				s.Failed("buffer_unavailable")
@@ -236,6 +262,33 @@ func session(ctx context.Context, opts Options, j *Journal, s *Service, local *L
 			}
 		case message := <-incoming:
 			switch message.Type {
+			case "pipeline.ack":
+				var ack struct {
+					RequestID string `json:"request_id"`
+					Accepted  bool   `json:"accepted"`
+				}
+				if message.ReplyTo == nil || payload(message, &ack) != nil {
+					return fmt.Errorf("invalid pipeline acknowledgement")
+				}
+				if item, ok := pipelinePending[*message.ReplyTo]; ok {
+					if item.request.RequestID != ack.RequestID {
+						return fmt.Errorf("pipeline acknowledgement mismatch")
+					}
+					item.result <- ack.Accepted
+					delete(pipelinePending, *message.ReplyTo)
+				}
+			case "pipeline.received":
+				var body struct {
+					Delivery pipeline.Delivery `json:"delivery"`
+				}
+				if payload(message, &body) != nil || body.Delivery.TargetID != opts.TrapID || pipeline.Check(body.Delivery.Request) != nil {
+					return fmt.Errorf("invalid pipeline delivery")
+				}
+				select {
+				case local.PipelineIncoming <- body.Delivery:
+				default:
+					slog.DebugContext(ctx, "pipeline delivery queue full")
+				}
 			case "traffic.received":
 				var delivery traffic.Delivery
 				if !body.TrafficMirroring || payload(message, &delivery) != nil || delivery.TargetID != opts.TrapID || !contract.ValidID(delivery.SourceID) || traffic.CheckFrame(delivery.Frame) != nil {

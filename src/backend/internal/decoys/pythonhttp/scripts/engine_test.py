@@ -9,6 +9,59 @@ def block(key, kind, config=None, **outputs):
 
 
 class EngineTests(unittest.IsolatedAsyncioTestCase):
+    async def test_send_passes_typed_json_and_continuation_to_agent(self):
+        sent=[]
+        async def forward(node_id, config, payload, data):
+            sent.append((node_id,config['target_id'],payload,data['_pipeline_token']))
+        async def emit(*args): pass
+        engine=Engine([
+            block('send','send',{'target_id':'target','service':'web','method':'POST','path':'/pipeline','payload':'{"count":"${json.count}"}'},out='reply'),
+            block('reply','response',{'format':'json','body':'{}','status':202,'headers':'{}'}),
+        ], forward=forward)
+        result=await engine.execute('send',{'json':{'count':3},'_pipeline_token':'continuation'},emit)
+        self.assertEqual(result['status'],202)
+        self.assertEqual(sent,[('send','target',{'count':3},'continuation')])
+
+    async def test_send_rejection_follows_error_branch(self):
+        async def forward(*args):raise FlowError('target offline')
+        async def emit(*args):pass
+        engine=Engine([
+            block('send','send',{'target_id':'target','payload':'{}'},out='reply',error='bad'),
+            block('reply','response',{'format':'json','body':'{}','status':202,'headers':'{}'}),
+            block('bad','response',{'format':'json','body':'{"error":"offline"}','status':503,'headers':'{}'}),
+        ],forward=forward)
+        response=await engine.execute('send',{},emit)
+        self.assertEqual(response['status'],503)
+        self.assertEqual(json.loads(response['body']),{'error':'offline'})
+
+    async def test_event_only_on_selected_condition_branch(self):
+        events = []
+        async def emit(kind, data):
+            events.append((kind, data))
+        engine = Engine([
+            block('check', 'condition', {'source': 'json.action', 'operator': 'equals', 'value': 'login'}, yes='notify', no='reply'),
+            block('notify', 'event', {'name': 'login.processed', 'severity': 'high', 'payload': '{"count":"${json.count}","user":"${json.user}"}'}, out='reply'),
+            block('reply', 'response', {'format': 'json', 'body': '{}', 'status': 200, 'headers': '{}'}),
+        ])
+        await engine.execute('check', {'json': {'action': 'other'}}, emit)
+        self.assertFalse(any(kind == 'http.custom' for kind, _ in events))
+        await engine.execute('check', {'json': {'action': 'login', 'count': 3, 'user': 'alice'}}, emit)
+        custom = [data for kind, data in events if kind == 'http.custom']
+        self.assertEqual(custom, [{'node_id': 'notify', 'name': 'login.processed', 'severity': 'high', 'payload': {'count': 3, 'user': 'alice'}}])
+
+    async def test_event_rejects_oversized_payload_before_emitting(self):
+        events = []
+        async def emit(kind, data):
+            events.append((kind, data))
+        engine = Engine([
+            block('notify', 'event', {'name': 'stage', 'severity': 'medium', 'payload': '"${body}"'}, out='reply', error='bad'),
+            block('reply', 'response', {'format': 'json', 'body': '{}', 'status': 200, 'headers': '{}'}),
+            block('bad', 'response', {'format': 'json', 'body': '{}', 'status': 422, 'headers': '{}'}),
+        ])
+        result = await engine.execute('notify', {'body': '\u0410' * 4096}, emit)
+        self.assertEqual(result['status'], 422)
+        self.assertFalse(any(kind == 'http.custom' for kind, _ in events))
+
     async def test_nested_call_and_typed_json(self):
         events = []
         async def emit(kind, data):

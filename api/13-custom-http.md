@@ -26,6 +26,8 @@ Available blocks:
 | Transform | Assign a JSON value/object, uppercase/lowercase, add, merge objects, remove a variable |
 | State | Get, set or delete a session key |
 | Call | Pass JSON to another HTTP input on the board; wait for and store its response |
+| Send to separate trap | Forward JSON to another deployed custom-http trap's service and endpoint over authenticated agent channels |
+| Emit event | Emit http.custom with a configured name, severity and typed JSON at this stage |
 | Fork | Execute up to three branches concurrently with independent copies of request data |
 | Join | Collect branch status/body results under a variable; chain forks for more branches |
 | Delay | Wait 0–5000 ms, within the overall flow timeout |
@@ -77,9 +79,44 @@ and state when the client uses the same hostname; separate managed traps do not.
 ## Boundaries and links
 
 Each board compiles HTTP behavior into **one managed trap with multiple HTTP ports**.
-Calls and direct handoffs connect those inputs internally. They do not invoke a
-separately deployed trap on another board. Existing `/api/trap-links` still mirror
-raw inbound traffic to an agent inbox; these passive copies do not execute a flow.
+Calls and direct handoffs connect those inputs internally. The **Send to separate
+trap** block connects independently deployed traps, including traps on different
+boards or deployment nodes. Configure its target trap, target HTTP input's service
+name, method (POST/PUT/PATCH), endpoint and JSON template. Deploy validates the target
+through the current operator's organization-scoped API and creates a directed
+`/api/trap-links` permission. The receiver's installed input must accept that method
+and path. The JSON is available directly as `json` and serialized as `body`.
+
+For example: A's Input → Parse → Condition (`json.action == login`) → Send(B,
+`web`, POST `/ingest`, `{"user":"${json.user}"}`) → Response(202). B's Input(`web`,
+POST `/ingest`) → Transform → Condition → Send(C) → Response. Place **Emit event**
+on any selected branch or after a transformation; only executions reaching it emit
+`http.custom`. Deploy receivers before senders. The inspector lists the selected
+receiver's configured services, methods, paths and ports.
+
+Transport uses existing authenticated agent channels and local management pipes;
+the decoy opens no outgoing sockets. Server checks each side's live credential,
+connection, organization, installed configuration, directed link and endpoint.
+Deleting a link revokes future sends. Passive copies on the same trap-link remain
+separate from pipeline execution.
+
+Send's `out` means acceptance into the server's bounded delivery queue; it does not
+wait for the receiver's response. Missing links, stopped/offline/old agents, wrong
+endpoints and full admission queues follow `error`. Delivery is asynchronous and
+in memory, with no automatic retries or restart replay. An accepted delivery may
+be discarded if the target stops, reconnects, changes its input or fills its local
+queue before execution. Technical events at the receiver show processing/failure.
+This mechanism does not provide durable or exactly-once workflow execution.
+
+Chains are not tied to the local nested-call limit: independent receivers can
+forward onward without growing a call stack. Each chain shares a server-issued
+correlation ID, at most 4096 handoff attempts and a 30-second lifetime. Continuation
+tokens are internal, bound to the receiving organization/trap, credential generation
+and connection, and expire together;
+an external request cannot supply one. Total live tokens are capped at 4096 per
+server and queues at 16 per agent/runtime. Forwarded JSON is capped at 8 KiB including
+JSON escaping. These bounds stop cycles and branching from consuming unbounded
+resources. All participating agents/workers must run a build supporting pipelines.
 
 There are at most 32 inputs and 512 blocks per board. Default execution limits are
 512 total steps across all branches/calls, 10 seconds, 32 nested calls and 64 KiB
@@ -92,6 +129,18 @@ after one response. Request headers are bounded to 16 KiB and concurrent connect
 to 64. Header splitting and overriding framing headers are rejected.
 
 ## Events
+
+**Emit event** emits `http.custom`: `node_id`, configured `name`, configured
+`severity` (low/medium/high/critical) and typed `payload`. Its payload is limited to
+4 KiB including JSON escaping; overflow follows the block's `error` branch without
+emitting a partial event. The server validates its name/severity against the issued
+profile snapshot. Existing technical events always remain enabled.
+
+Receivers emit `http.pipeline_received` with the sending trap, request ID and input
+block ID. All receiver telemetry additionally contains `pipeline_id` and
+`pipeline_step`, allowing correlation across separate traps. Received requests use
+the target service/port and the original source address. Authentication headers,
+operator credentials and request cookies are never forwarded.
 
 Every connection emits `service.connection_opened` / `service.connection_closed`.
 `http.request` records method/path and up to 4096 bytes of the request body;

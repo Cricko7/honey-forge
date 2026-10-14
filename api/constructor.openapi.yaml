@@ -10,8 +10,15 @@ info:
     expose separate ports within that trap. Calls between inputs on the same board
     pass JSON and return results without outgoing network access. Conditions, switches,
     transforms, session state, fork/join, delay, responses and error branches are supported.
-    Existing trap-links retain passive raw-traffic mirroring. Cross-board calls are not
-    supported. HTTP flow execution defaults to 512 steps, 10 seconds and 64 KiB bodies;
+    http/send forwards typed JSON to separately deployed custom-http traps in the same
+    organization through authenticated agent channels. Target trap, service, POST/PUT/PATCH
+    method and endpoint are explicit; deployment validates the destination and creates
+    a directed trap-link permission. http/event emits http.custom at a selected stage
+    with a configured name, severity and JSON payload, preserving technical telemetry.
+    Existing trap-links also retain passive raw-traffic mirroring. Pipeline delivery is
+    asynchronous and in memory; acceptance means queued, not completed, with no replay
+    across agent/server restarts. Pipelines share a 4096-handoff budget and 30-second
+    lifetime, 8 KiB payloads and bounded queues. HTTP flow execution defaults to 512 steps, 10 seconds and 64 KiB bodies;
     call depth is bounded at 32. See api/13-custom-http.md. TCP rules compare LF/CRLF-terminated
     lines and the first matching rule responds. Deleting a board does not delete deployed
     traps. Runtime and SSE contain real telemetry only.

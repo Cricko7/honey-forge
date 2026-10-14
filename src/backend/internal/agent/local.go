@@ -18,6 +18,7 @@ import (
 	"honey-forge/internal/configschema"
 	"honey-forge/internal/contract"
 	"honey-forge/internal/platform/httpx"
+	"honey-forge/internal/platform/pipeline"
 	"honey-forge/internal/platform/traffic"
 	"honey-forge/modules/catalog"
 	"honey-forge/modules/events"
@@ -25,16 +26,18 @@ import (
 )
 
 type Local struct {
-	Traffic         chan traffic.Frame
-	TrafficDropped  atomic.Uint64
-	ReceivedTraffic *traffic.Inbox
-	Journal         *Journal
-	Token           string
-	Ready           chan struct{}
-	Failures        chan string
-	mu              sync.Mutex
-	snapshot        profiles.Snapshot
-	schemas         map[eventSchemaKey]*configschema.Schema
+	PipelineOutgoing chan pipelineOutgoing
+	PipelineIncoming chan pipeline.Delivery
+	Traffic          chan traffic.Frame
+	TrafficDropped   atomic.Uint64
+	ReceivedTraffic  *traffic.Inbox
+	Journal          *Journal
+	Token            string
+	Ready            chan struct{}
+	Failures         chan string
+	mu               sync.Mutex
+	snapshot         profiles.Snapshot
+	schemas          map[eventSchemaKey]*configschema.Schema
 }
 
 type eventSchemaKey struct {
@@ -45,11 +48,13 @@ type eventSchemaKey struct {
 
 func NewLocal(j *Journal, token string) (*Local, error) {
 	l := &Local{
-		Journal:  j,
-		Token:    token,
-		Ready:    make(chan struct{}, 1),
-		Failures: make(chan string, 1),
-		schemas:  map[eventSchemaKey]*configschema.Schema{},
+		PipelineOutgoing: make(chan pipelineOutgoing, pipeline.QueueCapacity),
+		PipelineIncoming: make(chan pipeline.Delivery, pipeline.QueueCapacity),
+		Journal:          j,
+		Token:            token,
+		Ready:            make(chan struct{}, 1),
+		Failures:         make(chan string, 1),
+		schemas:          map[eventSchemaKey]*configschema.Schema{},
 	}
 	l.Traffic = make(chan traffic.Frame, traffic.QueueCapacity)
 	l.ReceivedTraffic = traffic.NewInbox(traffic.QueueCapacity)
@@ -112,6 +117,10 @@ func (l *Local) Handler(ctx context.Context) *gin.Engine {
 		}
 
 		defer conn.Close()
+		connectionCtx, connectionCancel := context.WithCancel(ctx)
+		defer connectionCancel()
+		write := localWriter(conn)
+		go l.pipelineWriter(connectionCtx, write)
 
 		cancel := context.AfterFunc(ctx, func() {
 			conn.Close()
@@ -139,7 +148,7 @@ func (l *Local) Handler(ctx context.Context) *gin.Engine {
 				default:
 				}
 
-				if err := writeLocal(conn, map[string]any{"ready": true}); err != nil {
+				if err := write(map[string]any{"ready": true}); err != nil {
 					return
 				}
 
@@ -154,6 +163,16 @@ func (l *Local) Handler(ctx context.Context) *gin.Engine {
 
 				return
 			}
+			if notice.Type == "trap.pipeline_send" {
+				id, ok := l.pipelineSend(connectionCtx, raw)
+				if !ok {
+					id = ""
+				}
+				if err := write(map[string]any{"pipeline_request_id": id}); err != nil {
+					return
+				}
+				continue
+			}
 
 			if notice.Type == "trap.traffic" {
 				var body struct {
@@ -162,14 +181,14 @@ func (l *Local) Handler(ctx context.Context) *gin.Engine {
 				}
 				valid := contract.CheckJSON(raw) == nil && httpx.StrictObject(raw, reflect.TypeOf(body)) && json.Unmarshal(raw, &body) == nil
 				if !valid || l.acceptTraffic(body.Frame) != nil {
-					if err := writeLocal(conn, map[string]any{"error": map[string]string{"code": "validation_failed"}}); err != nil {
+					if err := write(map[string]any{"error": map[string]string{"code": "validation_failed"}}); err != nil {
 						return
 					}
 
 					continue
 				}
 
-				if err := writeLocal(conn, map[string]any{"traffic_connection_id": body.Frame.ConnectionID}); err != nil {
+				if err := write(map[string]any{"traffic_connection_id": body.Frame.ConnectionID}); err != nil {
 					return
 				}
 
@@ -188,7 +207,7 @@ func (l *Local) Handler(ctx context.Context) *gin.Engine {
 
 			valid = valid && schema != nil && schema.Validate(e.Data, "") == nil && e.TypeID == snapshot.TypeID && e.TypeVersion == int64(snapshot.TypeVersion) && e.ProfileRevision == int64(snapshot.ProfileRevision)
 			if !valid {
-				writeLocal(conn, map[string]any{"error": map[string]string{"code": "telemetry_invalid", "message": "Telemetry event is invalid"}})
+				write(map[string]any{"error": map[string]string{"code": "telemetry_invalid", "message": "Telemetry event is invalid"}})
 				return
 			}
 
@@ -203,12 +222,12 @@ func (l *Local) Handler(ctx context.Context) *gin.Engine {
 				default:
 				}
 
-				writeLocal(conn, map[string]any{"error": map[string]string{"code": code, "message": "Telemetry buffer cannot accept event"}})
+				write(map[string]any{"error": map[string]string{"code": code, "message": "Telemetry buffer cannot accept event"}})
 
 				return
 			}
 
-			if err := writeLocal(conn, map[string]any{"event_id": e.EventID}); err != nil {
+			if err := write(map[string]any{"event_id": e.EventID}); err != nil {
 				return
 			}
 		}

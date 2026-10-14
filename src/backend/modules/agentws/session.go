@@ -10,6 +10,7 @@ import (
 
 	"honey-forge/internal/beacon"
 	"honey-forge/internal/contract"
+	"honey-forge/internal/platform/pipeline"
 	"honey-forge/modules/commands"
 )
 
@@ -88,7 +89,39 @@ func (h *Handler) serveMessages(entry *sessionEntry, session *agentSession, hell
 			}); err != nil {
 				return err
 			}
+		case item := <-session.pipeline:
+			if !time.Now().Before(item.delivery.ExpiresAt) {
+				continue
+			}
+			sourceEntry := h.registry.lookup(item.source.identity.TrapID)
+			if sourceEntry == nil {
+				continue
+			}
+			if err := h.withActive(sourceEntry, item.source, func(ctx context.Context) error {
+				targets, err := h.TrafficTargets(ctx, item.source.identity.OrganizationID, item.source.identity.TrapID)
+				if err != nil {
+					return err
+				}
+				for _, target := range targets {
+					if target == session.identity.TrapID {
+						return nil
+					}
+				}
+				return fmt.Errorf("pipeline link revoked")
+			}); err != nil {
+				continue
+			}
+			if err := h.withActive(entry, session, func(ctx context.Context) error {
+				snapshot, err := h.PipelineSnapshot(ctx, session.identity, session.connectionID)
+				if err != nil || !pipeline.AllowsReceive(snapshot, item.delivery.Request) {
+					return nil
+				}
+				return session.socket.Notify(ctx, "pipeline.received", map[string]any{"delivery": item.delivery})
+			}); err != nil {
+				return err
+			}
 		case next := <-messages:
+
 			if next.err != nil {
 				var apiError *contract.Error
 				if errors.As(next.err, &apiError) && apiError.Code == "invalid_message" && contract.ValidID(string(next.message.MessageID)) {
@@ -206,6 +239,8 @@ func (h *Handler) claim(entry *sessionEntry, session *agentSession, supported ma
 
 func (h *Handler) handleMessage(entry *sessionEntry, session *agentSession, message contract.Envelope, busy *atomic.Bool, pending **commandLease) error {
 	switch message.Type {
+	case "pipeline.send":
+		return h.handlePipeline(entry, session, message)
 	case "traffic.frame":
 		return h.handleTraffic(entry, session, message)
 	case "agent.heartbeat":

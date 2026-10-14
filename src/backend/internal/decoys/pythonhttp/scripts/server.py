@@ -16,15 +16,17 @@ def send(message):
     sys.stdout.flush()
 
 
-class Server:
+class Server(PipelineServerMixin):
     def __init__(self, bootstrap):
         self.snapshot = bootstrap['snapshot']
         self.config = self.snapshot['config']
         limits = self.config['limits']
-        self.engine = Engine(self.config['blocks'], **limits)
+        self.engine = Engine(self.config['blocks'], **limits, forward=self.forward_pipeline)
         self.blocks = self.engine.blocks
         self.host = bootstrap['host']
         self.pending = {}
+        self.pipeline_pending = {}
+        self.pipeline_tasks = set()
         self.stop = asyncio.Event()
         self.ready = asyncio.Event()
         self.connections = set()
@@ -47,6 +49,17 @@ class Server:
             self.pending.pop(key, None)
 
     def ack(self, message):
+        if message.get('type') == 'pipeline_receive':
+            if len(self.pipeline_tasks) < 16:
+                task=asyncio.create_task(self.receive_pipeline(message['delivery']))
+                self.pipeline_tasks.add(task)
+                task.add_done_callback(self.pipeline_tasks.discard)
+            return
+        if 'pipeline_request_id' in message:
+            future=self.pipeline_pending.get(message['pipeline_request_id'])
+            if future and not future.done():
+                future.set_result(message.get('accepted') is True)
+            return
         future = self.pending.get(message.get('event_id'))
         if future and not future.done():
             future.set_result(message.get('ok') is True)
@@ -145,6 +158,7 @@ class Server:
                     request = {'method': method, 'path': parsed.path, 'body': body.decode('utf-8'), 'headers': headers,
                                'query': {k: v[-1] for k, v in parse_qs(parsed.query, max_num_fields=256).items()},
                                'cookies': cookie_values, 'session': state_session, 'request_id': session}
+                    request['_source_ip'],request['_source_port']=peer[0],peer[1]
                     await emit('http.request', {'method': method, 'path': parsed.path[:2048],
                         'payload_base64': base64.b64encode(body[:4096]).decode(), 'captured_bytes': min(len(body), 4096),
                         'original_bytes': len(body), 'truncated': len(body) > 4096})
@@ -219,7 +233,7 @@ class Server:
                 server.close()
             for server in servers:
                 await server.wait_closed()
-            tasks = list(self.connections)
+            tasks = list(self.connections | self.pipeline_tasks)
             for task in tasks:
                 task.cancel()
             if tasks:

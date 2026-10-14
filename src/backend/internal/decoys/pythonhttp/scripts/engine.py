@@ -64,12 +64,13 @@ def safe_headers(value):
 
 
 class Engine:
-    def __init__(self, blocks, max_steps=512, timeout_ms=10000, max_body_bytes=65536):
+    def __init__(self, blocks, max_steps=512, timeout_ms=10000, max_body_bytes=65536, forward=None):
         self.blocks = {b['id']: b for b in blocks}
         self.max_steps = max_steps
         self.timeout = timeout_ms / 1000
         self.max_body = max_body_bytes
         self.sessions = {}  # accessed only on the server's asyncio loop
+        self.forward = forward
 
     async def execute(self, entry, request, emit):
         data = {'json': None, 'vars': {}, 'body': '', 'headers': {}, 'query': {}, 'cookies': {}, **copy.deepcopy(request)}
@@ -90,7 +91,7 @@ class Engine:
             kind, config, outputs = block['kind'], block['config'], block['outputs']
             await emit('http.block', {'node_id': current, 'kind': kind, 'phase': 'started', 'step': budget[0]})
             try:
-                result, branch = await self.action(kind, config, outputs, data, emit, budget, depth)
+                result, branch = await self.action(kind, config, outputs, data, emit, budget, depth, current)
                 # Bound intermediate expansion too, before the next block can reuse it.
                 if len(text({'json': data['json'], 'vars': data['vars']}).encode()) > self.max_body:
                     raise FlowError('intermediate data limit exceeded')
@@ -108,7 +109,7 @@ class Engine:
                 current = outputs['error']
         raise FlowError('flow ended without response')
 
-    async def action(self, kind, c, outputs, data, emit, budget, depth):
+    async def action(self, kind, c, outputs, data, emit, budget, depth, node_id):
         branch = 'out'
         value = lambda key: json_value(c[key], data)
         if kind == 'input':
@@ -198,6 +199,19 @@ class Engine:
             if '_branches' not in data['vars']:
                 raise FlowError('no branch results to join')
             data['vars'][c['key']] = data['vars'].pop('_branches')
+        elif kind == 'event':
+            payload = value('payload')
+            # The complete agent envelope is limited to 16 KiB, including JSON escapes.
+            if len(json.dumps(payload, ensure_ascii=True, allow_nan=False, separators=(',', ':')).encode()) > 4096:
+                raise FlowError('event payload limit exceeded')
+            await emit('http.custom', {'node_id': node_id, 'name': c['name'], 'severity': c['severity'], 'payload': payload})
+        elif kind == 'send':
+            payload=value('payload')
+            if len(json.dumps(payload,ensure_ascii=True,allow_nan=False,separators=(',',':')).encode())>8192:
+                raise FlowError('pipeline payload limit exceeded')
+            if self.forward is None:
+                raise FlowError('pipeline channel unavailable')
+            await self.forward(node_id,c,payload,data)
         elif kind == 'delay':
             await asyncio.sleep(c['milliseconds'] / 1000)
         elif kind == 'error':
