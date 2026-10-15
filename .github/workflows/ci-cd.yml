@@ -70,7 +70,7 @@ jobs:
         run: |
           python -m pip install -r constructor/requirements.txt -r constructor/requirements-test.txt
           python -m unittest discover -s constructor/backend -t .
-          python -m unittest deploy.nginx.test_constructor deploy.test_release_cleanup deploy.test_support_deployment
+          python -m unittest deploy.nginx.test_constructor deploy.test_release_cleanup deploy.test_support_deployment deploy.test_sync_images
           python -m unittest discover -s src/backend/internal/decoys/pythonhttp/scripts -p '*_test.py'
           docker compose config --quiet
           docker build -f constructor/Dockerfile -t honeyforge/constructor:test .
@@ -183,6 +183,7 @@ jobs:
           printf 'CONSTRUCTOR_IMAGE=%s\n' "${images[2]}" >> release/release.env
           cp deploy/compose.constructor.yml release/compose.constructor.yml
           cp deploy/compose.support.yml release/compose.support.yml
+          cp deploy/sync-images.sh release/sync-images.sh
           cp deploy/nginx/constructor.location.conf release/constructor.location.conf
           cp deploy/nginx/install_constructor.py release/install_constructor.py
           for entry in 'tcp:tcp-decoy:DECOY_TCP_IMAGE' 'redis:redis-decoy:DECOY_REDIS_IMAGE' 'honeytokens:honeytoken-decoy:DECOY_HONEYTOKEN_IMAGE' 'http:http-decoy:DECOY_HTTP_IMAGE'; do
@@ -248,6 +249,7 @@ jobs:
             test -f "$INCOMING/release.env"
             test -f "$INCOMING/compose.constructor.yml"
             test -f "$INCOMING/compose.support.yml"
+            test -f "$INCOMING/sync-images.sh"
             test -f "$INCOMING/constructor.location.conf"
             test -f "$INCOMING/install_constructor.py"
             test -f "$INCOMING/images.tar.gz"
@@ -306,11 +308,6 @@ jobs:
                 }
               done
             done
-            if [ "$(docker info --format '{{.Swarm.LocalNodeState}}')" = active ]; then
-              test "$(docker node ls --format '{{.ID}}' | wc -l)" -eq 1 || {
-                echo 'This workflow supports one Swarm node. Multiple nodes require a registry.'; exit 1;
-              }
-            fi
             gzip -dc "$INCOMING/images.tar.gz" | docker load
             # Docker load may print unpack errors without failing; verify each image.
             while IFS='=' read -r key image; do
@@ -320,6 +317,7 @@ jobs:
             done < "$INCOMING/release.env"
             constructor_image=$(sed -n 's/^CONSTRUCTOR_IMAGE=//p' "$INCOMING/release.env")
             test -n "$constructor_image"
+            bash "$INCOMING/sync-images.sh" "$INCOMING/release.env" "$INCOMING/images.tar.gz" "$RELEASE_ID"
             nginx_route() {
               docker run --rm --user 0 --read-only --network none \
                 -v /etc/nginx:/etc/nginx \
