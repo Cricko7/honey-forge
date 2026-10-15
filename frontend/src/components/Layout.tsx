@@ -3,7 +3,6 @@ import { LogOut, Menu } from 'lucide-react'
 import { useSession, useLiveStream } from '@/api/hooks'
 import { USE_MOCK, api } from '@/api/client'
 import { ThemeToggle } from '@/components/ThemeToggle'
-import { Logo } from '@/components/Logo'
 import { useState } from 'react'
 import { replaceSessionCache } from '@/api/cache'
 import { canManage, canManageTraps, sessionDestination } from '@/lib/auth'
@@ -15,6 +14,7 @@ import { SessionScope, useSessionClient } from '@/api/session-scope'
 import { Modal } from '@/components/Modal'
 import { Navigation } from '@/components/Navigation'
 import { Spinner } from '@/components/ui'
+import { Sidebar } from '@/components/Sidebar'
 
 export function Layout() {
   const { data: session, isLoading, error, refetch } = useSession()
@@ -58,26 +58,16 @@ function AuthenticatedLayout({ session }: { session: SessionView }) {
     }
   }
 
-  const account = <div className="space-y-3 border-t border-line px-2 pt-4">
-    <div className="text-sm font-medium break-all">{session.user.email}</div>
-    <p className="text-xs text-muted">{canManage(session) ? 'Администратор' : canManageTraps(session) ? 'Оператор ловушек' : 'Только чтение'}</p>
+  const account = (collapsed = false) => <div className="space-y-3 border-t border-line px-2 pt-4">
+    <div className={collapsed ? 'sr-only' : 'text-sm font-medium break-all'}>{session.user.email}</div>
+    <p className={collapsed ? 'sr-only' : 'text-xs text-muted'}>{canManage(session) ? 'Администратор' : canManageTraps(session) ? 'Оператор ловушек' : 'Только чтение'}</p>
     {logoutError && <p role="alert" className="text-sm text-danger">{logoutError}</p>}
-    <button type="button" onClick={logout} disabled={loggingOut} className="btn-ghost w-full"><LogOut size={16} /> {loggingOut ? 'Выход…' : 'Выйти'}</button>
+    <button type="button" onClick={logout} disabled={loggingOut} title={collapsed ? 'Выйти' : undefined} className={`btn-ghost w-full ${collapsed ? 'px-0' : ''}`}><LogOut size={16} aria-hidden="true" /> <span className={collapsed ? 'sr-only' : undefined}>{loggingOut ? 'Выход…' : 'Выйти'}</span></button>
   </div>
   return (
     <div className="flex h-dvh flex-col md:flex-row overflow-hidden bg-bg-base">
       <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[120] focus:bg-bg-panel focus:p-3">К содержимому</a>
-      <aside className="hidden md:flex w-64 shrink-0 bg-bg-panel border-r border-line flex-col min-h-0">
-        <div className="px-5 h-12 md:h-16 flex items-center gap-3 border-b border-line">
-          <Logo size={30} className="shrink-0" />
-          <div className="leading-tight">
-            <div className="font-semibold text-fg">HoneyForge</div>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-3 py-5"><Navigation admin={canManage(session)} /></div>
-        <div className="px-3 pb-4">{account}</div>
-      </aside>
+      <Sidebar admin={canManage(session)}>{account}</Sidebar>
 
       <div className="flex-1 flex flex-col min-w-0 min-h-0">
         <header className="shrink-0 bg-bg-panel border-b border-line h-16 flex items-center justify-between gap-2 px-3 md:px-8">
@@ -95,7 +85,7 @@ function AuthenticatedLayout({ session }: { session: SessionView }) {
         <Modal open={menuOpen} onClose={() => setMenuOpen(false)} title="Меню HoneyForge">
           <p className="mb-4 text-sm font-medium break-words">{session.organization.name}{USE_MOCK && <span className="ml-2 chip bg-warn/10 text-warn">Демонстрация</span>}</p>
           <Navigation admin={canManage(session)} onNavigate={() => setMenuOpen(false)} />
-          <div className="mt-4">{account}</div>
+          <div className="mt-4">{account()}</div>
         </Modal>
 
         <main key={location.pathname} id="main-content" tabIndex={-1} className="flex-1 min-h-0 overflow-auto">

@@ -19,6 +19,8 @@ import { TrapDetailPage } from '@/pages/TrapDetail'
 import { EventsPage } from '@/pages/Events'
 import { ProfilesPage } from '@/pages/Profiles'
 import { CatalogPage } from '@/pages/Catalog'
+import { UpdatesPage } from '@/pages/Updates'
+import { SupportPage } from '@/pages/Support'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -45,6 +47,8 @@ const router = createBrowserRouter([
       { path: 'admin', element: <AdminPage /> },
       { path: 'servers', element: <ServersPage /> },
       { path: 'catalog', element: <CatalogPage /> },
+      { path: 'updates', element: <UpdatesPage /> },
+      { path: 'support', element: <SupportPage /> },
     ],
   },
 ])

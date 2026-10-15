@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Server, Bug, ScrollText, Boxes, Workflow, Network, FileSliders, Link2, ShieldCheck } from 'lucide-react'
+import { LayoutDashboard, Server, Bug, ScrollText, Boxes, Workflow, Network, FileSliders, Link2, ShieldCheck, History, LifeBuoy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const groups = [
@@ -19,16 +19,22 @@ const groups = [
     { to: '/app/admin', end: false, icon: ShieldCheck, label: 'Админ-панель' },
     { to: '/app/organization', end: false, icon: Link2, label: 'Приглашения' },
   ] },
+  { title: 'Помощь', items: [
+    { to: '/app/updates', end: false, icon: History, label: 'История обновлений' },
+    { to: '/app/support', end: false, icon: LifeBuoy, label: 'Техподдержка' },
+  ] },
 ]
 
-export function Navigation({ admin, onNavigate }: { admin: boolean; onNavigate?: () => void }) {
+export function Navigation({ admin, onNavigate, collapsed = false }: { admin: boolean; onNavigate?: () => void; collapsed?: boolean }) {
   return <nav aria-label="Основная навигация" className="space-y-6">
     {groups.filter(group => admin || group.title !== 'Управление').map(group => <div key={group.title}>
-      <div className="px-3 mb-2 text-xs font-medium text-muted">{group.title}</div>
+      <div className={cn('px-3 mb-2 text-xs font-medium text-muted', collapsed && 'sr-only')}>{group.title}</div>
       {group.items.map(item => <NavLink key={item.to} to={item.to} end={item.end} onClick={onNavigate}
+        title={collapsed ? item.label : undefined}
         className={({ isActive }) => cn('flex min-h-11 items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+          collapsed && 'justify-center',
           isActive ? 'bg-brand/10 text-brand' : 'text-muted hover:text-fg hover:bg-bg-hover')}>
-        <item.icon size={18} aria-hidden="true" className="shrink-0" />{item.label}
+        <item.icon size={18} aria-hidden="true" className="shrink-0" /><span className={collapsed ? 'sr-only' : undefined}>{item.label}</span>
       </NavLink>)}
     </div>)}
   </nav>
