@@ -109,7 +109,7 @@ code, .mono { font-family: "JetBrains Mono", monospace; }
 .port:hover .port-label, .port.hot .port-label { opacity: 1; transform: translateY(-50%) scale(1); }
 
 .dock { position: fixed; z-index: 30; display: flex; align-items: center; gap: 8px; }
-.dock-tl { top: 16px; left: 16px; }
+.dock-tl { top: 16px; left: 16px; max-width: calc(100vw - 32px); }
 .dock-tr { top: 16px; right: 16px; }
 .brand-pill {
   display: flex; align-items: center; gap: 10px; padding: 7px 14px 7px 9px;
@@ -146,12 +146,19 @@ body.embedded #btnTheme { display: none; }
 .pill-danger:hover { background: hsl(var(--err)); color: #fff; border-color: transparent; }
 .pill-wide { width: 100%; justify-content: center; }
 
+.chain-switcher { position: relative; min-width: 0; max-width: 360px; }
+#chainMenuBtn { max-width: 100%; }
+#chainMenuBtn svg { flex-shrink: 0; }
+#chainName { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .dropdown {
-  position: absolute; top: 48px; left: 0; min-width: 320px;
+  position: absolute; top: calc(100% + 8px); left: 0;
+  width: min(440px, calc(100vw - 200px)); min-width: 100%;
   background: hsl(var(--bg-panel)); color: hsl(var(--text));
   border: 1px solid hsl(var(--line)); border-radius: var(--radius);
   box-shadow: 0 18px 50px hsl(var(--shadow) / .25);
-  padding: 8px; z-index: 40; max-height: 440px; overflow: auto; animation: pop .14s ease;
+  padding: 8px; z-index: 40; max-height: min(440px, calc(100dvh - 84px));
+  overflow-y: auto; animation: dropdown-pop .14s ease;
 }
 .dropdown .dd-item { padding: 9px 11px; border-radius: 10px; cursor: pointer;
   display: flex; justify-content: space-between; align-items: center; gap: 10px; }
@@ -161,14 +168,19 @@ body.embedded #btnTheme { display: none; }
 .dropdown .dd-head { font-size: 11px; text-transform: uppercase; letter-spacing: .6px;
   color: hsl(var(--text-soft)); padding: 6px 11px 2px; }
 .dropdown .dd-item.active { background: hsl(var(--brand) / .12); box-shadow: inset 0 0 0 1px hsl(var(--brand) / .35); }
-.dropdown .dd-item-main { flex: 1; min-width: 0; cursor: pointer; }
-.dropdown .dd-actions { display: flex; gap: 4px; opacity: .35; transition: opacity .15s; }
+.dropdown .dd-item-main { flex: 1; min-width: 0; cursor: pointer; overflow-wrap: anywhere; }
+.dropdown .dd-actions { display: flex; flex-shrink: 0; gap: 4px; opacity: .35; transition: opacity .15s; }
 .dropdown .dd-item:hover .dd-actions { opacity: 1; }
 .dropdown .dd-act { font: inherit; font-size: 13px; line-height: 1; width: 26px; height: 26px;
   display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
   border-radius: 7px; border: 1px solid transparent; background: transparent; color: hsl(var(--text-soft)); }
 .dropdown .dd-act:hover { background: hsl(var(--bg-sub)); border-color: hsl(var(--line)); color: hsl(var(--text)); }
 .dropdown .dd-act.danger:hover { color: hsl(var(--err)); border-color: hsl(var(--err) / .4); }
+@keyframes dropdown-pop { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 600px) {
+  .dock-tl .brand-pill { display: none; }
+  .dropdown { width: min(440px, calc(100vw - 32px)); }
+}
 
 .drawer {
   position: fixed; top: 72px; bottom: 16px; z-index: 28;
