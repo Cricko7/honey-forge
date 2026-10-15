@@ -28,6 +28,7 @@ test('open dialogs have a unique accessible title and closed dialogs expose no c
   assert.equal(new Set(titles).size, 2)
   for (const title of titles) assert.ok(open.includes(`id="${title}"`))
   assert.equal((open.match(/role="dialog"/g) ?? []).length, 2)
+  assert.equal((open.match(/<dialog\b/g) ?? []).length, 2)
   assert.match(open, /Настройки &lt;img&gt;/)
   assert.doesNotMatch(open, /<img>/)
 })

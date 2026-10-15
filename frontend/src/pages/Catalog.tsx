@@ -1,26 +1,29 @@
-import { Zap, Terminal } from 'lucide-react'
-import { Card, LevelBadge, Spinner } from '@/components/ui'
+import { Card, LevelBadge, Spinner, LoadError, EmptyState } from '@/components/ui'
 import { useCatalog } from '@/api/hooks'
+import { commandLabels, eventLabel } from '@/lib/ui-labels'
+import type { CommandAction } from '@/types'
 
 export function CatalogPage() {
-  const { data, isLoading } = useCatalog()
+  const { data, isLoading, error, refetch } = useCatalog()
   const entries = data?.items ?? []
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="page-content space-y-5">
       <div>
-        <h1 className="text-xl font-semibold">Каталог типов ловушек</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Каталог типов ловушек</h1>
         <p className="text-sm text-muted">
-          Immutable-типы с версиями · описывают конфиг, события и действия
+          Готовые типы ловушек: поведение, события и доступные действия.
         </p>
       </div>
 
+      {error && <LoadError message="Не удалось обновить каталог типов ловушек." onRetry={() => { void refetch() }} />}
       {isLoading ? (
         <Spinner />
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      ) : !data && error ? null : !entries.length ? <EmptyState title="Типов ловушек пока нет" /> : (
+        <div>
           {entries.map((c) => (
-            <Card key={`${c.type_id}/${c.type_version}`}>
+            <Card key={`${c.type_id}/${c.type_version}`} className="grid xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-10">
+              <div>
               <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
                 <div className="min-w-0 break-words">
                   <h2 className="font-semibold text-fg">{c.title}</h2>
@@ -31,34 +34,35 @@ export function CatalogPage() {
                 <div className="flex items-center gap-2">
                   <LevelBadge level={c.interaction_level} />
                   {c.available_for_new_profiles && (
-                    <span className="chip bg-ok/10 text-ok">доступен</span>
+                    <span className="text-xs text-ok">Доступен</span>
                   )}
                 </div>
               </div>
               <p className="text-sm text-muted mb-4">{c.description}</p>
+              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <div className="flex items-center gap-1.5 text-xs text-fg mb-2">
-                    <Zap size={12} className="text-brand-soft" /> События
+                    События
                   </div>
                   <div className="space-y-1">
                     {c.event_schemas.map((e) => (
-                      <div key={e.event_type} className="text-xs font-mono text-muted break-all">
-                        {e.event_type}
+                      <div key={e.event_type} title={e.event_type} className="text-sm text-muted break-words">
+                        {eventLabel(e.event_type)}
                       </div>
                     ))}
                   </div>
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5 text-xs text-fg mb-2">
-                    <Terminal size={12} className="text-brand-soft" /> Действия
+                    Действия
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="space-y-1">
                     {c.actions.map((a) => (
-                      <span key={a.action} className="chip bg-bg-elevated text-fg font-mono">
-                        {a.action}
-                      </span>
+                      <div key={a.action} title={a.action} className="text-sm text-muted">
+                        {commandLabels[a.action as CommandAction] ?? a.title ?? a.action}
+                      </div>
                     ))}
                   </div>
                 </div>

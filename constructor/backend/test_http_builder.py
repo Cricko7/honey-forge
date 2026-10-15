@@ -51,10 +51,16 @@ class HTTPBuilderTests(unittest.TestCase):
         self.assertIn('http/transform', types)
         self.assertIn('http/response', types)
         self.assertIn('http/event', types)
+        severity = next(f for f in types['http/event']['config'] if f['key'] == 'severity')
+        self.assertEqual(severity['options'], ['low', 'medium', 'high', 'critical'])
+        self.assertIn('багровый', severity['hint'])
 
     def test_compile_event_and_reject_invalid_configuration(self):
         for name, config, valid in [
             ('valid', {'name': 'login.processed', 'severity': 'high', 'payload': '{"user":"${json.user}"}'}, True),
+            ('ordinary', {'severity': 'low'}, True),
+            ('medium', {'severity': 'medium'}, True),
+            ('critical', {'severity': 'critical'}, True),
             ('invalid name', {'name': '${json.name}'}, False),
             ('invalid severity', {'severity': 'urgent'}, False),
             ('invalid payload', {'payload': '{'}, False),

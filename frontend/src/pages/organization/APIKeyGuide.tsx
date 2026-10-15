@@ -41,7 +41,7 @@ curl "$HONEYFORGE_URL/api/organization" \\
             <p>Фильтры событий: trap_id, type_id, source_ip, event_type, session_id, from и to. Время — RFC 3339; from включительно, to не включительно.</p>
             <p>Ответ страницы: items, next_cursor, stream_cursor. Передавайте next_cursor в параметре cursor для следующей страницы до null. Максимальный limit — 100. stream_cursor подходит для подписки realtime без пропуска изменений после загрузки истории.</p>
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+              <table className="data-table w-full text-left text-xs">
                 <thead><tr><th className="py-2 pr-4">Запрос</th><th>Данные</th></tr></thead>
                 <tbody>{[
                   ['/api/events/{event_id}', 'Полное событие'],

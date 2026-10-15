@@ -1579,6 +1579,10 @@ components:
       type: object
       additionalProperties: false
       properties:
+        severity:
+          type: string
+          enum: [low, medium, high, critical]
+          description: Display importance. Custom HTTP events use the configured event block severity; authentication, service commands and honeytoken triggers are high; other telemetry is low. Older replay notifications may omit this field.
         event_id:
           $ref: '#/components/schemas/ID'
         event_type:

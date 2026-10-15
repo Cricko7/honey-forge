@@ -1,5 +1,4 @@
 import { useState, type FormEvent } from 'react'
-import { LockKeyhole } from 'lucide-react'
 import { ApiError } from '@/api/http'
 
 export function AdminPasswordForm({ onConfirm, disabled = false }: {
@@ -23,8 +22,7 @@ export function AdminPasswordForm({ onConfirm, disabled = false }: {
         'Не удалось подтвердить доступ. Проверьте соединение и повторите попытку.')
     } finally { setPending(false) }
   }
-  return <section className="card p-6 max-w-lg mx-auto space-y-4">
-    <div className="h-11 w-11 rounded-xl bg-brand/10 text-brand grid place-items-center"><LockKeyhole size={22} /></div>
+  return <section className="border-t border-line pt-5 max-w-lg mx-auto space-y-4">
     <h1 className="text-xl font-semibold">Подтвердите доступ к админ-панели</h1>
     <p className="text-sm text-muted">Повторно введите пароль своего аккаунта. Доступ откроется на 15 минут для текущей браузерной сессии.</p>
     <form onSubmit={submit} className="space-y-4">

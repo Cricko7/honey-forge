@@ -9,7 +9,7 @@ export function AuthShell({ title, description, children }: { title: string; des
       <ThemeToggle />
     </header>
     <main className="flex-1 flex items-center justify-center px-5 py-10">
-      <div className="w-full max-w-sm">
+      <div className="w-full max-w-md rounded-xl border border-line bg-bg-panel p-8">
         <h1 id="auth-title" className="text-2xl font-semibold tracking-tight">{title}</h1>
         <p className="mt-2 mb-7 text-sm leading-relaxed text-muted">{description}</p>
         {children}

@@ -1,20 +1,7 @@
-import { NavLink, Outlet, Navigate, useNavigate, useLocation } from 'react-router-dom'
-import {
-  LayoutDashboard,
-  Server,
-  Bug,
-  ScrollText,
-  Boxes,
-  Workflow,
-  Network,
-  FileSliders,
-  Link2,
-  LogOut,
-  ShieldCheck,
-} from 'lucide-react'
+import { Outlet, Navigate, useNavigate, useLocation } from 'react-router-dom'
+import { LogOut, Menu } from 'lucide-react'
 import { useSession, useLiveStream } from '@/api/hooks'
 import { USE_MOCK, api } from '@/api/client'
-import { cn } from '@/lib/utils'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { Logo } from '@/components/Logo'
 import { useState } from 'react'
@@ -25,22 +12,14 @@ import { ApiError } from '@/api/client'
 import { AlertsProvider, AlertsBell, useAlerts } from '@/components/Alerts'
 import type { SessionView } from '@/types'
 import { SessionScope, useSessionClient } from '@/api/session-scope'
-
-const nav = [
-  { to: '/app', end: true, icon: LayoutDashboard, label: 'Обзор' },
-  { to: '/app/constructor', icon: Workflow, label: 'Конструктор ловушек' },
-  { to: '/app/network', icon: Network, label: 'Конструктор сети' },
-  { to: '/app/servers', icon: Server, label: 'Серверы' },
-  { to: '/app/traps', icon: Bug, label: 'Ловушки' },
-  { to: '/app/events', icon: ScrollText, label: 'События' },
-  { to: '/app/profiles', icon: FileSliders, label: 'Профили' },
-  { to: '/app/catalog', icon: Boxes, label: 'Каталог типов' },
-]
+import { Modal } from '@/components/Modal'
+import { Navigation } from '@/components/Navigation'
+import { Spinner } from '@/components/ui'
 
 export function Layout() {
   const { data: session, isLoading, error, refetch } = useSession()
   const sessionClient = useSessionClient()
-  if (isLoading) return <div className="h-screen grid place-items-center text-muted text-sm"><span className="h-5 w-5 rounded-full border-2 border-brand/30 border-t-brand animate-spin" /></div>
+  if (isLoading) return <div className="h-screen grid place-items-center"><Spinner label="Проверяем вход…" /></div>
   if (sessionDestination(session, isLoading, error) === 'guest') return <Navigate to="/login" replace />
   const unavailable = <div className="p-8">Не удалось проверить сессию. <button className="btn-primary" onClick={() => refetch()}>Повторить</button></div>
   if (!session) return unavailable
@@ -54,6 +33,7 @@ function AuthenticatedLayout({ session }: { session: SessionView }) {
   const qc = useSessionClient()
   const [logoutError, setLogoutError] = useState('')
   const [loggingOut, setLoggingOut] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const { onStream, notify } = useAlerts()
   const navigate = useNavigate()
   const location = useLocation()
@@ -78,71 +58,45 @@ function AuthenticatedLayout({ session }: { session: SessionView }) {
     }
   }
 
-  const sections = canManage(session)
-    ? [...nav, { to: '/app/admin', end: false, icon: ShieldCheck, label: 'Админ-панель' }, { to: '/app/organization', end: false, icon: Link2, label: 'Приглашения' }]
-    : nav
+  const account = <div className="space-y-3 border-t border-line px-2 pt-4">
+    <div className="text-sm font-medium break-all">{session.user.email}</div>
+    <p className="text-xs text-muted">{canManage(session) ? 'Администратор' : canManageTraps(session) ? 'Оператор ловушек' : 'Только чтение'}</p>
+    {logoutError && <p role="alert" className="text-sm text-danger">{logoutError}</p>}
+    <button type="button" onClick={logout} disabled={loggingOut} className="btn-ghost w-full"><LogOut size={16} /> {loggingOut ? 'Выход…' : 'Выйти'}</button>
+  </div>
   return (
     <div className="flex h-dvh flex-col md:flex-row overflow-hidden bg-bg-base">
       <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[120] focus:bg-bg-panel focus:p-3">К содержимому</a>
-      <aside className="md:w-56 shrink-0 bg-bg-panel border-b md:border-b-0 md:border-r border-line flex flex-col min-h-0">
-        <div className="px-5 h-12 md:h-16 flex items-center gap-2.5">
+      <aside className="hidden md:flex w-64 shrink-0 bg-bg-panel border-r border-line flex-col min-h-0">
+        <div className="px-5 h-12 md:h-16 flex items-center gap-3 border-b border-line">
           <Logo size={30} className="shrink-0" />
           <div className="leading-tight">
             <div className="font-semibold text-fg">HoneyForge</div>
           </div>
         </div>
 
-        <nav aria-label="Основная навигация" className="flex md:block md:flex-1 gap-1 overflow-x-auto md:overflow-y-auto px-3 py-1 md:py-2 md:space-y-0.5">
-          {sections.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) =>
-                cn(
-                  'flex shrink-0 items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
-                  isActive
-                    ? 'bg-brand/10 text-brand'
-                    : 'text-muted hover:text-fg hover:bg-bg-hover',
-                )
-              }
-            >
-              <item.icon size={17} aria-hidden="true" />
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
-
-        <div className="px-3 py-2 md:py-3 border-t border-line">
-          <div className="flex md:block items-center gap-3">
-            <div className="min-w-0 flex-1 md:mb-3">
-              <div className="min-w-0 leading-tight">
-                <div className="text-sm text-fg truncate">{session?.user.email ?? '—'}</div>
-                <div className="text-xs text-muted truncate">
-                  {canManage(session) ? 'Администратор' : canManageTraps(session) ? 'Оператор ловушек' : 'Только чтение'}
-                </div>
-              </div>
-            </div>
-            {logoutError && <p className="text-xs text-danger mb-2">{logoutError}</p>}
-            <button type="button" onClick={logout} disabled={loggingOut} className="btn-ghost md:w-full">
-              <LogOut size={16} /> Выйти
-            </button>
-          </div>
-        </div>
+        <div className="flex-1 overflow-y-auto px-3 py-5"><Navigation admin={canManage(session)} /></div>
+        <div className="px-3 pb-4">{account}</div>
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0 min-h-0">
-        <header className="shrink-0 bg-bg-panel border-b border-line h-14 flex items-center justify-between gap-3 px-5">
-          <div className="text-sm font-medium truncate">{session.organization.name}</div>
+        <header className="shrink-0 bg-bg-panel border-b border-line h-16 flex items-center justify-between gap-2 px-3 md:px-8">
+          <button type="button" className="btn-ghost md:hidden px-3" aria-label="Открыть меню" aria-haspopup="dialog" aria-expanded={menuOpen} onClick={() => setMenuOpen(true)}><Menu size={20} /> <span className="hidden min-[380px]:inline">Меню</span></button>
+          <div className="min-w-0 text-sm font-medium truncate">{session.organization.name}</div>
           <div className="flex items-center gap-2">
             {USE_MOCK && (
-              <span className="chip bg-warn/10 text-warn" title="Тестовые данные. Изменения не сохраняются на сервере.">Демонстрация</span>
+              <span className="hidden sm:inline-flex chip bg-warn/10 text-warn" title="Тестовые данные. Изменения не сохраняются на сервере.">Демонстрация</span>
             )}
             <div className="h-5 w-px bg-line mx-1" />
             <AlertsBell />
             <ThemeToggle />
           </div>
         </header>
+        <Modal open={menuOpen} onClose={() => setMenuOpen(false)} title="Меню HoneyForge">
+          <p className="mb-4 text-sm font-medium break-words">{session.organization.name}{USE_MOCK && <span className="ml-2 chip bg-warn/10 text-warn">Демонстрация</span>}</p>
+          <Navigation admin={canManage(session)} onNavigate={() => setMenuOpen(false)} />
+          <div className="mt-4">{account}</div>
+        </Modal>
 
         <main key={location.pathname} id="main-content" tabIndex={-1} className="flex-1 min-h-0 overflow-auto">
           <div className="h-full">

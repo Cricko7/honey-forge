@@ -67,7 +67,7 @@ export function Select({ value, onChange, options, label, id, className, disable
         {options.map((option, index) => <button key={option.value} id={`${listId}-${index}`} type="button" role="option"
           aria-selected={option.value === value} aria-disabled={option.disabled} disabled={option.disabled} tabIndex={-1}
           onMouseEnter={() => { if (!option.disabled) setActive(index) }} onClick={() => choose(index)}
-          className={cn('flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+          className={cn('flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40',
             active === index ? 'bg-brand/10 text-brand' : 'hover:bg-bg-hover', option.value === value && 'font-medium')}>
           <span className="min-w-0 flex-1 break-words">{option.label}</span>
           {option.value === value && <Check size={15} className="shrink-0 text-brand" />}

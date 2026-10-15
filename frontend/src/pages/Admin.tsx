@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate } from 'react-router-dom'
-import { ShieldCheck, Users, RefreshCw, Crown } from 'lucide-react'
+import { Users, RefreshCw } from 'lucide-react'
 import { api, ApiError, USE_MOCK } from '@/api/client'
 import { useSession } from '@/api/hooks'
 import { canManage } from '@/lib/auth'
@@ -51,32 +51,29 @@ function AdminContent() {
   const items = members.data?.pages.flatMap(page => page.items) ?? []
   const uniqueMembers = [...new Map(items.map(member => [member.id, member])).values()]
 
-  return <div className="p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
+  return <div className="page-content space-y-6">
     <header>
-      <span className="chip bg-brand/10 text-brand mb-3"><ShieldCheck size={14} /> Администрирование</span>
       <h1 className="text-2xl font-semibold tracking-tight">Команда организации</h1>
       <p className="text-sm text-muted mt-2">{session?.organization.name} · участники, активность и права управления ловушками</p>
     </header>
-    <div className="grid md:grid-cols-2 gap-4">
-      <section className="card p-5 flex items-start gap-3">
-        <Crown size={22} className="text-brand shrink-0" />
+    <div className="grid md:grid-cols-2 gap-6 border-t border-line pt-5">
+      <section>
         <div><h2 className="text-sm font-semibold">Создатель организации</h2>
           <p className="mt-1 text-sm break-all">{members.isError ? 'Не удалось проверить' : creator?.email ?? (members.isPending ? 'Загрузка…' : 'Не установлен в исторических данных')}</p>
           <p className="mt-2 text-xs text-muted">Только создатель выдаёт и отзывает делегированное право. Права администраторов защищены.</p>
         </div>
       </section>
-      <section className="card p-5 flex items-start gap-3">
-        <ShieldCheck size={22} className="text-brand shrink-0" />
+      <section>
         <div><h2 className="text-sm font-semibold">Область делегирования</h2>
           <p className="mt-1 text-xs text-muted leading-relaxed">Создание, изменение и удаление ловушек; запуск, остановка и применение готовой конфигурации. Доступ ко всем ловушкам своей организации.</p>
           <p className="mt-2 text-xs text-muted">API-ключи, приглашения, подключение серверов, изменение профилей и учётные данные агентов остаются у администраторов.</p>
         </div>
       </section>
     </div>
-    <section className="card !p-0 overflow-hidden">
-      <div className="p-5 border-b border-line flex flex-wrap justify-between gap-3 items-center">
+    <section className="border-t border-line overflow-hidden">
+      <div className="py-4 border-b border-line flex flex-wrap justify-between gap-3 items-center">
         <h2 className="font-semibold flex items-center gap-2"><Users size={18} className="text-brand" /> Участники</h2>
-        <div className="flex gap-3 items-center">
+        <div className="flex flex-wrap gap-3 items-center">
           <Link className="text-sm text-brand" to="/app/organization">Приглашения и API-ключи</Link>
           <button className="btn-ghost" disabled={members.isFetching || mutation.isPending} onClick={() => { void members.refetch() }}><RefreshCw size={15} /> Обновить</button>
         </div>

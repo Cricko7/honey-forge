@@ -15,6 +15,8 @@ test('server guide contains complete setup and troubleshooting inside the websit
   for (const text of ['Подробная инструкция', 'docker swarm join-token worker', 'docker load -i', '2377', '7946', '4789', 'Ready', 'Active', '30 секунд', 'Остановить', 'honeyforge.organization=11111111-1111-4111-8111-111111111111', 'No such image', 'address already in use']) {
     assert.ok(html.includes(text), `missing guide detail: ${text}`)
   }
+  assert.match(html, /<details[^>]*>\s*<summary[^>]*>Подробная инструкция/)
+  assert.doesNotMatch(html, /<details[^>]*\sopen(?:="")?[^>]*>/)
 })
 
 async function compile(contents) {

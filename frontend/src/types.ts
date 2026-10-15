@@ -119,6 +119,7 @@ export interface EventDestination {
 }
 
 export interface EventSummary {
+  severity?: 'low' | 'medium' | 'high' | 'critical'
   event_id: UUID
   event_type: string
   type_id: string

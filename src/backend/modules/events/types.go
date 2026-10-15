@@ -57,10 +57,30 @@ type EventSummary struct {
 	Destination     Destination `json:"destination"`
 	TrapID          string      `json:"trap_id"`
 	ReceivedAt      time.Time   `json:"received_at"`
+	Severity        string      `json:"severity"`
 }
 
 func (e Event) Summary() EventSummary {
-	return EventSummary{e.EventID, e.EventType, e.TypeID, e.TypeVersion, e.ProfileRevision, e.OccurredAt, e.SessionID, e.SessionSequence, e.Source, e.Destination, e.TrapID, e.ReceivedAt}
+	return EventSummary{e.EventID, e.EventType, e.TypeID, e.TypeVersion, e.ProfileRevision, e.OccurredAt, e.SessionID, e.SessionSequence, e.Source, e.Destination, e.TrapID, e.ReceivedAt, e.severity()}
+}
+
+func (e Event) severity() string {
+	switch e.EventType {
+	case "service.auth_attempt", "ssh.auth_attempt", "service.action", "honeytoken.triggered":
+		return "high"
+	case "http.custom":
+		var data struct {
+			Severity string `json:"severity"`
+		}
+		if err := json.Unmarshal(e.Data, &data); err == nil {
+			switch data.Severity {
+			case "low", "medium", "high", "critical":
+				return data.Severity
+			}
+		}
+	}
+
+	return "low"
 }
 
 type EventPage struct {

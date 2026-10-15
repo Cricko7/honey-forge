@@ -11,9 +11,9 @@ export function ProcessExecutionDetails({ data }: { data: Record<string, unknown
   ]
   return (
     <div className="space-y-2">
-      <dl className="space-y-1.5 text-sm">
+      <dl className="divide-y divide-line text-sm">
         {rows.map(([label, value]) => (
-          <div key={String(label)} className="rounded-lg bg-bg-elevated/60 px-3 py-2">
+          <div key={String(label)} className="py-2.5">
             <dt className="text-xs text-muted">{String(label)}</dt>
             <dd className="mt-1 break-all font-mono text-xs">{String(value ?? '—')}</dd>
           </div>

@@ -1,3 +1,4 @@
+import { eventSeverity } from '@/lib/event-severity'
 import { ShieldAlert } from 'lucide-react'
 import { Modal } from './Modal'
 import { EmptyState, EventTypeBadge, Spinner } from './ui'
@@ -23,12 +24,12 @@ export function EventDetailModal({ id, onClose }: { id: string | null; onClose: 
         <EmptyState title="Событие недоступно" />
       ) : (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <EventTypeBadge type={event.event_type} />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <EventTypeBadge type={event.event_type} severity={eventSeverity(event)} />
             <span className="text-xs text-muted font-mono">{formatDateTime(event.occurred_at)}</span>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 text-sm">
+          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 border-y border-line py-4 text-sm">
             <Field label="Источник">
               <span className="font-mono">
                 {flag(event.source_enrichment.country_code)} {event.source.ip}:{event.source.port}
@@ -47,7 +48,7 @@ export function EventDetailModal({ id, onClose }: { id: string | null; onClose: 
             <Field label="Сессия">
               <span className="font-mono text-xs">#{event.session_sequence}</span>
             </Field>
-          </div>
+          </dl>
           <div>
             <div className="flex items-center gap-1.5 text-xs text-danger mb-2">
               <ShieldAlert size={13} /> {event.event_type === 'process.exec' ? 'Телеметрия процесса' : 'Перехваченные данные'}
@@ -74,9 +75,9 @@ function CapturedData({ data }: { data: Record<string, unknown> }) {
   }
   if ('outcome' in d) rows.push({ k: 'Результат', v: d.outcome === 'accepted' ? 'Успешно' : d.outcome === 'rejected' ? 'Отклонено' : d.outcome === 'unknown' ? 'Результат не определён' : String(d.outcome) })
   if ('payload_base64' in d) {
-    rows.push({ k: 'Payload (decoded)', v: decodeBase64(String(d.payload_base64)), danger: true })
+    rows.push({ k: 'Полученные данные', v: decodeBase64(String(d.payload_base64)), danger: true })
   }
-  if ('listener_name' in d) rows.push({ k: 'Listener', v: String(d.listener_name) })
+  if ('listener_name' in d) rows.push({ k: 'Сервис', v: String(d.listener_name) })
   if ('reason' in d) rows.push({ k: 'Причина', v: String(d.reason) })
   if ('duration_ms' in d) rows.push({ k: 'Длительность', v: `${d.duration_ms} мс` })
   if ('bytes_received' in d) rows.push({ k: 'Байт получено', v: String(d.bytes_received) })
@@ -90,27 +91,27 @@ function CapturedData({ data }: { data: Record<string, unknown> }) {
   }
 
   return (
-    <div className="space-y-1.5">
+    <dl className="divide-y divide-line">
       {rows.map((r) => (
         <div
           key={r.k}
-          className="flex items-center justify-between text-sm px-3 py-2 rounded-lg bg-bg-elevated/60"
+          className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-4 py-2.5 text-sm"
         >
-          <span className="text-muted text-xs">{r.k}</span>
-          <span className={`font-mono text-xs break-all ${r.danger ? 'text-danger' : 'text-fg'}`}>
+          <dt className="text-muted text-xs">{r.k}</dt>
+          <dd className={`font-mono text-xs break-all ${r.danger ? 'text-danger' : 'text-fg'}`}>
             {r.v}
-          </span>
+          </dd>
         </div>
       ))}
-    </div>
+    </dl>
   )
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="bg-bg-elevated/50 rounded-xl p-3">
-      <div className="text-xs text-muted mb-1">{label}</div>
-      <div className="text-fg">{children}</div>
+    <div className="min-w-0">
+      <dt className="text-xs text-muted mb-1">{label}</dt>
+      <dd className="text-fg break-words">{children}</dd>
     </div>
   )
 }

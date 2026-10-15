@@ -1,16 +1,16 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Navigate } from 'react-router-dom'
-import { Users, KeyRound, Copy, Check, RefreshCw, Share2, UserPlus, Eye } from 'lucide-react'
+import { Copy, Check, RefreshCw } from 'lucide-react'
 import { api, ApiError } from '@/api/client'
 import { useCanManage } from '@/api/hooks'
 import { Spinner } from '@/components/ui'
 import { APIKeys } from './organization/APIKeys'
 
 const steps = [
-  { icon: Share2, title: 'Поделитесь кодом', text: 'Передайте код приглашения коллеге любым надёжным каналом.' },
-  { icon: UserPlus, title: 'Он регистрируется', text: 'При регистрации коллега указывает свой email, пароль и этот код.' },
-  { icon: Eye, title: 'Доступ «только чтение»', text: 'Наблюдатель видит данные организации, но не может ничего менять.' },
+  { title: 'Поделитесь кодом', text: 'Передайте код приглашения коллеге любым надёжным каналом.' },
+  { title: 'Он регистрируется', text: 'При регистрации коллега указывает свой email, пароль и этот код.' },
+  { title: 'Доступ «только чтение»', text: 'Наблюдатель видит данные организации, но не может ничего менять.' },
 ]
 
 export function OrganizationPage() {
@@ -47,29 +47,18 @@ export function OrganizationPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8 max-w-4xl mx-auto space-y-6">
-      <header className="animate-fadeInUp">
-        <span className="chip bg-brand/10 text-brand mb-3">
-          <Users size={13} /> Управление доступом
-        </span>
+    <div className="page-content space-y-6">
+      <header>
         <h1 className="text-2xl font-semibold tracking-tight text-fg">Доступ к организации</h1>
         <p className="text-sm text-muted mt-2 max-w-xl leading-relaxed">
           Выдайте код доступа коллеге. Он зарегистрируется с этим кодом и получит роль
           наблюдателя — только просмотр данных организации, без управления ловушками.
         </p>
       </header>
-      <section
-        className="card p-6 lg:p-7 relative overflow-hidden animate-fadeInUp"
-        style={{ animationDelay: '70ms' }}
-      >
-        <div className="pointer-events-none absolute -top-24 -right-16 h-64 w-64 rounded-full bg-brand/10 blur-3xl" />
-
-        <div className="relative flex items-center gap-2.5 mb-5">
-          <div className="h-9 w-9 rounded-xl bg-brand/10 grid place-items-center text-brand shrink-0">
-            <KeyRound size={18} />
-          </div>
+      <section className="border-t border-line pt-5">
+        <div className="flex items-center gap-2.5 mb-4">
           <div className="leading-tight">
-            <div className="text-sm font-semibold text-fg">Код приглашения</div>
+            <h2 className="text-base font-semibold text-fg">Код приглашения</h2>
             <div className="text-xs text-muted">Один активный код на организацию</div>
           </div>
         </div>
@@ -92,7 +81,7 @@ export function OrganizationPage() {
         {code.data && (
           <div className="relative space-y-4">
             <div className="flex flex-col sm:flex-row gap-3 sm:items-stretch">
-              <div className="flex-1 flex items-center rounded-xl border border-line bg-bg-elevated px-4 py-3.5 font-mono text-lg sm:text-xl tracking-[0.2em] text-fg select-all overflow-x-auto">
+              <div className="flex-1 flex items-center rounded-md border border-line bg-bg-elevated px-4 py-3 font-mono text-lg tracking-wider text-fg select-all overflow-x-auto">
                 {code.data.code}
               </div>
               <button
@@ -145,24 +134,15 @@ export function OrganizationPage() {
       </section>
 
       <APIKeys />
-      <section className="grid sm:grid-cols-3 gap-4">
-        {steps.map((step, i) => (
-          <div
-            key={step.title}
-            className="card card-hover p-5 animate-fadeInUp"
-            style={{ animationDelay: `${140 + i * 70}ms` }}
-          >
-            <div className="flex items-center gap-2.5 mb-3">
-              <div className="h-8 w-8 rounded-lg bg-brand/10 grid place-items-center text-brand shrink-0">
-                <step.icon size={16} />
-              </div>
-              <span className="text-xs font-semibold text-muted tabular-nums">Шаг {i + 1}</span>
-            </div>
-            <div className="text-sm font-medium text-fg mb-1">{step.title}</div>
-            <p className="text-xs text-muted leading-relaxed">{step.text}</p>
-          </div>
-        ))}
-      </section>
+      <details className="border-t border-line pt-4">
+        <summary className="min-h-11 cursor-pointer py-2 text-sm text-brand">Как пригласить коллегу</summary>
+        <ol className="list-decimal pl-5 space-y-3 text-sm">
+          {steps.map(step => <li key={step.title}>
+            <span className="font-medium">{step.title}. </span>
+            <span className="text-muted">{step.text}</span>
+          </li>)}
+        </ol>
+      </details>
     </div>
   )
 }

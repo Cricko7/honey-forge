@@ -2,6 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Event importance uses the same palette in the journal and notifications. */
+.event-surface-low { background-color: #fff; }
+.event-surface-medium { background-color: #fff4c2; }
+.event-surface-high { background-color: #ffe4e4; }
+.event-surface-critical { background-color: #fbd5e0; box-shadow: inset 0 0 0 1px #dc143c; }
+.event-label-low { color: rgb(var(--fg)); }
+.event-label-medium { color: #785400; }
+.event-label-high { color: #b91c1c; }
+.event-label-critical { color: #a50f2d; }
+.event-label-critical:not(.grid)::before { content: ''; display: inline-block; width: 0.5rem; height: 0.5rem; margin-right: 0.375rem; border-radius: 50%; background: #dc143c; }
+.event-surface:hover { filter: brightness(0.98); }
+[data-theme='dark'] .event-surface-low { background-color: rgb(var(--bg-panel)); }
+[data-theme='dark'] .event-surface-medium { background-color: #352b12; }
+[data-theme='dark'] .event-surface-high { background-color: #391c20; }
+[data-theme='dark'] .event-surface-critical { background-color: #3d1324; }
+[data-theme='dark'] .event-label-medium { color: #facc15; }
+[data-theme='dark'] .event-label-high { color: #ff8585; }
+[data-theme='dark'] .event-label-critical { color: #ff7095; }
+
 @layer base {
   /* Shared surface and text colors for the light theme. */
   :root,
@@ -63,9 +82,42 @@
     @apply bg-bg-base text-fg font-sans antialiased;
     transition: background-color 0.3s ease, color 0.3s ease;
   }
+  h1, h2, h3 {
+    text-wrap: balance;
+  }
+  button, input, textarea, select {
+    font: inherit;
+  }
+  button, summary, a, input, textarea, select {
+    -webkit-tap-highlight-color: transparent;
+  }
+  input[type='checkbox'], input[type='radio'] {
+    accent-color: rgb(var(--brand));
+  }
+  textarea {
+    resize: vertical;
+  }
+  pre, code, time, table {
+    font-variant-numeric: tabular-nums;
+  }
+  pre {
+    line-height: 1.65;
+    tab-size: 2;
+  }
   :where(a, button, summary):focus-visible {
     outline: 2px solid rgb(var(--brand));
     outline-offset: 3px;
+  }
+  ::selection {
+    color: rgb(var(--fg));
+    background-color: rgb(var(--brand) / 0.22);
+  }
+  input,
+  textarea {
+    caret-color: rgb(var(--brand));
+  }
+  a {
+    text-underline-offset: 0.2em;
   }
   * {
     scrollbar-width: thin;
@@ -102,40 +154,74 @@
 }
 
 @layer components {
+  .page-content {
+    @apply mx-auto w-full min-w-0 p-5 md:p-8;
+    max-width: 1600px;
+  }
+  .page-content > :first-child h1 + p,
+  .workspace-heading h1 + p {
+    @apply mt-2 leading-relaxed;
+  }
+  .workspace-heading {
+    @apply bg-bg-panel px-5 md:px-8 py-5;
+  }
+  .data-table {
+    @apply w-full text-sm;
+    border-collapse: collapse;
+  }
+  .data-table thead {
+    @apply bg-bg-elevated/60;
+  }
+  .data-table th {
+    @apply whitespace-nowrap text-xs font-medium text-muted;
+  }
+  .data-table td {
+    vertical-align: middle;
+  }
+  .data-table tbody tr {
+    transition: background-color 150ms ease;
+  }
+  .data-table tbody tr:focus-within {
+    outline: 2px solid rgb(var(--brand));
+    outline-offset: -2px;
+  }
   .glass {
     @apply bg-bg-panel border border-line;
   }
   .card {
-    @apply glass rounded-lg;
+    @apply glass rounded-xl;
   }
   .card-hover {
     @apply transition-colors duration-150 hover:border-brand/50;
   }
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium leading-5 transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-primary {
-    @apply btn bg-brand hover:bg-brand-deep text-white shadow-sm;
+    @apply btn bg-brand enabled:hover:bg-brand-deep text-white;
   }
   [data-theme='dark'] .btn-primary {
     color: rgb(var(--bg-base));
   }
-  [data-theme='dark'] .btn-primary:hover {
+  [data-theme='dark'] .btn-primary:enabled:hover {
     background-color: rgb(var(--brand-soft));
   }
   .btn-ghost {
-    @apply btn bg-bg-elevated hover:bg-bg-hover text-fg border border-line;
+    @apply btn bg-bg-panel enabled:hover:bg-bg-hover text-fg border border-line;
   }
   .btn-danger {
-    @apply btn bg-danger/90 hover:bg-danger text-white;
+    @apply btn bg-danger enabled:hover:bg-danger/90 text-white;
+  }
+  [data-theme='dark'] .btn-danger {
+    color: rgb(var(--bg-base));
   }
   .input {
-    @apply w-full rounded-lg bg-bg-elevated border border-line px-3 py-2 text-sm text-fg placeholder:text-muted transition-[border-color,box-shadow] duration-150 focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand/50;
+    @apply w-full min-w-0 min-h-11 rounded-lg bg-bg-panel border border-line px-3 py-2 text-sm text-fg placeholder:text-muted transition-[border-color,box-shadow] duration-150 focus:outline-none focus:ring-2 focus:ring-brand/25 focus:border-brand disabled:cursor-not-allowed disabled:opacity-50;
   }
   .label {
     @apply block text-xs font-medium text-muted mb-1.5;
   }
   .chip {
-    @apply inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium;
+    @apply inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-xs font-medium leading-4;
   }
 }

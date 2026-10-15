@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { BookOpen, Copy, KeyRound, Trash2 } from 'lucide-react'
+import { BookOpen, Copy, Trash2 } from 'lucide-react'
 import { api, USE_MOCK } from '@/api/client'
 import { Spinner } from '@/components/ui'
 import { APIKeyGuide } from './APIKeyGuide'
@@ -46,9 +46,8 @@ export function APIKeys() {
   }
 
   return (
-    <section className="card p-6 lg:p-7 space-y-5">
+    <section className="border-t border-line pt-5 space-y-4">
       <div className="flex items-center gap-2.5 flex-wrap">
-        <KeyRound size={18} className="text-brand" />
         <h2 className="font-semibold">API-ключи</h2>
         <button type="button" className="btn-ghost sm:ml-auto" onClick={() => setGuideOpen(true)}>
           <BookOpen size={16} /> Документация API

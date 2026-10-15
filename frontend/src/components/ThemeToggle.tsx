@@ -10,7 +10,7 @@ export function ThemeToggle() {
       onClick={toggle}
       aria-label={dark ? 'Светлая тема' : 'Тёмная тема'}
       title={dark ? 'Светлая тема' : 'Тёмная тема'}
-      className="relative h-9 w-9 grid place-items-center overflow-hidden rounded-xl border border-line bg-bg-elevated text-muted transition-[color,background-color,transform] duration-200 hover:text-fg hover:bg-bg-hover active:scale-90"
+      className="relative h-11 w-11 shrink-0 grid place-items-center overflow-hidden rounded-lg text-muted transition-colors duration-150 hover:text-fg hover:bg-bg-hover"
     >
       <Sun
         size={17}

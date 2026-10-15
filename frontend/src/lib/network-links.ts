@@ -1,5 +1,14 @@
 type Link = { source_id: string; target_id: string }
 
+export function trapLinkHandles(source: { x: number; y: number }, target: { x: number; y: number }) {
+  const dx = target.x - source.x
+  const dy = target.y - source.y
+  if (Math.abs(dx) > Math.abs(dy)) {
+    return dx > 0 ? { sourceHandle: 'right', targetHandle: 'left' } : { sourceHandle: 'left', targetHandle: 'right' }
+  }
+  return dy >= 0 ? { sourceHandle: 'bottom', targetHandle: 'top' } : { sourceHandle: 'top', targetHandle: 'bottom' }
+}
+
 export function trapLinkLabel(link: Link, config?: Record<string, unknown>): string {
   const blocks = config?.blocks
   if (!Array.isArray(blocks)) return 'копия трафика'

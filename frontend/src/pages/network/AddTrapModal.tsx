@@ -1,11 +1,12 @@
 import { Select } from '@/components/Select'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Bug, Database, Server, KeyRound, TerminalSquare, AlertTriangle, Shuffle } from 'lucide-react'
+import { Bug, AlertTriangle, Shuffle } from 'lucide-react'
 import { Modal } from '@/components/Modal'
-import { LevelBadge } from '@/components/ui'
+import { LoadError, Spinner } from '@/components/ui'
 import { ApiError } from '@/api/client'
 import type { CatalogEntry, DeploymentNode } from '@/types'
+import { levelLabel } from '@/lib/ui-labels'
 
 function randomFreePort(used: Set<number> | Map<number, unknown>): number {
   for (let i = 0; i < 100; i++) {
@@ -15,12 +16,6 @@ function randomFreePort(used: Set<number> | Map<number, unknown>): number {
   return 1025
 }
 
-const TYPE_ICON: Record<string, typeof Bug> = {
-  'tcp-banner': Server,
-  'redis-emulator': Database,
-  'honeytoken-http': KeyRound,
-  'ssh-high-interaction': TerminalSquare,
-}
 export function defaultConfig(typeId: string, port: number): Record<string, unknown> {
   const management = { heartbeat_interval_seconds: 10, telemetry_flush_interval_ms: 500 }
   switch (typeId) {
@@ -51,6 +46,9 @@ export function AddTrapModal({
   open,
   onClose,
   catalog,
+  catalogLoading,
+  catalogError,
+  onRetryCatalog,
   usedPorts,
   deploymentNodes,
   deploymentNodesError,
@@ -62,6 +60,9 @@ export function AddTrapModal({
   open: boolean
   onClose: () => void
   catalog: CatalogEntry[]
+  catalogLoading: boolean
+  catalogError: boolean
+  onRetryCatalog: () => void
   deploymentNodes: DeploymentNode[]
   deploymentNodesError: boolean
   deploymentNodeId: string
@@ -97,11 +98,13 @@ export function AddTrapModal({
   const hasConflict = !!conflictTrap
   const nodeReady = !deploymentNodeId || deploymentNodes.some((node) => node.id === deploymentNodeId && node.ready)
   const isCustomHTTP = selected?.type_id === 'custom-http'
-  const canSubmit = nodeReady && !!name.trim() && !!selected && !isCustomHTTP && portValid && !hasConflict && !creating
+  const canSubmit = !catalogError && !catalogLoading && nodeReady && !!selected && !isCustomHTTP && portValid && !hasConflict && !creating
 
-  async function submit() {
+  async function submit(event: React.FormEvent) {
+    event.preventDefault()
     setError(null)
-    if (!nodeReady || !selected || isCustomHTTP || !name.trim() || !portValid || hasConflict) return
+    if (!canSubmit) return
+    if (!name.trim()) { setError('Укажите имя ловушки.'); return }
     try {
       await onCreate(name.trim(), selected, port)
       setName('')
@@ -114,39 +117,16 @@ export function AddTrapModal({
 
   return (
     <Modal open={open} onClose={onClose} title="Новая ловушка" width="max-w-2xl">
-      <div className="space-y-5">
+      <form onSubmit={submit} className="space-y-5">
+        <p className="text-sm text-muted">Выберите готовый тип или <Link to="/app/constructor" onClick={onClose} className="text-brand underline">соберите поведение из блоков</Link>.</p>
+        {catalogLoading && <Spinner label="Загрузка типов ловушек…" />}
+        {catalogError && <LoadError message="Не удалось загрузить типы ловушек." onRetry={onRetryCatalog} />}
+        {!catalogLoading && !catalogError && !catalog.length && <p role="status" className="text-sm text-muted">Нет доступных типов. Обратитесь к администратору платформы.</p>}
         <div>
           <label className="label">Тип ловушки из каталога</label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            {catalog.map((e) => {
-              const key = `${e.type_id}/${e.type_version}`
-              const Icon = TYPE_ICON[e.type_id] ?? Bug
-              const active = key === typeKey
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setTypeKey(key)}
-                  className={`text-left rounded-xl border p-3 transition-colors ${
-                    active
-                      ? 'border-brand/60 bg-brand/10'
-                      : 'border-line/60 bg-bg-elevated/50 hover:bg-bg-hover'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <div className={`h-7 w-7 rounded-lg grid place-items-center ${active ? 'bg-brand/15 text-brand' : 'bg-bg-hover text-muted'}`}>
-                      <Icon size={15} />
-                    </div>
-                    <span className="text-sm font-medium text-fg">{e.title}</span>
-                    <span className="ml-auto">
-                      <LevelBadge level={e.interaction_level} />
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted line-clamp-2">{e.description}</p>
-                </button>
-              )
-            })}
-          </div>
+          <Select label="Тип ловушки из каталога" value={typeKey} onChange={setTypeKey}
+            options={catalog.map(entry => ({ value: `${entry.type_id}/${entry.type_version}`, label: `${entry.title} · ${levelLabel(entry.interaction_level)}` }))} />
+          {selected && <p className="mt-2 text-xs text-muted">{selected.description}</p>}
         </div>
 
         {isCustomHTTP && <div className="rounded-xl border border-brand/40 p-3 text-sm">
@@ -159,7 +139,7 @@ export function AddTrapModal({
           <Select id="deployment-node" label="Где развернуть ловушку" value={deploymentNodeId} onChange={onDeploymentNodeChange}
             options={[{ value: '', label: 'Сервер платформы' }, ...deploymentNodes.map((node) => ({ value: node.id, label: `${node.hostname} (${node.address})${!node.ready ? ' — недоступен' : ''}`, disabled: !node.ready }))]} />
           <p className="text-xs text-muted mt-2">
-            Сервер компании появится после подключения к Docker Swarm и назначения вашей организации администратором платформы.
+            Не видите нужный сервер? Подключите его на странице «Серверы» или обратитесь к администратору платформы.
           </p>
           <Link to="/app/servers" className="text-xs text-brand inline-block mt-2">Подключить сервер компании →</Link>
           {deploymentNodesError && <p role="alert" className="text-xs text-danger mt-2">Не удалось загрузить серверы. Повторная попытка выполняется автоматически.</p>}
@@ -168,12 +148,12 @@ export function AddTrapModal({
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="label">Имя ловушки</label>
-            <input className="input" placeholder="dmz-ssh-03" value={name} onChange={(e) => setName(e.target.value)} />
+            <label className="label" htmlFor="trap-name">Имя ловушки</label>
+            <input id="trap-name" className="input" required placeholder="dmz-ssh-03" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="label mb-0">Порт приманки</label>
+              <label className="label mb-0" htmlFor="trap-port">Порт приманки</label>
               <button
                 type="button"
                 onClick={() => setPort(randomFreePort(usedPorts))}
@@ -184,6 +164,10 @@ export function AddTrapModal({
               </button>
             </div>
             <input
+              id="trap-port"
+              required
+              aria-invalid={hasConflict || !portValid}
+              aria-describedby="trap-port-hint"
               className={`input ${hasConflict || !portValid ? 'border-danger focus:ring-danger/40 focus:border-danger' : ''}`}
               type="number"
               min={1}
@@ -194,7 +178,7 @@ export function AddTrapModal({
           </div>
         </div>
         {!portValid ? (
-          <div role="alert" className="flex items-start gap-3 rounded-xl border border-warn/30 bg-warn/10 p-3.5 animate-fadeIn">
+          <div id="trap-port-hint" role="alert" className="flex items-start gap-3 rounded-xl border border-warn/30 bg-warn/10 p-3.5 animate-fadeIn">
             <div className="h-8 w-8 rounded-lg bg-warn/15 text-warn grid place-items-center shrink-0">
               <AlertTriangle size={16} />
             </div>
@@ -206,7 +190,7 @@ export function AddTrapModal({
             </div>
           </div>
         ) : hasConflict ? (
-          <div role="alert" className="flex items-start gap-3 rounded-xl border border-danger/30 bg-danger/10 p-3.5 animate-fadeIn">
+          <div id="trap-port-hint" role="alert" className="flex items-start gap-3 rounded-xl border border-danger/30 bg-danger/10 p-3.5 animate-fadeIn">
             <div className="h-8 w-8 rounded-lg bg-danger/15 text-danger grid place-items-center shrink-0">
               <AlertTriangle size={16} />
             </div>
@@ -226,11 +210,9 @@ export function AddTrapModal({
             </div>
           </div>
         ) : (
-          <div className="flex items-start gap-2 text-xs text-muted bg-brand/5 border border-brand/15 rounded-xl p-3">
+          <div id="trap-port-hint" className="flex items-start gap-2 text-sm text-muted bg-brand/5 border border-brand/15 rounded-xl p-3">
             <Bug size={14} className="text-brand mt-0.5 shrink-0" />
-            Панель создаст профиль, поднимет контейнер приманки на выбранном сервере и
-            запустит listener на порту {port}. Тонкую настройку конфига можно сделать на странице
-            «Профили».
+            Ловушка будет создана на выбранном сервере с портом {port}. После создания проверьте состояние запуска в карточке ловушки.
           </div>
         )}
 
@@ -247,14 +229,14 @@ export function AddTrapModal({
         )}
 
         <div className="flex justify-end gap-2">
-          <button className="btn-ghost" onClick={onClose}>
+          <button type="button" className="btn-ghost" onClick={onClose}>
             Отмена
           </button>
-          <button className="btn-primary" disabled={!canSubmit} onClick={submit}>
+          <button type="submit" className="btn-primary" disabled={!canSubmit}>
             {creating ? 'Создание…' : 'Создать ловушку'}
           </button>
         </div>
-      </div>
+      </form>
     </Modal>
   )
 }

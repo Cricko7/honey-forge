@@ -3,9 +3,10 @@ import { CopyCommand } from './CopyCommand'
 
 export function ServerGuide({ organization }: { organization?: string }) {
   return <Card>
+    <details>
+      <summary className="min-h-11 cursor-pointer py-2 text-base font-semibold text-brand">Подробная инструкция по подключению сервера компании</summary>
     <article id="server-guide" className="space-y-6 text-sm scroll-mt-6">
       <header className="space-y-2">
-        <h2 className="text-lg font-semibold">Подробная инструкция по подключению сервера компании</h2>
         <p className="text-muted">Всё необходимое для подключения и проверки собрано на этой странице. Пройдите шаги по порядку. Сервер подключается один раз; затем его можно выбирать при создании ловушек.</p>
         <p>Администратор компании выполняет команды на своём сервере. Администратор платформы выполняет команды на управляющем сервере Swarm (manager). Права администратора в панели сами по себе не дают доступ к manager.</p>
         <p className="text-muted">Сервер компании присоединяется как worker — исполнитель ловушек. Общий кластер предполагает доверие к администраторам подключённых машин. Согласуйте подключение с администратором платформы.</p>
@@ -26,7 +27,7 @@ export function ServerGuide({ organization }: { organization?: string }) {
 
       <section className="space-y-3">
         <h3 className="font-semibold">2. Разрешите сетевые соединения</h3>
-        <div className="overflow-x-auto"><table className="w-full text-left">
+        <div className="overflow-x-auto"><table className="data-table w-full text-left">
           <caption className="text-left text-muted pb-2">Правила firewall внутри частной сети / VPN</caption>
           <thead><tr className="border-b border-border"><th className="p-2">Порт</th><th className="p-2">Направление</th><th className="p-2">Назначение</th></tr></thead>
           <tbody>
@@ -104,5 +105,6 @@ export function ServerGuide({ organization }: { organization?: string }) {
         <p className="text-muted">В обращении администратору укажите ID ловушки, ID сервера, время ошибки и её текст. Не передавайте worker token, пароли, приватные ключи и конфигурации с секретами.</p>
       </section>
     </article>
+    </details>
   </Card>
 }

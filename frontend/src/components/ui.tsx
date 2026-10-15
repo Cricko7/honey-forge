@@ -1,15 +1,17 @@
+import { severityLabel, type EventSeverity } from '@/lib/event-severity'
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import type { Connectivity, RuntimeState, CommandStatus } from '@/types'
+import { commandStatusLabels, eventLabel, levelLabel, runtimeLabels } from '@/lib/ui-labels'
 
 export function Card({ className, children }: { className?: string; children: ReactNode }) {
-  return <div className={cn('card min-w-0 p-6', className)}>{children}</div>
+  return <div className={cn('min-w-0 border-t border-line py-5', className)}>{children}</div>
 }
 
 export function SectionTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-3 mb-5">
-      <h2 className="min-w-0 break-words text-sm font-semibold text-fg tracking-tight">{children}</h2>
+    <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <h2 className="min-w-0 break-words text-base font-semibold text-fg">{children}</h2>
       {action}
     </div>
   )
@@ -36,13 +38,7 @@ export function RuntimeBadge({ value }: { value: RuntimeState }) {
     error: 'bg-danger/10 text-danger',
     unknown: 'bg-warn/10 text-warn',
   }
-  const label: Record<RuntimeState, string> = {
-    running: 'работает',
-    stopped: 'остановлена',
-    error: 'ошибка',
-    unknown: 'неизвестно',
-  }
-  return <span className={cn('chip', map[value])}>{label[value]}</span>
+  return <span className={cn('chip', map[value])}>{runtimeLabels[value]}</span>
 }
 
 export function CommandStatusBadge({ value }: { value: CommandStatus }) {
@@ -53,46 +49,46 @@ export function CommandStatusBadge({ value }: { value: CommandStatus }) {
     failed: 'bg-danger/10 text-danger',
     expired: 'bg-muted/10 text-muted',
   }
-  return <span className={cn('chip', map[value])}>{value}</span>
+  return <span title={value} className={cn('chip', map[value])}>{commandStatusLabels[value]}</span>
 }
 
 export function LevelBadge({ level }: { level: string }) {
-  const map: Record<string, string> = {
-    low: 'bg-info/10 text-info',
-    medium: 'bg-warn/10 text-warn',
-    high: 'bg-danger/10 text-danger',
-  }
-  return <span className={cn('chip uppercase', map[level] ?? 'bg-muted/10 text-muted')}>{level}</span>
+  return <span title={`Уровень взаимодействия: ${levelLabel(level)}`} className="text-xs text-muted">{levelLabel(level)}</span>
 }
 
-export function EventTypeBadge({ type }: { type: string }) {
-  const danger = type.includes('auth') || type.includes('payload') || type.includes('action') || type === 'honeytoken.triggered'
+export function EventTypeBadge({ type, severity }: { type: string; severity?: EventSeverity }) {
   return (
     <span
-      className={cn(
-        'chip font-mono',
-        danger ? 'bg-danger/10 text-danger' : 'bg-brand/10 text-brand',
-      )}
+      className={`text-sm ${severity ? `event-label-${severity}` : "text-fg"}`}
+      title={type}
     >
-      {type}
+      {eventLabel(type)}
+      {severity && <span className="ml-2 text-xs font-medium">{severityLabel(severity)}</span>}
     </span>
   )
 }
 
 export function Spinner({ label }: { label?: string }) {
   return (
-    <div className="flex items-center gap-3 text-muted text-sm py-8 justify-center">
-      <span className="h-4 w-4 rounded-full border-2 border-brand/30 border-t-brand animate-spin" />
+    <div role="status" className="flex items-center gap-3 text-muted text-sm py-8 justify-center">
+      <span aria-hidden="true" className="h-4 w-4 rounded-full border-2 border-brand/30 border-t-brand animate-spin" />
       {label ?? 'Загрузка…'}
     </div>
   )
 }
 
+export function LoadError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-danger/30 bg-bg-panel p-4 text-sm">
+    <p>{message}</p>
+    <button type="button" className="btn-ghost" onClick={onRetry}>Повторить</button>
+  </div>
+}
+
 export function EmptyState({ title, hint }: { title: string; hint?: string }) {
   return (
-    <div className="text-center py-12 text-muted">
+    <div className="mx-auto max-w-lg px-5 py-14 text-center text-muted">
       <p className="text-sm font-medium text-fg">{title}</p>
-      {hint && <p className="text-xs mt-1">{hint}</p>}
+      {hint && <p className="text-sm leading-relaxed mt-2">{hint}</p>}
     </div>
   )
 }

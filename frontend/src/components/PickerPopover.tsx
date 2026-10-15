@@ -26,7 +26,7 @@ export function PickerPopover({ anchor, open, onClose, children, width }: {
       if (!panel.current?.contains(event.target as Node) && !anchor.current?.contains(event.target as Node)) onClose()
     }
     const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { onClose(); anchor.current?.focus() }
+      if (event.key === 'Escape') { event.preventDefault(); onClose(); anchor.current?.focus() }
     }
     place()
     document.addEventListener('pointerdown', outside)
@@ -44,5 +44,5 @@ export function PickerPopover({ anchor, open, onClose, children, width }: {
   }, [open, anchor, width, onClose])
 
   if (!open) return null
-  return createPortal(<div ref={panel} style={position} className="fixed z-[100] overflow-auto rounded-2xl border border-line bg-bg-panel p-2 text-fg shadow-glass animate-fadeIn">{children}</div>, document.body)
+  return createPortal(<div ref={panel} style={position} className="fixed z-[100] overflow-auto rounded-xl border border-line bg-bg-panel p-2 text-fg animate-fadeIn">{children}</div>, anchor.current?.closest('dialog') ?? document.body)
 }

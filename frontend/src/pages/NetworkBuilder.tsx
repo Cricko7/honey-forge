@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import ReactFlow, {
   Background,
   BackgroundVariant,
@@ -13,6 +13,7 @@ import ReactFlow, {
   type Node,
   type NodeTypes,
   MarkerType,
+  ConnectionMode,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { Plus, Server, Database, Zap, RotateCcw, Trash2 } from 'lucide-react'
@@ -21,8 +22,9 @@ import { AddTrapModal, defaultConfig } from './network/AddTrapModal'
 import { useDeploymentNodes, useCanManage, useTraps, useCatalog, useCreateProfile, useCreateTrap, useLiveStream, useProfiles, useTrapLinks, useCreateTrapLink, useDeleteTrapLink } from '@/api/hooks'
 import { configPorts } from '@/lib/profile-config'
 import { ApiError } from '@/api/client'
-import { canConnectTraps, trapLinkKey, trapLinkLabel } from '@/lib/network-links'
+import { canConnectTraps, trapLinkKey, trapLinkLabel, trapLinkHandles } from '@/lib/network-links'
 import { useThemeColors } from '@/lib/theme'
+import { LoadError } from '@/components/ui'
 
 const ATTACK = '#f43f5e'
 
@@ -40,11 +42,14 @@ function loadLayout(): Record<string, { x: number; y: number }> {
 export function NetworkBuilderPage() {
   const canManage = useCanManage()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const c = useThemeColors()
-  const { data: trapsPage } = useTraps()
+  const trapsQuery = useTraps()
+  const trapsPage = trapsQuery.data
   const { data: deploymentNodes, error: deploymentNodesError } = useDeploymentNodes()
   const [deploymentNodeId, setDeploymentNodeId] = useState('')
-  const { data: catalogPage } = useCatalog()
+  const catalogQuery = useCatalog()
+  const catalogPage = catalogQuery.data
   const { data: profilesPage } = useProfiles()
   const createProfile = useCreateProfile()
   const createTrap = useCreateTrap()
@@ -81,6 +86,19 @@ export function NetworkBuilderPage() {
   const [addOpen, setAddOpen] = useState(false)
   const [layoutRevision, setLayoutRevision] = useState(0)
   const savedLayout = useRef(loadLayout())
+
+  useEffect(() => {
+    if (canManage && searchParams.get('create') === '1') setAddOpen(true)
+  }, [canManage, searchParams])
+
+  function closeCreation() {
+    setAddOpen(false)
+    if (searchParams.has('create')) {
+      const next = new URLSearchParams(searchParams)
+      next.delete('create')
+      setSearchParams(next, { replace: true })
+    }
+  }
 
   useLiveStream((e) => {
     setAttackPulse((p) => ({ ...p, [e.trap_id]: Date.now() }))
@@ -134,6 +152,7 @@ export function NetworkBuilderPage() {
         id: `gateway-${t.id}`,
         source: 'gateway',
         target: t.id,
+        targetHandle: 'top',
         deletable: false,
         animated: !!attackPulse[t.id],
         style: {
@@ -146,6 +165,7 @@ export function NetworkBuilderPage() {
         .filter((link) => traps.some((t) => t.id === link.source_id) && traps.some((t) => t.id === link.target_id))
         .map((link) => ({
           id: trapLinkKey(link), source: link.source_id, target: link.target_id,
+          ...trapLinkHandles(trapNodes.find((node) => node.id === link.source_id)!.position, trapNodes.find((node) => node.id === link.target_id)!.position),
           type: 'smoothstep',
           selected: prev.find((edge) => edge.id === trapLinkKey(link))?.selected,
           label: trapLinkLabel(link, profilesPage?.items.find((p) => p.id === traps.find((t) => t.id === link.source_id)?.profile_id)?.config),
@@ -192,6 +212,7 @@ export function NetworkBuilderPage() {
     nodes.forEach((n) => (layout[n.id] = n.position))
     localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout))
     savedLayout.current = layout
+    setLayoutRevision((revision) => revision + 1)
   }
 
   function resetLayout() {
@@ -208,9 +229,9 @@ export function NetworkBuilderPage() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex flex-wrap shrink-0 items-center justify-between gap-3 px-6 py-4 border-b border-line/60">
+      <div className="flex flex-wrap shrink-0 items-center justify-between gap-3 workspace-heading border-b border-line">
         <div>
-          <h1 className="text-xl font-semibold">Конструктор сети</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Конструктор сети</h1>
           <p className="text-sm text-muted">
             {canManage ? 'A → B разрешает передачу данных · HTTP-сценарий отправки задаётся в конструкторе ловушек' : 'Карта ловушек организации · только просмотр, кликните для деталей'}
           </p>
@@ -220,7 +241,7 @@ export function NetworkBuilderPage() {
             <Trash2 size={16} /> Удалить связь
           </button>}
           {attackCount > 0 && (
-            <span className="chip bg-danger/10 text-danger animate-pulseGlow">
+            <span className="chip bg-danger/10 text-danger">
               <Zap size={12} /> {attackCount} под атакой
             </span>
           )}
@@ -228,12 +249,13 @@ export function NetworkBuilderPage() {
             <RotateCcw size={16} /> Сбросить расположение
           </button>
           {canManage && <button className="btn-primary" onClick={() => setAddOpen(true)}>
-            <Plus size={16} /> Добавить ловушку
+            <Plus size={16} /> Создать ловушку
           </button>}
         </div>
       </div>
 
-      <div className="flex-1 relative">
+      {trapsQuery.error && <LoadError message="Не удалось обновить карту ловушек." onRetry={() => { void trapsQuery.refetch() }} />}
+      <div className="flex-1 min-h-[320px] relative">
         {(linkError || linksError) && <div role="alert" className="absolute top-4 left-4 z-20 card px-4 py-3 text-danger text-sm">
           {linkError ?? 'Не удалось загрузить связи ловушек'}
         </div>}
@@ -244,6 +266,7 @@ export function NetworkBuilderPage() {
           onNodesChange={onNodesChange}
           onEdgesChange={canManage ? changeEdges : undefined}
           onConnect={canManage ? onConnect : undefined}
+          connectionMode={ConnectionMode.Loose}
           isValidConnection={(connection) => canManage && !!linksPage && !createLink.isPending && canConnectTraps(connection.source, connection.target, traps, links)}
           nodesDraggable={canManage}
           nodesConnectable={canManage}
@@ -274,10 +297,10 @@ export function NetworkBuilderPage() {
             <div className="flex items-center gap-2 text-muted"><span className="text-brand-soft">→</span> Передача JSON · настроенный HTTP-сценарий</div>
             <div className="flex items-center gap-2 text-muted"><span className="text-brand-soft">→</span> Копия трафика · входящие байты</div>
             <div className="flex items-center gap-2 text-muted">
-              <Server size={12} className="text-brand-soft" /> tcp-banner (Low)
+              <Server size={12} className="text-brand-soft" /> TCP-приманка · низкий уровень
             </div>
             <div className="flex items-center gap-2 text-muted">
-              <Database size={12} className="text-brand-soft" /> redis-emulator (Medium)
+              <Database size={12} className="text-brand-soft" /> Redis-приманка · средний уровень
             </div>
             <div className="flex items-center gap-2 text-muted">
               <span className="h-2 w-2 rounded-full bg-danger" /> под атакой
@@ -288,8 +311,11 @@ export function NetworkBuilderPage() {
 
       <AddTrapModal
         open={canManage && addOpen}
-        onClose={() => setAddOpen(false)}
+        onClose={closeCreation}
         catalog={catalog}
+        catalogLoading={catalogQuery.isLoading}
+        catalogError={!!catalogQuery.error}
+        onRetryCatalog={() => { void catalogQuery.refetch() }}
         usedPorts={usedPorts}
         deploymentNodes={deploymentNodes?.items ?? []}
         deploymentNodesError={!!deploymentNodesError}
@@ -304,8 +330,9 @@ export function NetworkBuilderPage() {
             type_version: entry.type_version,
             config,
           })
-          await createTrap.mutateAsync({ name, profile_id: profile.id, ...(deploymentNodeId ? { deployment_node_id: deploymentNodeId } : {}) })
-          setAddOpen(false)
+          const trap = await createTrap.mutateAsync({ name, profile_id: profile.id, ...(deploymentNodeId ? { deployment_node_id: deploymentNodeId } : {}) })
+          if (searchParams.get('create') === '1') navigate(`/app/traps/${trap.id}`)
+          else closeCreation()
         }}
       />
     </div>

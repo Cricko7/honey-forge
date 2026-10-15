@@ -1,216 +1,43 @@
-import { Select } from '@/components/Select'
-import { useEffect, useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Lock, Plus } from 'lucide-react'
-import { Card, SectionTitle, LevelBadge, Spinner, EmptyState } from '@/components/ui'
-import { Modal } from '@/components/Modal'
-import { Link } from 'react-router-dom'
-import { useProfiles, useCatalog, useCreateProfile, useCanManage } from '@/api/hooks'
-import { ApiError } from '@/api/client'
-import type { CatalogEntry } from '@/types'
-import { parseProfileConfig } from '@/lib/profile-config'
-
-function configTemplate(typeId: string): Record<string, unknown> {
-  if (typeId === 'custom-http') {
-    return {
-      services: [], blocks: [],
-      limits: { max_steps: 512, timeout_ms: 10000, max_body_bytes: 65536 },
-      management: { heartbeat_interval_seconds: 10, telemetry_flush_interval_ms: 500 },
-    }
-  }
-  if (typeId === 'ssh-high-interaction') {
-    return {
-      services: [{ name: 'ssh', port: 2222, username: 'root', password: 'DemoTrapOnly!' }],
-      session: { max_seconds: 300, max_connections: 4, max_recording_bytes: 1048576, max_upload_bytes: 1048576 },
-      management: { heartbeat_interval_seconds: 5, telemetry_flush_interval_ms: 500 },
-    }
-  }
-  if (typeId === 'honeytoken-http') {
-    const key = Array.from(crypto.getRandomValues(new Uint8Array(24)), (byte) => byte.toString(16).padStart(2, '0')).join('')
-    return {
-      services: [{ name: 'web', port: 8080 }],
-      tokens: [
-        { id: 'backup-key', kind: 'key', path: '/v1/backups', value: key },
-        { id: 'backup-file', kind: 'file', path: '/backup.txt', value: 'Demo backup: no real data.' },
-        { id: 'report-url', kind: 'url', path: '/reports/latest', value: 'Report ready.' },
-      ],
-      management: { heartbeat_interval_seconds: 5, telemetry_flush_interval_ms: 500 },
-    }
-  }
-  if (typeId === 'redis-emulator') {
-    return {
-      services: [{ name: 'redis', port: 6379, password: 'S3cretTrap!' }],
-      management: { heartbeat_interval_seconds: 5, telemetry_flush_interval_ms: 500 },
-    }
-  }
-  return {
-    listeners: [{ name: 'ssh', port: 22, banner: 'SSH-2.0-OpenSSH_8.9', close_after_banner: false }],
-    logging: { capture_payload: true, max_payload_bytes: 4096 },
-    management: { heartbeat_interval_seconds: 5, telemetry_flush_interval_ms: 500 },
-  }
-}
+import { Card, SectionTitle, LevelBadge, Spinner, EmptyState, LoadError } from '@/components/ui'
+import { useProfiles, useCanManage } from '@/api/hooks'
+import { configPorts } from '@/lib/profile-config'
+import { CreateProfileModal } from './profiles/CreateProfileModal'
 
 export function ProfilesPage() {
   const canManage = useCanManage()
-  const { data, isLoading } = useProfiles()
+  const { data, isLoading, error, refetch } = useProfiles()
   const [open, setOpen] = useState(false)
   const profiles = data?.items ?? []
 
-  return (
-    <div className="p-6 space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold">Профили</h1>
-          <p className="text-sm text-muted">Конфигурации ловушек по выбранному типу каталога</p>
-        </div>
-        {canManage && <button className="btn-primary" onClick={() => setOpen(true)}>
-          <Plus size={16} /> Новый профиль
-        </button>}
+  return <div className="page-content space-y-5">
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Профили</h1>
+        <p className="text-sm text-muted">Сохранённые настройки поведения ловушек.</p>
       </div>
-
-      {isLoading ? (
-        <Spinner />
-      ) : profiles.length === 0 ? (
-        <EmptyState title="Профилей нет" hint="Создайте профиль, чтобы затем зарегистрировать ловушку" />
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {profiles.map((p) => (
-            <Card key={p.id}>
-              <SectionTitle action={<LevelBadge level={p.interaction_level} />}>{p.name}</SectionTitle>
-              <div className="flex items-center gap-2 text-xs text-muted mb-3">
-                <span className="font-mono">
-                  {p.type_id}/{p.type_version}
-                </span>
-                <span>·</span>
-                <span>revision {p.revision}</span>
-                {p.secret_fields_set.length > 0 && (
-                  <span className="chip bg-warn/10 text-warn">
-                    <Lock size={10} /> {p.secret_fields_set.length} секрет(ов)
-                  </span>
-                )}
-              </div>
-              <pre className="text-xs bg-bg-elevated/60 rounded-xl p-3 font-mono text-fg overflow-auto max-h-56">
-                {JSON.stringify(p.config, null, 2)}
-              </pre>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      <CreateProfileModal open={canManage && open} onClose={() => setOpen(false)} />
+      {canManage && <button className="btn-primary" onClick={() => setOpen(true)}><Plus size={16} /> Новый профиль</button>}
     </div>
-  )
-}
-
-function CreateProfileModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { data: catalog } = useCatalog()
-  const createProfile = useCreateProfile()
-  const entries = useMemo(() => catalog?.items ?? [], [catalog])
-
-  const [typeKey, setTypeKey] = useState('')
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [configText, setConfigText] = useState('')
-  const [error, setError] = useState<string | null>(null)
-
-  const selected: CatalogEntry | undefined = useMemo(
-    () => entries.find((e) => `${e.type_id}/${e.type_version}` === typeKey),
-    [entries, typeKey],
-  )
-
-  useEffect(() => {
-    if (open && entries.length && !typeKey) {
-      const first = entries[0]
-      setTypeKey(`${first.type_id}/${first.type_version}`)
-    }
-  }, [open, entries, typeKey])
-
-  useEffect(() => {
-    if (selected) setConfigText(JSON.stringify(configTemplate(selected.type_id), null, 2))
-  }, [selected])
-
-  async function submit() {
-    setError(null)
-    if (!selected || !name.trim()) {
-      setError('Укажите имя и тип')
-      return
-    }
-    let config: Record<string, unknown>
-    try {
-      config = parseProfileConfig(configText)
-    } catch (err) {
-      setError((err as Error).message)
-      return
-    }
-    try {
-      await createProfile.mutateAsync({
-        name: name.trim(),
-        description,
-        type_id: selected.type_id,
-        type_version: selected.type_version,
-        config,
-      })
-      setName('')
-      setDescription('')
-      setTypeKey('')
-      onClose()
-    } catch (err) {
-      if (err instanceof ApiError && (err.code === 'config_invalid' || err.code === 'validation_failed'))
-        setError('config не прошёл валидацию схемы типа')
-      else setError('Не удалось создать профиль')
-    }
-  }
-
-  return (
-    <Modal open={open} onClose={onClose} title="Новый профиль" width="max-w-2xl">
-      <div className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label className="label">Тип ловушки</label>
-            <Select label="Тип ловушки" value={typeKey} onChange={setTypeKey}
-              options={entries.map((entry) => ({ value: `${entry.type_id}/${entry.type_version}`, label: `${entry.title} — ${entry.type_id}/${entry.type_version} (${entry.interaction_level})` }))} />
+    {error && <LoadError message={data ? 'Не удалось обновить профили. Показаны последние загруженные данные.' : 'Не удалось загрузить профили. Проверьте подключение.'} onRetry={() => { void refetch() }} />}
+    {isLoading ? <Spinner /> : !data && error ? null : profiles.length === 0 ?
+      <EmptyState title="Профилей нет" hint={canManage ? 'Создайте профиль или добавьте ловушку — профиль будет создан автоматически.' : 'Профиль может создать администратор организации.'} /> :
+      <div>
+        {profiles.map(profile => <Card key={profile.id}>
+          <SectionTitle action={<LevelBadge level={profile.interaction_level} />}>{profile.name}</SectionTitle>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted mb-3">
+            <span className="font-mono">{profile.type_id}/{profile.type_version}</span>
+            <span>· Версия {profile.revision}</span>
+            {profile.secret_fields_set.length > 0 && <span className="chip bg-warn/10 text-warn"><Lock size={12} /> Секреты скрыты</span>}
           </div>
-          <div>
-            <label className="label">Имя профиля</label>
-            <input className="input" placeholder="SSH-приманка" value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-        </div>
-
-        <div>
-          <label className="label">Описание</label>
-          <input className="input" value={description} onChange={(e) => setDescription(e.target.value)} />
-        </div>
-
-        {selected?.type_id === 'custom-http' && <p className="text-sm text-muted">
-          HTTP-профиль можно собрать из блоков: <Link to="/app/constructor" className="text-brand" onClick={onClose}>открыть конструктор</Link>.
-        </p>}
-
-        <div>
-          <label className="label">
-            config (JSON по схеме типа{selected ? ` ${selected.type_id}/${selected.type_version}` : ''})
-          </label>
-          <textarea
-            className="input font-mono text-xs h-56 resize-y"
-            value={configText}
-            onChange={(e) => setConfigText(e.target.value)}
-            spellCheck={false}
-          />
-          <p className="text-xs text-muted mt-1">
-            Секреты (например password у redis-emulator) передаются в config при создании и затем
-            скрываются в ответах.
-          </p>
-        </div>
-
-        {error && <p className="text-xs text-danger">{error}</p>}
-
-        <div className="flex justify-end gap-2">
-          <button className="btn-ghost" onClick={onClose}>
-            Отмена
-          </button>
-          <button className="btn-primary" disabled={createProfile.isPending} onClick={submit}>
-            {createProfile.isPending ? 'Создание…' : 'Создать профиль'}
-          </button>
-        </div>
-      </div>
-    </Modal>
-  )
+          {profile.description && <p className="mb-3 text-sm">{profile.description}</p>}
+          <p className="text-sm"><span className="text-muted">Порты: </span>{configPorts(profile.config).join(', ') || 'Не заданы'}</p>
+          <details className="mt-3">
+            <summary className="min-h-11 py-3 cursor-pointer text-sm text-brand">Конфигурация JSON</summary>
+            <pre className="text-xs bg-bg-elevated/60 rounded-lg p-3 font-mono overflow-auto max-h-56">{JSON.stringify(profile.config, null, 2)}</pre>
+          </details>
+        </Card>)}
+      </div>}
+    <CreateProfileModal open={canManage && open} onClose={() => setOpen(false)} />
+  </div>
 }

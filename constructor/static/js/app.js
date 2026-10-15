@@ -468,7 +468,7 @@ function renderField(f, val) {
       <span class="hint" style="margin:0">${val ? "включено" : "выключено"}</span></div>`;
   } else if (f.type === "select") {
     ctrl = `<select class="input" id="${id}">${f.options.map(o =>
-      `<option ${o === val ? "selected" : ""}>${esc(o)}</option>`).join("")}</select>`;
+      `<option value="${esc(o)}" ${o === val ? "selected" : ""}>${esc(f.key === 'severity' ? ({low:'Обычное · белый',medium:'Средняя важность · жёлтый',high:'Высокая важность · красный',critical:'Критическое · багровый'}[o] || o) : o)}</option>`).join("")}</select>`;
   } else if (f.type === "textarea") {
     ctrl = `<textarea class="input" id="${id}" rows="3">${esc(val || "")}</textarea>`;
   } else if (f.type === "tags") {

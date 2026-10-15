@@ -5,7 +5,7 @@ import { createAlertTracker, alertReducer, actionErrorMessage } from './alerts.t
 const trap = (version = 1, changes = {}) => ({ id: 't1', name: 'SSH', state_version: version,
   connectivity: 'online', runtime_state: 'running', agent: { buffer_state: 'ok' }, ...changes })
 const changed = (t) => ({ kind: 'trap.changed', trap: t })
-const event = (id = 'e1') => ({ kind: 'event.created', event: { event_id: id, event_type: 'auth.attempt',
+const event = (id = 'e1') => ({ kind: 'event.created', event: { event_id: id, event_type: 'service.auth_attempt',
   trap_id: 't1', source: { ip: '192.0.2.1', port: 123 }, destination: { protocol: 'tcp', port: 22 } } })
 
 test('automatic profile cleanup does not duplicate the trap deletion alert', () => {
@@ -15,7 +15,7 @@ test('automatic profile cleanup does not duplicate the trap deletion alert', () 
 test('events link to details and replay is silent', () => {
   const tracker = createAlertTracker()
   const [alert] = tracker.accept(event())
-  assert.equal(alert.level, 'warning')
+  assert.equal(alert.level, 'error')
   assert.match(alert.message, /192\.0\.2\.1/)
   assert.equal(alert.href, '/app/events?event=e1')
   assert.deepEqual(tracker.accept(event()), [])

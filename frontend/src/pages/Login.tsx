@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowRight } from 'lucide-react'
 import { api, USE_MOCK } from '@/api/client'
 import { AuthShell } from '@/components/AuthShell'
 import { useQueryClient } from '@tanstack/react-query'
@@ -55,7 +54,7 @@ export function LoginPage() {
         {error && <p role="alert" className="text-sm text-danger mb-2">{error}</p>}
 
         <button type="submit" className="btn-primary w-full mt-4" disabled={loading}>
-          {loading ? 'Вход…' : 'Войти'} <ArrowRight size={16} />
+          {loading ? 'Вход…' : 'Войти'}
         </button>
 
         <p className="text-sm text-muted mt-4 text-center">

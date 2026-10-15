@@ -1,10 +1,13 @@
 import type { CommandAction, StreamNotification, Trap } from '../types'
+import { eventLabel } from './ui-labels.ts'
+import { eventSeverity, severityLabel, type EventSeverity } from './event-severity.ts'
 
 export interface AlertInput {
   id: string
   title: string
   message?: string
   level: 'info' | 'success' | 'warning' | 'error'
+  severity?: EventSeverity
   href?: string
 }
 export interface AlertItem extends AlertInput {
@@ -82,8 +85,10 @@ export function createAlertTracker() {
           const e = notification.event
           const id = `event:${e.event_id}`
           if (!remember(id)) return []
-          return [{ id, title: 'Новое событие ловушки', level: 'warning',
-            message: `${e.event_type} · ${e.source.ip}:${e.source.port} → ${e.destination.protocol}:${e.destination.port}`,
+          const severity = eventSeverity(e)
+          return [{ id, title: `Новое событие ловушки · ${severityLabel(severity)}`, severity,
+            level: severity === 'low' ? 'info' : severity === 'medium' ? 'warning' : 'error',
+            message: `${eventLabel(e.event_type)} · ${e.source.ip}:${e.source.port} → ${e.destination.protocol}:${e.destination.port}`,
             href: `/app/events?event=${encodeURIComponent(e.event_id)}` }]
         }
         case 'trap.changed': {

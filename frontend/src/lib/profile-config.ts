@@ -18,10 +18,10 @@ export function parseProfileConfig(text: string): Record<string, unknown> {
   try {
     config = JSON.parse(text)
   } catch {
-    throw new Error('config не является корректным JSON')
+    throw new Error('Конфигурация должна быть корректным JSON.')
   }
   if (config === null || typeof config !== 'object' || Array.isArray(config)) {
-    throw new Error('config должен быть JSON-объектом')
+    throw new Error('Конфигурация должна быть JSON-объектом.')
   }
   return config as Record<string, unknown>
 }

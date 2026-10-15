@@ -1,6 +1,15 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { canConnectTraps, trapLinkKey, trapLinkLabel } from './network-links.ts'
+import { canConnectTraps, trapLinkKey, trapLinkLabel, trapLinkHandles } from './network-links.ts'
+
+test('connections follow the relative position on all four sides', () => {
+  for (const [target, expected] of [
+    [{ x: 300, y: 0 }, { sourceHandle: 'right', targetHandle: 'left' }],
+    [{ x: -300, y: 0 }, { sourceHandle: 'left', targetHandle: 'right' }],
+    [{ x: 0, y: 300 }, { sourceHandle: 'bottom', targetHandle: 'top' }],
+    [{ x: 0, y: -300 }, { sourceHandle: 'top', targetHandle: 'bottom' }],
+  ]) assert.deepEqual(trapLinkHandles({ x: 0, y: 0 }, target), expected)
+})
 
 test('directed trap links allow fan-out and reverse links', () => {
   const traps = [{ id: 'a' }, { id: 'b' }, { id: 'c' }]

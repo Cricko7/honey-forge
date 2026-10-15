@@ -57,9 +57,9 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
   </AlertsContext.Provider>
 }
 
-function AlertIcon({ level }: { level: AlertInput['level'] }) {
+function AlertIcon({ level, severity }: { level: AlertInput['level']; severity?: AlertInput['severity'] }) {
   const Icon = icons[level]
-  return <span className={cn('h-9 w-9 shrink-0 grid place-items-center rounded-xl', colors[level])}><Icon size={18} /></span>
+  return <span className={cn('h-9 w-9 shrink-0 grid place-items-center rounded-xl', severity ? `event-label-${severity}` : colors[level])}><Icon size={18} /></span>
 }
 
 function AlertToast({ item }: { item: AlertItem }) {
@@ -73,8 +73,8 @@ function AlertToast({ item }: { item: AlertItem }) {
   return <div role={item.level === 'error' ? 'alert' : 'status'}
     onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}
     onFocus={() => setPaused(true)} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setPaused(false) }}
-    className="card p-4 flex items-start gap-3 animate-fadeInUp">
-    <AlertIcon level={item.level} />
+    className={cn("card p-4 flex items-start gap-3 animate-fadeInUp", item.severity && `event-surface event-surface-${item.severity}`)}>
+    <AlertIcon level={item.level} severity={item.severity} />
     <div className="min-w-0 flex-1">
       <p className="text-sm font-semibold break-words">{item.title}</p>
       {item.message && <p className="mt-1 text-xs text-muted break-words">{item.message}</p>}
@@ -94,7 +94,7 @@ export function AlertsBell() {
   return <>
     <button ref={anchor} type="button" aria-label={`Алерты${unread ? `: ${unread} непрочитанных` : ''}`} title="Алерты"
       aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? 'alerts-panel' : undefined}
-      onClick={() => setOpen((value) => !value)} className="relative h-9 w-9 rounded-lg grid place-items-center text-muted hover:text-fg hover:bg-bg-hover transition-colors">
+      onClick={() => setOpen((value) => !value)} className="relative h-11 w-11 shrink-0 rounded-lg grid place-items-center text-muted hover:text-fg hover:bg-bg-hover transition-colors">
       <Bell size={19} />
       {unread > 0 && <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-danger text-white text-[9px] font-semibold grid place-items-center">{unread > 99 ? '99+' : unread}</span>}
     </button>
@@ -110,8 +110,8 @@ export function AlertsBell() {
         </div>}
         <div className="max-h-[min(440px,60vh)] overflow-y-auto">
           {items.length === 0 ? <div className="py-10 px-6 text-center"><Bell size={26} className="mx-auto text-muted mb-3" /><p className="text-sm font-medium">Пока нет алертов</p><p className="text-xs text-muted mt-2">Здесь появятся новые события и результаты действий.</p></div>
-            : items.map((item) => <div key={item.id} className={cn('flex items-start gap-3 rounded-xl p-3 my-1', !item.read && 'bg-brand/5')}>
-              <AlertIcon level={item.level} />
+            : items.map((item) => <div key={item.id} className={cn('flex items-start gap-3 rounded-xl p-3 my-1', item.severity ? `event-surface event-surface-${item.severity}` : !item.read && 'bg-brand/5')}>
+              <AlertIcon level={item.level} severity={item.severity} />
               <div className="flex-1 min-w-0">
                 {item.href ? <Link to={item.href} onClick={() => { read(item.id); close() }} className="text-sm font-medium hover:text-brand break-words">{item.title}</Link> : <p className="text-sm font-medium break-words">{item.title}</p>}
                 {item.message && <p className="mt-1 text-xs text-muted break-words">{item.message}</p>}

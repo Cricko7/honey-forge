@@ -9,7 +9,7 @@ export function MemberTable({ members, creatorID, canDelegate, pending, onChange
   onChange: (member: OrganizationMember) => void
 }) {
   return <div className="overflow-x-auto">
-    <table className="w-full min-w-[720px] text-sm">
+    <table className="data-table w-full min-w-[720px] text-sm">
       <thead><tr className="text-left text-xs text-muted border-b border-line">
         <th className="px-5 py-3 font-medium">Участник</th>
         <th className="px-5 py-3 font-medium">Статус</th>

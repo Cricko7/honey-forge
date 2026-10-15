@@ -29,6 +29,11 @@ export function ConstructorGuide({ open, onClose }: { open: boolean; onClose: ()
     <section ref={content} aria-label="Гайд по созданию ловушек" tabIndex={-1}
       className="max-h-[70vh] overflow-y-auto space-y-3 text-sm leading-relaxed outline-none pr-1">
       <p className="text-muted">Доска задаёт поведение ловушки: что она принимает, какие данные проверяет и как отвечает. Начните с короткой рабочей цепочки, затем добавляйте условия и связи.</p>
+      <details className="rounded-xl border border-line p-4 space-y-3">
+        <summary className="cursor-pointer font-semibold">Как отметить важную телеметрию</summary>
+        <p>Добавьте HTTP-блок <strong>«Отправить событие»</strong> в нужную ветку схемы. Например, соедините выход «да» блока «Условие» с этим блоком: событие появится только при выполнении условия.</p>
+        <p>В настройках блока выберите <strong>«Важность телеметрии»</strong>: обычное — белый, средняя — жёлтый, высокая — красный, критическая — багровый. Этот цвет используется в журнале и уведомлениях. Укажите имя события и нужные данные, затем разверните изменённую схему.</p>
+      </details>
 
       <details open className="rounded-xl border border-line p-4 space-y-3">
         <summary className="cursor-pointer font-semibold">1. Первая HTTP-ловушка — по шагам</summary>
@@ -40,7 +45,7 @@ export function ConstructorGuide({ open, onClose }: { open: boolean; onClose: ()
           <li>Нажмите <strong>«Развернуть»</strong> снизу. Дождитесь работающей ловушки и статуса <code>online</code>, затем отправьте пробный запрос.</li>
         </ol>
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="data-table w-full text-left text-xs">
             <thead><tr><th className="py-2 pr-4">Блок</th><th className="py-2">Настройки</th></tr></thead>
             <tbody className="divide-y divide-line">
               <tr><td className="py-2 pr-4 align-top">HTTP-вход</td><td className="py-2">Имя сервиса: <code>web</code>; свободный порт: <code>32080</code>; метод: <code>POST</code>; путь: <code>/login</code>.</td></tr>

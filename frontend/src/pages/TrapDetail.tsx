@@ -1,3 +1,4 @@
+import { eventSeverity } from '@/lib/event-severity'
 import { useState } from 'react'
 import { EventDetailModal } from '@/components/EventDetailModal'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -7,7 +8,6 @@ import {
   Square,
   RefreshCw,
   Trash2,
-  Server,
   Activity,
   KeyRound,
 } from 'lucide-react'
@@ -21,6 +21,7 @@ import {
   EventTypeBadge,
   Spinner,
   EmptyState,
+  LoadError,
 } from '@/components/ui'
 import {
   useCanManageTraps,
@@ -34,20 +35,25 @@ import {
 import { ApiError } from '@/api/client'
 import { formatDateTime, timeAgo } from '@/lib/utils'
 import { commandControls } from '@/lib/command-controls'
+import { actionErrorMessage } from '@/lib/alerts'
+import { commandLabels, runtimeLabels } from '@/lib/ui-labels'
 
 export function TrapDetailPage() {
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null)
   const canManage = useCanManageTraps()
   const navigate = useNavigate()
   const { id = '' } = useParams()
-  const { data: trap, isLoading } = useTrap(id)
-  const { data: commands } = useCommands(id)
-  const { data: events } = useEvents({ trap_id: id, limit: 20 })
+  const { data: trap, isLoading, error, refetch } = useTrap(id)
+  const commandsQuery = useCommands(id)
+  const eventsQuery = useEvents({ trap_id: id, limit: 20 })
+  const commands = commandsQuery.data
+  const events = eventsQuery.data
   const { data: profiles } = useProfiles()
   const sendCommand = useSendCommand()
   const deleteTrap = useDeleteTrap()
 
   if (isLoading) return <div className="p-6"><Spinner /></div>
+  if (error && !trap && !('status' in error && error.status === 404)) return <div className="p-6"><LoadError message="Не удалось загрузить ловушку. Проверьте подключение." onRetry={() => { void refetch() }} /></div>
   if (!trap) return <div className="p-6"><EmptyState title="Ловушка не найдена" /></div>
 
   const controls = commandControls(trap, commands?.items ?? [], sendCommand.isPending)
@@ -61,18 +67,16 @@ export function TrapDetailPage() {
   const cmdError = sendCommand.error as ApiError | null
 
   return (
-    <div className="p-6 space-y-5">
-      <Link to="/app/traps" className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-fg">
+    <div className="page-content space-y-5">
+      {error && <LoadError message="Не удалось обновить ловушку. Показаны последние загруженные данные." onRetry={() => { void refetch() }} />}
+      <Link to="/app/traps" className="inline-flex min-h-11 items-center gap-1.5 text-sm text-muted hover:text-fg">
         <ArrowLeft size={15} /> К списку ловушек
       </Link>
 
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="h-12 w-12 shrink-0 rounded-2xl bg-brand/15 grid place-items-center">
-            <Server size={22} className="text-brand-soft" />
-          </div>
           <div className="min-w-0">
-            <h1 className="text-xl font-semibold break-words">{trap.name}</h1>
+            <h1 className="text-2xl font-semibold tracking-tight break-words">{trap.name}</h1>
             <div className="flex flex-wrap items-center gap-2 mt-1">
               <span className="font-mono text-xs text-muted break-all">
                 {trap.type_id}/{trap.type_version}
@@ -110,7 +114,7 @@ export function TrapDetailPage() {
               })
             }
           >
-            <RefreshCw size={15} /> Применить конфиг
+            <RefreshCw size={15} /> Применить настройки
           </button>
           <button
             className="btn-danger"
@@ -134,7 +138,7 @@ export function TrapDetailPage() {
 
       {deleteTrap.error && (
         <div role="alert" className="chip bg-danger/10 text-danger">
-          Не удалось удалить ловушку: {deleteTrap.error.message}
+          Не удалось удалить ловушку. {actionErrorMessage(deleteTrap.error)}
         </div>
       )}
       {controls.message && !deleteTrap.isPending && (
@@ -144,10 +148,10 @@ export function TrapDetailPage() {
         </div>
       )}
       {cmdError && !sendCommand.isPending && (
-        <div className="chip bg-danger/10 text-danger">
+        <div role="alert" className="chip bg-danger/10 text-danger">
           Команда отклонена: {cmdError.code === 'configuration_not_applied'
-            ? 'сначала примените конфиг (apply_config)'
-            : cmdError.message || cmdError.code}
+            ? 'сначала нажмите «Применить настройки»'
+            : actionErrorMessage(cmdError)}
         </div>
       )}
 
@@ -156,17 +160,17 @@ export function TrapDetailPage() {
           <SectionTitle>Параметры</SectionTitle>
           <dl className="space-y-2.5 text-sm">
             <Row label="Сервер развёртывания" value={trap.deployment_node_id || 'Сервер платформы'} mono />
-            <Row label="Revision" value={String(trap.revision)} mono />
-            <Row label="State version" value={String(trap.state_version)} mono />
-            <Row label="Desired state" value={trap.desired_state} />
-            <Row
-              label="Applied revision"
-              value={trap.applied_profile_revision?.toString() ?? '—'}
-              mono
-            />
+            <Row label="Ожидаемое состояние" value={runtimeLabels[trap.desired_state]} />
             <Row label="Создана" value={formatDateTime(trap.created_at)} />
             <Row label="Последний сигнал" value={timeAgo(trap.last_seen_at)} />
           </dl>
+          <details className="mt-3"><summary className="min-h-11 cursor-pointer text-sm text-brand">Технические сведения</summary>
+            <dl className="space-y-2.5 text-sm mt-2">
+              <Row label="Версия ловушки" value={String(trap.revision)} mono />
+              <Row label="Версия состояния" value={String(trap.state_version)} mono />
+              <Row label="Применённая версия профиля" value={trap.applied_profile_revision?.toString() ?? '—'} mono />
+            </dl>
+          </details>
         </Card>
         <Card>
           <SectionTitle
@@ -176,7 +180,7 @@ export function TrapDetailPage() {
           </SectionTitle>
           {trap.agent ? (
             <dl className="space-y-2.5 text-sm">
-              <Row label="Hostname" value={trap.agent.hostname} mono />
+              <Row label="Имя сервера" value={trap.agent.hostname} mono />
               <Row label="Версия" value={trap.agent.agent_version} mono />
               <Row label="Буфер событий" value={String(trap.agent.buffered_events)} />
               <Row
@@ -185,7 +189,7 @@ export function TrapDetailPage() {
                   trap.agent.buffer_capacity_bytes / 1024
                 ).toFixed(0)} KiB`}
               />
-              <Row label="Состояние буфера" value={trap.agent.buffer_state} />
+              <Row label="Состояние буфера" value={{ ok: 'В норме', full: 'Заполнен', unavailable: 'Недоступен' }[trap.agent.buffer_state]} />
             </dl>
           ) : (
             <EmptyState
@@ -196,16 +200,17 @@ export function TrapDetailPage() {
         </Card>
         <Card>
           <SectionTitle>История команд</SectionTitle>
-          <div className="space-y-2 max-h-64 overflow-auto">
-            {(commands?.items ?? []).length === 0 ? (
+          {commandsQuery.error && <LoadError message="Не удалось обновить историю команд." onRetry={() => { void commandsQuery.refetch() }} />}
+          <div className="divide-y divide-line max-h-64 overflow-auto">
+            {commandsQuery.isLoading ? <Spinner /> : !commands && commandsQuery.error ? null : (commands?.items ?? []).length === 0 ? (
               <EmptyState title="Команд пока нет" />
             ) : (
               commands!.items.map((c) => (
                 <div
                   key={c.id}
-                  className="flex items-center justify-between text-xs p-2.5 rounded-lg bg-bg-elevated/50"
+                  className="flex items-center justify-between gap-3 text-xs py-2.5"
                 >
-                  <span className="font-mono text-fg">{c.action}</span>
+                  <span className="text-fg">{commandLabels[c.action]}</span>
                   <CommandStatusBadge value={c.status} />
                 </div>
               ))
@@ -218,10 +223,11 @@ export function TrapDetailPage() {
         <div className="px-5 py-4 border-b border-line/60">
           <SectionTitle>Последние события</SectionTitle>
         </div>
-        {(events?.items ?? []).length === 0 ? (
+        {eventsQuery.error && <LoadError message="Не удалось обновить события ловушки." onRetry={() => { void eventsQuery.refetch() }} />}
+        {eventsQuery.isLoading ? <Spinner /> : !events && eventsQuery.error ? null : (events?.items ?? []).length === 0 ? (
           <EmptyState title="Событий нет" />
         ) : (
-          <table className="w-full min-w-[640px] text-sm">
+          <table className="data-table w-full min-w-[640px] text-sm">
             <thead>
               <tr className="text-left text-xs text-muted border-b border-line/60">
                 <th className="px-5 py-2.5 font-medium">Время</th>
@@ -241,7 +247,7 @@ export function TrapDetailPage() {
                     </button>
                   </td>
                   <td className="px-5 py-2.5">
-                    <EventTypeBadge type={e.event_type} />
+                    <EventTypeBadge type={e.event_type} severity={eventSeverity(e)} />
                   </td>
                   <td className="px-5 py-2.5 font-mono text-xs">
                     {e.source.ip}:{e.source.port}
