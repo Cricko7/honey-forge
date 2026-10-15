@@ -170,7 +170,7 @@ func (h *Handler) run(session *agentSession) (runErr error) {
 	session.pipelineEnabled = hello.HTTPPipeline && session.identity.TypeID == "custom-http" && h.PipelineSnapshot != nil
 	session.pipelineReceipts = session.pipelineEnabled && hello.HTTPPipelineReceipts
 	session.pipeline = make(chan pipelineDelivery, pipeline.QueueCapacity)
-	session.traffic = make(chan traffic.Delivery, traffic.QueueCapacity)
+	session.traffic = make(chan trafficDelivery, traffic.QueueCapacity)
 	entry := h.registry.entry(session.identity.TrapID)
 	entry.mu.Lock()
 	if entry.current != nil {
@@ -271,7 +271,7 @@ type agentSession struct {
 	pipelineReceipts bool
 	pipeline         chan pipelineDelivery
 	trafficEnabled   bool
-	traffic          chan traffic.Delivery
+	traffic          chan trafficDelivery
 	identity         Identity
 	token            string
 	socket           *stream.Socket

@@ -27,6 +27,7 @@ test('entry restores a session and does not mistake network failures for logout'
   assert.equal(sessionDestination(undefined, true, null), 'loading')
   assert.equal(sessionDestination({ user: { role: 'viewer' } }, false, null), 'app')
   assert.equal(sessionDestination(undefined, false, { status: 401 }), 'guest')
+  assert.equal(sessionDestination({ user: { role: 'admin' } }, false, { status: 403 }), 'guest')
   assert.equal(sessionDestination(null, false, null), 'guest')
   assert.equal(sessionDestination(undefined, false, { status: 503 }), 'error')
 })

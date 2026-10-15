@@ -3,13 +3,13 @@ import { cn } from '@/lib/utils'
 import type { Connectivity, RuntimeState, CommandStatus } from '@/types'
 
 export function Card({ className, children }: { className?: string; children: ReactNode }) {
-  return <div className={cn('card p-6', className)}>{children}</div>
+  return <div className={cn('card min-w-0 p-6', className)}>{children}</div>
 }
 
 export function SectionTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
-    <div className="flex items-center justify-between mb-5">
-      <h2 className="text-sm font-semibold text-fg tracking-tight">{children}</h2>
+    <div className="flex items-center justify-between gap-3 mb-5">
+      <h2 className="min-w-0 break-words text-sm font-semibold text-fg tracking-tight">{children}</h2>
       {action}
     </div>
   )
@@ -20,11 +20,11 @@ const dot = 'h-1.5 w-1.5 rounded-full'
 export function ConnBadge({ value }: { value: Connectivity }) {
   return value === 'online' ? (
     <span className="chip bg-ok/10 text-ok">
-      <span className={cn(dot, 'bg-ok animate-pulseGlow')} /> online
+      <span className={cn(dot, 'bg-ok')} /> На связи
     </span>
   ) : (
     <span className="chip bg-muted/10 text-muted">
-      <span className={cn(dot, 'bg-muted')} /> offline
+      <span className={cn(dot, 'bg-muted')} /> Нет связи
     </span>
   )
 }
@@ -48,7 +48,7 @@ export function RuntimeBadge({ value }: { value: RuntimeState }) {
 export function CommandStatusBadge({ value }: { value: CommandStatus }) {
   const map: Record<CommandStatus, string> = {
     queued: 'bg-info/10 text-info',
-    running: 'bg-brand/15 text-brand-soft',
+    running: 'bg-brand/15 text-brand',
     succeeded: 'bg-ok/10 text-ok',
     failed: 'bg-danger/10 text-danger',
     expired: 'bg-muted/10 text-muted',
@@ -71,7 +71,7 @@ export function EventTypeBadge({ type }: { type: string }) {
     <span
       className={cn(
         'chip font-mono',
-        danger ? 'bg-danger/10 text-danger' : 'bg-brand/10 text-brand-soft',
+        danger ? 'bg-danger/10 text-danger' : 'bg-brand/10 text-brand',
       )}
     >
       {type}

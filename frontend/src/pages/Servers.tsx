@@ -14,13 +14,13 @@ export function ServersPage() {
   const [connecting, setConnecting] = useState(false)
 
   return <div className="p-6 space-y-5">
-    <div className="flex items-center justify-between gap-3">
+    <div className="flex flex-wrap items-center justify-between gap-3">
       <div><h1 className="text-xl font-semibold">Серверы</h1>
         <p className="text-sm text-muted">Машины вашей организации для развёртывания ловушек</p>
         <a href="#server-guide" className="text-sm text-brand underline">Подробная инструкция по подключению</a></div>
       {canManage && <button className="btn-primary" onClick={() => setConnecting(true)}><Plus size={16} /> Подключить сервер</button>}
     </div>
-    <Card><div className="flex items-center gap-3"><Server size={20} className="text-brand" />
+    <Card><div className="flex flex-wrap items-center gap-3"><Server size={20} className="text-brand shrink-0" />
       <div><h2 className="font-medium">Сервер платформы</h2><p className="text-xs text-muted">Доступен как стандартный вариант в форме создания ловушки</p></div>
       <Link className="btn-ghost ml-auto" to="/app/network">К ловушкам</Link></div></Card>
     {error && <div role="alert" className="text-sm text-danger">Не удалось загрузить серверы. <button className="btn-ghost" onClick={() => refetch()}>Повторить</button></div>}

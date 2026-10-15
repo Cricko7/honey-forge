@@ -67,14 +67,14 @@ export function TrapDetailPage() {
       </Link>
 
       <div className="flex items-start justify-between flex-wrap gap-4">
-        <div className="flex items-center gap-3">
-          <div className="h-12 w-12 rounded-2xl bg-brand/15 grid place-items-center">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="h-12 w-12 shrink-0 rounded-2xl bg-brand/15 grid place-items-center">
             <Server size={22} className="text-brand-soft" />
           </div>
-          <div>
-            <h1 className="text-xl font-semibold">{trap.name}</h1>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="font-mono text-xs text-muted">
+          <div className="min-w-0">
+            <h1 className="text-xl font-semibold break-words">{trap.name}</h1>
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              <span className="font-mono text-xs text-muted break-all">
                 {trap.type_id}/{trap.type_version}
               </span>
               <LevelBadge level={trap.interaction_level} />
@@ -84,7 +84,7 @@ export function TrapDetailPage() {
           </div>
         </div>
 
-        {canManage && <div className="flex items-center gap-2">
+        {canManage && <div className="flex flex-wrap items-center gap-2">
           <button
             className="btn-ghost"
             disabled={busy}
@@ -213,14 +213,15 @@ export function TrapDetailPage() {
           </div>
         </Card>
       </div>
-      <Card className="!p-0 overflow-hidden">
+
+      <Card className="!p-0 overflow-x-auto">
         <div className="px-5 py-4 border-b border-line/60">
           <SectionTitle>Последние события</SectionTitle>
         </div>
         {(events?.items ?? []).length === 0 ? (
           <EmptyState title="Событий нет" />
         ) : (
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[640px] text-sm">
             <thead>
               <tr className="text-left text-xs text-muted border-b border-line/60">
                 <th className="px-5 py-2.5 font-medium">Время</th>
@@ -261,9 +262,9 @@ export function TrapDetailPage() {
 
 function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
       <dt className="text-muted">{label}</dt>
-      <dd className={mono ? 'font-mono text-fg' : 'text-fg'}>{value}</dd>
+      <dd className={`min-w-0 break-words ${mono ? 'font-mono text-fg' : 'text-fg'}`}>{value}</dd>
     </div>
   )
 }

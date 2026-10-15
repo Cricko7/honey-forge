@@ -22,6 +22,6 @@ export function sessionDestination(
   error: unknown,
 ): 'loading' | 'app' | 'guest' | 'error' {
   if (loading) return 'loading'
-  if (error) return (error as { status?: number }).status === 401 ? 'guest' : 'error'
+  if (error) return [401, 403].includes((error as { status?: number }).status ?? 0) ? 'guest' : 'error'
   return session ? 'app' : 'guest'
 }

@@ -244,6 +244,7 @@ const commandsByTrap = new Map<string, Command[]>()
 
 type Listener = (n: StreamNotification) => void
 const listeners = new Set<Listener>()
+let sessionCSRF = 'mock-csrf-' + uuid()
 let timer: ReturnType<typeof setInterval> | null = null
 
 function emit(n: StreamNotification) {
@@ -284,8 +285,13 @@ export const mockApi = {
       user: USER,
       organization: ORG,
       expires_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
-      csrf_token: 'mock-csrf-' + uuid().slice(0, 8),
+      csrf_token: sessionCSRF,
     }
+  },
+
+  startSession(): SessionView {
+    sessionCSRF = 'mock-csrf-' + uuid()
+    return mockApi.getSession()
   },
 
   listCatalog() {

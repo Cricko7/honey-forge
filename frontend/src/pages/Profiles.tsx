@@ -57,7 +57,7 @@ export function ProfilesPage() {
 
   return (
     <div className="p-6 space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">Профили</h1>
           <p className="text-sm text-muted">Конфигурации ловушек по выбранному типу каталога</p>
@@ -163,7 +163,7 @@ function CreateProfileModal({ open, onClose }: { open: boolean; onClose: () => v
   return (
     <Modal open={open} onClose={onClose} title="Новый профиль" width="max-w-2xl">
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="label">Тип ловушки</label>
             <Select label="Тип ловушки" value={typeKey} onChange={setTypeKey}

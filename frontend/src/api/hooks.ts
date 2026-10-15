@@ -6,10 +6,11 @@ import { api, subscribeStream } from './client'
 import { qk } from './query-keys'
 import { canManage, canManageTraps } from '@/lib/auth'
 import { applyStreamNotification, removeDeletedTrap } from './cache'
+import { useSessionClient } from './session-scope'
 
 export { qk } from './query-keys'
 
-export const useSession = () => useQuery({ queryKey: qk.session, queryFn: api.getSession, refetchInterval: 30_000, refetchOnWindowFocus: true })
+export const useSession = () => useQuery({ queryKey: qk.session, queryFn: api.getSession, refetchInterval: 30_000, refetchOnWindowFocus: true }, useSessionClient())
 export const useCanManage = () => canManage(useSession().data)
 export const useCanManageTraps = () => canManageTraps(useSession().data)
 export const useDeploymentNodes = () => useQuery({ queryKey: ["deployment-nodes"], queryFn: api.listDeploymentNodes, refetchInterval: 5000 })
@@ -110,6 +111,7 @@ export function useSendCommand() {
 
 export function useLiveStream(onEvent?: (e: EventSummary) => void, onNotification?: (n: StreamNotification) => void) {
   const qc = useQueryClient()
+  const sessionClient = useSessionClient()
   const { data: session } = useSession()
   const callbacks = useRef({ onEvent, onNotification })
   callbacks.current = { onEvent, onNotification }
@@ -123,8 +125,8 @@ export function useLiveStream(onEvent?: (e: EventSummary) => void, onNotificatio
       onSynchronize: () => qc.invalidateQueries({
         predicate: (q) => ['events', 'traps', 'trap', 'commands', 'profiles', 'catalog'].includes(String(q.queryKey[0])),
       }),
-      onUnauthorized: () => { void qc.invalidateQueries({ queryKey: qk.session }) },
+      onUnauthorized: () => { void sessionClient.invalidateQueries({ queryKey: qk.session }) },
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [qc, session?.user.id, session?.organization.id])
+  }, [qc, sessionClient, session?.user.id, session?.organization.id, session?.csrf_token])
 }

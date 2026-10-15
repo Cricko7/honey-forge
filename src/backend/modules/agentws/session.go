@@ -82,8 +82,13 @@ func (h *Handler) serveMessages(entry *sessionEntry, session *agentSession, hell
 		select {
 		case <-session.ctx.Done():
 			return session.ctx.Err()
-		case delivery := <-session.traffic:
-			// Recheck credentials at delivery, including replacement/revocation races.
+		case item := <-session.traffic:
+			// Validate the source and current link before locking the receiver.
+			// Opposite links must never hold both session locks together.
+			if !h.trafficSourceAuthorized(item) {
+				continue
+			}
+			delivery := item.delivery
 			if err := h.withActive(entry, session, func(ctx context.Context) error {
 				return session.socket.Notify(ctx, "traffic.received", map[string]any{"source_id": delivery.SourceID, "target_id": delivery.TargetID, "frame": delivery.Frame})
 			}); err != nil {

@@ -1,4 +1,5 @@
 import { api, req, BASE } from "./api.js";
+import { toast } from "./toast.js";
 
 const NODE_W = 200;
 const HEAD_H = 42;
@@ -48,14 +49,6 @@ const $ = (id) => document.getElementById(id);
 const wrap = $("canvasWrap"), nodeLayer = $("nodeLayer"), edgeGroup = $("edgeGroup");
 const edgeLayer = $("edgeLayer"), canvasBg = $("canvasBg"), tempEdge = $("tempEdge");
 
-function toast(msg, kind = "", issues = null) {
-  const t = $("toast");
-  t.className = "toast " + kind;
-  t.innerHTML = msg + (issues ? `<ul class="toast-list">${issues}</ul>` : "");
-  t.classList.remove("hidden");
-  clearTimeout(toast._t);
-  toast._t = setTimeout(() => t.classList.add("hidden"), issues ? 6000 : 2600);
-}
 function clientToWorld(cx, cy) {
   const r = wrap.getBoundingClientRect();
   return { x: (cx - r.left - S.vp.x) / S.vp.zoom, y: (cy - r.top - S.vp.y) / S.vp.zoom };
@@ -767,7 +760,7 @@ async function validate() {
   await doSave();
   const res = await api.validate(S.chain.id);
   if (res.ok && !res.issues.length) return toast("Цепочка валидна — готова к развёртыванию", "ok");
-  const items = res.issues.map(i => `<li>[${i.level}] ${esc(i.message)}</li>`).join("");
+  const items = res.issues.map(i => `[${i.level}] ${i.message}`);
   toast(res.ok ? "Предупреждения:" : "Найдены ошибки:", res.ok ? "" : "err", items);
   document.querySelectorAll(".node.active").forEach(n => n.classList.remove("active"));
   for (const i of res.issues) if (i.node_id) {

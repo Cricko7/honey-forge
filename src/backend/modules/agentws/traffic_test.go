@@ -136,13 +136,13 @@ func TestTrafficRelayIsDirectBoundedAndOrganizationScoped(t *testing.T) {
 	target := &agentSession{
 		identity:       Identity{OrganizationID: testOrgID, TrapID: targetID},
 		trafficEnabled: true,
-		traffic:        make(chan traffic.Delivery, 1),
+		traffic:        make(chan trafficDelivery, 1),
 	}
 	target.active.Store(true)
 	foreign := &agentSession{
 		identity:       Identity{OrganizationID: "other", TrapID: foreignID},
 		trafficEnabled: true,
-		traffic:        make(chan traffic.Delivery, 1),
+		traffic:        make(chan trafficDelivery, 1),
 	}
 	foreign.active.Store(true)
 	h.registry.entry(targetID).current = target
@@ -165,7 +165,7 @@ func TestTrafficRelayIsDirectBoundedAndOrganizationScoped(t *testing.T) {
 		t.Fatalf("full queue: %d/%d %v", sent, skipped, err)
 	}
 
-	got := <-target.traffic
+	got := (<-target.traffic).delivery
 	if got.SourceID != testTrapID || got.TargetID != targetID || got.Data[1] != 255 {
 		t.Fatal(got)
 	}

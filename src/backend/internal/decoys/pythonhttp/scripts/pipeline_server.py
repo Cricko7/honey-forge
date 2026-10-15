@@ -53,7 +53,7 @@ class PipelineServerMixin:
                 raise FlowError('pipeline endpoint no longer matches')
             if len(body.encode())>self.max_body:
                 raise FlowError('pipeline body exceeds target limit')
-            await emit('http.request',{'method':d['method'],'path':d['path'],
+            await emit('http.request',{'method':d['method'],'path':captured_path(d['path']),
                 'payload_base64':base64.b64encode(body.encode()[:4096]).decode(),
                 'captured_bytes':min(len(body.encode()),4096),'original_bytes':len(body.encode()),'truncated':len(body.encode())>4096})
             request={'json':d['payload'],'method':d['method'],'path':d['path'],'body':body,

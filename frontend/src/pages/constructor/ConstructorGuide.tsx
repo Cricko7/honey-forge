@@ -26,7 +26,7 @@ export function ConstructorGuide({ open, onClose }: { open: boolean; onClose: ()
   }, [open, onClose])
 
   return <Modal open={open} onClose={onClose} title="Как собрать ловушку" width="max-w-4xl">
-    <section ref={content} role="dialog" aria-modal="true" aria-label="Гайд по созданию ловушек" tabIndex={-1}
+    <section ref={content} aria-label="Гайд по созданию ловушек" tabIndex={-1}
       className="max-h-[70vh] overflow-y-auto space-y-3 text-sm leading-relaxed outline-none pr-1">
       <p className="text-muted">Доска задаёт поведение ловушки: что она принимает, какие данные проверяет и как отвечает. Начните с короткой рабочей цепочки, затем добавляйте условия и связи.</p>
 

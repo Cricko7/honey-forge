@@ -7,8 +7,8 @@ import { timeAgo } from '@/lib/utils'
 
 const filters = [
   { key: undefined, label: 'Все' },
-  { key: 'online', label: 'Online' },
-  { key: 'offline', label: 'Offline' },
+  { key: 'online', label: 'На связи' },
+  { key: 'offline', label: 'Нет связи' },
 ] as const
 
 export function TrapsPage() {
@@ -18,15 +18,16 @@ export function TrapsPage() {
 
   return (
     <div className="p-6 space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">Ловушки</h1>
-          <p className="text-sm text-muted">Зарегистрированные honeypot-приманки организации</p>
+          <p className="text-sm text-muted">Связь с агентами и состояние ловушек.</p>
         </div>
         <div className="flex gap-1 bg-bg-elevated rounded-xl p-1">
           {filters.map((f) => (
             <button
               key={f.label}
+              aria-pressed={conn === f.key}
               onClick={() => setConn(f.key)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                 conn === f.key ? 'bg-brand text-white' : 'text-muted hover:text-fg'
@@ -38,13 +39,13 @@ export function TrapsPage() {
         </div>
       </div>
 
-      <Card className="!p-0 overflow-hidden">
+      <Card className="!p-0 overflow-x-auto">
         {isLoading ? (
           <Spinner />
         ) : traps.length === 0 ? (
           <EmptyState title="Ловушек нет" hint="Добавьте ловушку в конструкторе сети" />
         ) : (
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[820px] text-sm">
             <thead>
               <tr className="text-left text-xs text-muted border-b border-line/60">
                 <th className="px-5 py-3 font-medium">Ловушка</th>
@@ -87,7 +88,7 @@ export function TrapsPage() {
                   </td>
                   <td className="px-5 py-3.5 text-xs text-muted">{timeAgo(t.last_seen_at)}</td>
                   <td className="px-5 py-3.5 text-right">
-                    <Link to={`/app/traps/${t.id}`} className="text-muted hover:text-brand-soft">
+                    <Link to={`/app/traps/${t.id}`} aria-label={`Открыть ловушку ${t.name}`} className="text-muted hover:text-brand">
                       <ChevronRight size={16} />
                     </Link>
                   </td>

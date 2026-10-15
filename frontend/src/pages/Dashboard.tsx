@@ -1,196 +1,109 @@
-import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-} from 'recharts'
-import { Bug, Activity, ShieldAlert, Globe, ArrowUpRight } from 'lucide-react'
-import { Card, SectionTitle, EventTypeBadge } from '@/components/ui'
-import { useEvents, useTraps, useLiveStream } from '@/api/hooks'
-import type { EventSummary } from '@/types'
-import { formatTime } from '@/lib/utils'
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
+import { ArrowRight } from 'lucide-react'
+import { Card, SectionTitle, EventTypeBadge, Spinner, EmptyState } from '@/components/ui'
+import { useEvents, useTraps } from '@/api/hooks'
+import { formatDateTime } from '@/lib/utils'
 import { useThemeColors } from '@/lib/theme'
+import { summarizeDashboard } from '@/lib/dashboard-summary'
 
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  delta,
-}: {
-  icon: typeof Bug
-  label: string
-  value: string
-  delta?: string
-}) {
-  return (
-    <Card className="relative overflow-hidden">
-      <Icon
-        size={52}
-        strokeWidth={1.5}
-        className="pointer-events-none absolute bottom-3 right-3 text-brand/60"
-      />
-      <div className="relative">
-        <div className="text-xs text-muted mb-2">{label}</div>
-        <div className="text-3xl font-semibold tracking-tight text-fg">{value}</div>
-        {delta && <div className="text-xs mt-2 text-muted">{delta}</div>}
-      </div>
-    </Card>
-  )
+function Metric({ label, value, note }: { label: string; value: number | undefined; note: string }) {
+  return <div className="px-5 py-4 bg-bg-panel">
+    <dt className="text-sm text-muted">{label}</dt>
+    <dd className="mt-1 text-3xl font-semibold tabular-nums tracking-tight">{value ?? '—'}</dd>
+    <dd className="mt-1 text-xs text-muted">{note}</dd>
+  </div>
 }
 
 export function DashboardPage() {
   const c = useThemeColors()
-  const { data: traps } = useTraps()
-  const { data: eventsPage } = useEvents({ limit: 100 })
-  const [liveFeed, setLiveFeed] = useState<EventSummary[]>([])
+  const trapsQuery = useTraps()
+  const eventsQuery = useEvents({ limit: 100 })
+  const traps = trapsQuery.data?.items ?? []
+  const events = eventsQuery.data?.items ?? []
+  const summary = summarizeDashboard(events)
+  const haveTraps = !!trapsQuery.data
+  const haveEvents = !!eventsQuery.data
+  const failed = trapsQuery.error || eventsQuery.error
 
-  useLiveStream((e) => setLiveFeed((f) => [e, ...f].slice(0, 8)))
-
-  const trapsList = traps?.items ?? []
-  const events = eventsPage?.items ?? []
-  const onlineTraps = trapsList.filter((t) => t.connectivity === 'online').length
-
-  const events24h = useMemo(() => {
-    const dayAgo = Date.now() - 24 * 3600 * 1000
-    return events.filter((e) => new Date(e.occurred_at).getTime() >= dayAgo)
-  }, [events])
-
-  const activity = useMemo(() => {
-    const buckets = new Array(24).fill(0)
-    const dayAgo = Date.now() - 24 * 3600 * 1000
-    for (const e of events) {
-      const t = new Date(e.occurred_at).getTime()
-      if (t < dayAgo) continue
-      const h = new Date(e.occurred_at).getHours()
-      buckets[h]++
-    }
-    return buckets.map((count, h) => ({ hour: `${String(h).padStart(2, '0')}:00`, count }))
-  }, [events])
-
-  const byType = useMemo(() => {
-    const m = new Map<string, number>()
-    for (const e of events) m.set(e.event_type, (m.get(e.event_type) ?? 0) + 1)
-    return [...m.entries()].map(([type, count]) => ({ type: type.split('.')[1] ?? type, count }))
-  }, [events])
-
-  const byCountry = useMemo(() => {
-    const colors = [c.brand, c.brandSoft, '#38bdf8', '#34d399', '#fbbf24', '#f43f5e']
-    const counts = new Map<string, number>()
-    for (const e of events) counts.set(e.source.ip, (counts.get(e.source.ip) ?? 0) + 1)
-    return [...counts.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 6)
-      .map(([ip, count], i) => ({ ip, count, color: colors[i % colors.length] }))
-  }, [events, c])
-
-  return (
-    <div className="p-8 space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Дашборд</h1>
-          <p className="text-sm text-muted">Обзор ловушек и активности атак в реальном времени</p>
-        </div>
-        <Link to="/app/constructor" className="btn-primary">
-          Открыть конструктор <ArrowUpRight size={16} />
-        </Link>
+  return <div className="p-5 md:p-7 space-y-6">
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Обзор</h1>
+        <p className="mt-1 text-sm text-muted">Состояние ловушек и последние события.</p>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <StatCard icon={Bug} label="Активные ловушки" value={String(onlineTraps)} delta={`${trapsList.length} всего`} />
-        <StatCard icon={Activity} label="События за 24 часа" value={String(events24h.length)} delta={`${events.length} за всё время`} />
-        <StatCard
-          icon={ShieldAlert}
-          label="Попытки входа"
-          value={String(events.filter((e) => e.event_type.includes('auth') || e.event_type.includes('payload') || e.event_type === 'honeytoken.triggered').length)}
-          delta="перехвачено"
-        />
-        <StatCard icon={Globe} label="Уникальных источников" value={String(new Set(events.map((e) => e.source.ip)).size)} delta="IP-адресов" />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2">
-          <SectionTitle>Активность атак · 24 часа</SectionTitle>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={activity}>
-                <CartesianGrid strokeDasharray="3 3" stroke={c.line} vertical={false} />
-                <XAxis dataKey="hour" stroke={c.muted} fontSize={11} tickLine={false} interval={3} />
-                <YAxis stroke={c.muted} fontSize={11} tickLine={false} axisLine={false} />
-                <Tooltip contentStyle={{ background: c.panel, border: `1px solid ${c.line}`, borderRadius: 10, fontSize: 12 }} />
-                <Line type="monotone" dataKey="count" stroke={c.brand} strokeWidth={2.5} dot={{ r: 3, fill: c.brand }} activeDot={{ r: 5 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-        <Card>
-          <SectionTitle action={<span className="chip bg-danger/10 text-danger animate-pulseGlow">LIVE</span>}>
-            Поток событий
-          </SectionTitle>
-          <div className="space-y-2 max-h-64 overflow-auto">
-            {liveFeed.length === 0 && <p className="text-xs text-muted py-8 text-center">Ожидание событий…</p>}
-            {liveFeed.map((e) => (
-              <div key={e.event_id} className="flex items-center gap-2 text-xs p-2 rounded-lg bg-bg-elevated/50 animate-slideIn">
-                <span className="font-mono text-muted">{formatTime(e.occurred_at)}</span>
-                <span className="font-mono text-fg">{e.source.ip}</span>
-                <span className="ml-auto">
-                  <EventTypeBadge type={e.event_type} />
-                </span>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2">
-          <SectionTitle>Типы событий</SectionTitle>
-          <div className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={byType}>
-                <CartesianGrid strokeDasharray="3 3" stroke={c.line} vertical={false} />
-                <XAxis dataKey="type" stroke={c.muted} fontSize={11} tickLine={false} />
-                <YAxis stroke={c.muted} fontSize={11} tickLine={false} axisLine={false} />
-                <Tooltip cursor={{ fill: 'rgba(110,86,207,0.1)' }} contentStyle={{ background: c.panel, border: `1px solid ${c.line}`, borderRadius: 10, fontSize: 12 }} />
-                <Bar dataKey="count" fill={c.brand} radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-        <Card>
-          <SectionTitle>Топ источников атак</SectionTitle>
-          <div className="flex items-center gap-4">
-            <div className="h-36 w-36 shrink-0">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={byCountry} dataKey="count" nameKey="ip" innerRadius={38} outerRadius={60} paddingAngle={3} stroke="none">
-                    {byCountry.map((d) => (
-                      <Cell key={d.ip} fill={d.color} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="flex-1 space-y-1.5 text-xs">
-              {byCountry.map((d) => (
-                <div key={d.ip} className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full" style={{ background: d.color }} />
-                  <span className="font-mono text-fg truncate">{d.ip}</span>
-                  <span className="ml-auto text-muted">{d.count}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </Card>
-      </div>
+      <Link to="/app/constructor" className="btn-primary">Открыть конструктор <ArrowRight size={16} aria-hidden="true" /></Link>
     </div>
-  )
+
+    {failed && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 border border-danger/30 rounded-lg px-4 py-3 text-sm">
+      <p>Не удалось обновить {trapsQuery.error && eventsQuery.error ? 'ловушки и события' : trapsQuery.error ? 'ловушки' : 'события'}. {haveTraps || haveEvents ? 'Показаны доступные данные.' : 'Проверьте подключение.'}</p>
+      <button type="button" className="btn-ghost" onClick={() => { void trapsQuery.refetch(); void eventsQuery.refetch() }}>Повторить</button>
+    </div>}
+
+    <dl className="grid grid-cols-2 xl:grid-cols-4 gap-px overflow-hidden rounded-lg border border-line bg-line">
+      <Metric label="На связи" value={haveTraps ? traps.filter(t => t.connectivity === 'online').length : undefined} note={haveTraps ? `из ${traps.length}${trapsQuery.data?.next_cursor ? '+ ловушек' : ' ловушек'}` : 'Данные о ловушках'} />
+      <Metric label="События за 24 часа" value={haveEvents ? summary.events24h : undefined} note="В текущей выборке" />
+      <Metric label="Попытки входа" value={haveEvents ? summary.authAttempts : undefined} note="В текущей выборке" />
+      <Metric label="Источники" value={haveEvents ? summary.uniqueSources : undefined} note="Уникальные IP в выборке" />
+    </dl>
+
+    <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
+      <span>Выборка: последние 100 событий. Счётчики событий и источников относятся к этой выборке.</span>
+      <Link to="/app/events" className="text-brand hover:underline">Поиск по журналу →</Link>
+    </div>
+
+    <Card>
+      <SectionTitle>События за последние 24 часа</SectionTitle>
+      {eventsQuery.isLoading ? <Spinner /> : !haveEvents ? <p className="text-sm text-muted">Данные недоступны.</p> : summary.events24h === 0 ? <EmptyState title="За последние 24 часа событий в выборке нет" /> : <>
+        <div className="h-56" role="img" aria-label={`События по часам за последние 24 часа: ${summary.events24h}`}>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={summary.activity} margin={{ left: -20, right: 12 }}>
+              <CartesianGrid stroke={c.line} vertical={false} />
+              <XAxis dataKey="at" stroke={c.muted} fontSize={11} tickLine={false} interval={3}
+                tickFormatter={at => new Date(at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })} />
+              <YAxis stroke={c.muted} fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+              <Tooltip labelFormatter={at => formatDateTime(new Date(Number(at)).toISOString())} contentStyle={{ background: c.panel, border: `1px solid ${c.line}`, borderRadius: 6, fontSize: 12 }} />
+              <Line name="События" type="linear" dataKey="count" stroke={c.brand} strokeWidth={2} dot={false} isAnimationActive={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+        <p className="mt-2 text-xs text-muted">Время местное. Первый и последний час могут быть неполными.</p>
+      </>}
+    </Card>
+
+    <Card className="!p-0 overflow-hidden">
+      <div className="px-5 pt-5"><SectionTitle action={<Link to="/app/events" className="text-xs text-brand hover:underline">Все события →</Link>}>Последние события</SectionTitle></div>
+      {eventsQuery.isLoading ? <Spinner /> : !haveEvents ? <p className="px-5 pb-5 text-sm text-muted">Данные недоступны.</p> : events.length === 0 ? <EmptyState title="Событий пока нет" hint="После подключения к ловушке события появятся здесь и в журнале." /> : <div className="overflow-x-auto">
+        <table className="w-full text-sm text-left">
+          <thead className="border-y border-line text-xs text-muted"><tr>
+            <th scope="col" className="px-5 py-2.5 font-medium">Время</th>
+            <th scope="col" className="px-5 py-2.5 font-medium">Источник</th>
+            <th scope="col" className="px-5 py-2.5 font-medium">Событие</th>
+            <th scope="col" className="px-5 py-2.5 font-medium text-right">Подробности</th>
+          </tr></thead>
+          <tbody className="divide-y divide-line/60">{events.slice(0, 8).map(event => <tr key={event.event_id} className="hover:bg-bg-hover/50">
+            <td className="px-5 py-3 whitespace-nowrap tabular-nums text-muted">{formatDateTime(event.occurred_at)}</td>
+            <td className="px-5 py-3 font-mono text-xs">{event.source.ip}</td>
+            <td className="px-5 py-3"><EventTypeBadge type={event.event_type} /></td>
+            <td className="px-5 py-3 text-right"><Link to={`/app/events?event=${encodeURIComponent(event.event_id)}`} className="text-brand hover:underline" aria-label={`Открыть событие ${event.event_type} от ${event.source.ip}`}>Открыть</Link></td>
+          </tr>)}</tbody>
+        </table>
+      </div>}
+    </Card>
+
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <Card>
+        <SectionTitle>Типы событий</SectionTitle>
+        {haveEvents ? summary.byType.length ? <ul className="divide-y divide-line/60">{summary.byType.map(item => <li key={item.type} className="flex items-center justify-between gap-4 py-2 text-sm">
+          <span className="font-mono text-xs break-all">{item.type}</span><span className="tabular-nums text-muted">{item.count}</span>
+        </li>)}</ul> : <p className="text-sm text-muted">Нет данных для сравнения.</p> : <p className="text-sm text-muted">{eventsQuery.isLoading ? 'Загрузка…' : 'Данные недоступны.'}</p>}
+      </Card>
+      <Card>
+        <SectionTitle>Частые источники</SectionTitle>
+        {haveEvents ? summary.sources.length ? <ol className="divide-y divide-line/60">{summary.sources.map(item => <li key={item.ip} className="flex items-center justify-between gap-4 py-2 text-sm">
+          <span className="font-mono text-xs break-all">{item.ip}</span><span className="tabular-nums text-muted">{item.count}</span>
+        </li>)}</ol> : <p className="text-sm text-muted">Нет данных для сравнения.</p> : <p className="text-sm text-muted">{eventsQuery.isLoading ? 'Загрузка…' : 'Данные недоступны.'}</p>}
+      </Card>
+    </div>
+  </div>
 }

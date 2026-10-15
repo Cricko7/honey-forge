@@ -132,7 +132,7 @@ export const api = {
       void email
       void password
       mockSignedOut = false
-      const s = mockApi.getSession()
+      const s = mockApi.startSession()
       csrfToken = s.csrf_token
       return s
     }
@@ -150,7 +150,7 @@ export const api = {
       await delay(400)
       void organizationName
       mockSignedOut = false
-      const s = mockApi.getSession()
+      const s = mockApi.startSession()
       s.user.email = email
       csrfToken = s.csrf_token
       return s

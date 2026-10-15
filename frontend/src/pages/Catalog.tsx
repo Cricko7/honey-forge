@@ -21,8 +21,8 @@ export function CatalogPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {entries.map((c) => (
             <Card key={`${c.type_id}/${c.type_version}`}>
-              <div className="flex items-start justify-between mb-3">
-                <div>
+              <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+                <div className="min-w-0 break-words">
                   <h2 className="font-semibold text-fg">{c.title}</h2>
                   <span className="font-mono text-xs text-muted">
                     {c.type_id}/{c.type_version}
@@ -37,14 +37,14 @@ export function CatalogPage() {
               </div>
               <p className="text-sm text-muted mb-4">{c.description}</p>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <div className="flex items-center gap-1.5 text-xs text-fg mb-2">
                     <Zap size={12} className="text-brand-soft" /> События
                   </div>
                   <div className="space-y-1">
                     {c.event_schemas.map((e) => (
-                      <div key={e.event_type} className="text-xs font-mono text-muted">
+                      <div key={e.event_type} className="text-xs font-mono text-muted break-all">
                         {e.event_type}
                       </div>
                     ))}

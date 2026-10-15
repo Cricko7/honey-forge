@@ -16,6 +16,23 @@ def send(message):
     sys.stdout.flush()
 
 
+def captured_path(path):
+    # RawMessage preserves JSON escapes on the way to the 16 KiB local frame.
+    # Reserve room for the 4096-byte body capture, envelope and pipeline metadata.
+    # Go also escapes HTML-sensitive characters when re-encoding the event.
+    low, high = 0, min(len(path), 2048)
+    while low < high:
+        end = (low + high + 1) // 2
+        encoded = json.dumps(path[:end], ensure_ascii=True)
+        for char in '<>&':
+            encoded = encoded.replace(char, '\\u%04x' % ord(char))
+        if len(encoded) - 2 <= 4096:
+            low = end
+        else:
+            high = end - 1
+    return path[:low]
+
+
 class Server(PipelineServerMixin):
     def __init__(self, bootstrap):
         self.snapshot = bootstrap['snapshot']
@@ -170,7 +187,7 @@ class Server(PipelineServerMixin):
                                'query': {k: v[-1] for k, v in parse_qs(parsed.query, max_num_fields=256).items()},
                                'cookies': cookie_values, 'session': state_session, 'request_id': session}
                     request['_source_ip'],request['_source_port']=peer[0],peer[1]
-                    await emit('http.request', {'method': method, 'path': parsed.path[:2048],
+                    await emit('http.request', {'method': method, 'path': captured_path(parsed.path),
                         'payload_base64': base64.b64encode(body[:4096]).decode(), 'captured_bytes': min(len(body), 4096),
                         'original_bytes': len(body), 'truncated': len(body) > 4096})
                 entry = self.blocks[service['entry']]['config']

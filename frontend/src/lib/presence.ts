@@ -1,12 +1,12 @@
 import { useEffect } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useSessionClient } from '@/api/session-scope'
 import { api, ApiError } from '@/api/client'
 import { qk } from '@/api/query-keys'
 
 // Only a visible authenticated application reports presence. Closing or hiding
 // every tab expires presence on the server without an unreliable unload request.
 export function usePresence(userID: string) {
-  const qc = useQueryClient()
+  const qc = useSessionClient()
   useEffect(() => {
     const controller = new AbortController()
     let pending = false

@@ -68,7 +68,7 @@ export function EventsPage() {
       <div>
         <h1 className="text-xl font-semibold">События</h1>
         <p className="text-sm text-muted">
-          Журнал активности атакующих · перехваченные подключения, креды и команды
+          Подключения, попытки входа и действия в ловушках.
         </p>
       </div>
 
@@ -102,13 +102,13 @@ export function EventsPage() {
       </Card>
       {(validationError || downloadError || error) && <p role="alert" className="text-sm text-danger">{validationError || downloadError || (error as Error).message}</p>}
 
-      <Card className="!p-0 overflow-hidden">
+      <Card className="!p-0 overflow-x-auto">
         {validationError || error ? <EmptyState title="Не удалось получить события" /> : isLoading ? (
           <Spinner />
         ) : events.length === 0 ? (
           <EmptyState title="Событий нет" />
         ) : (
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[800px] text-sm">
             <thead>
               <tr className="text-left text-xs text-muted border-b border-line/60">
                 <th className="px-5 py-3 font-medium">Время</th>

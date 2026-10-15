@@ -2,10 +2,34 @@ package agentws
 
 import (
 	"context"
+	"slices"
 
 	"honey-forge/internal/contract"
 	"honey-forge/internal/platform/traffic"
 )
+
+type trafficDelivery struct {
+	delivery traffic.Delivery
+	source   *agentSession
+}
+
+func (h *Handler) trafficSourceAuthorized(item trafficDelivery) bool {
+	entry := h.registry.lookup(item.source.identity.TrapID)
+	if entry == nil {
+		return false
+	}
+
+	return h.withActive(entry, item.source, func(ctx context.Context) error {
+		targets, err := h.TrafficTargets(ctx, item.source.identity.OrganizationID, item.source.identity.TrapID)
+		if err != nil {
+			return err
+		}
+		if !slices.Contains(targets, item.delivery.TargetID) {
+			return contract.NewError("forbidden")
+		}
+		return nil
+	}) == nil
+}
 
 func (h *Handler) handleTraffic(entry *sessionEntry, session *agentSession, message contract.Envelope) error {
 	if h.TrafficTargets == nil || !session.trafficEnabled {
@@ -55,7 +79,7 @@ func (h *Handler) routeTraffic(source *agentSession, frame traffic.Frame) (int, 
 		target := entry.current
 		if target != nil && target.active.Load() && target.trafficEnabled && target.identity.OrganizationID == source.identity.OrganizationID {
 			select {
-			case target.traffic <- traffic.Delivery{SourceID: source.identity.TrapID, TargetID: id, Frame: frame}:
+			case target.traffic <- trafficDelivery{traffic.Delivery{SourceID: source.identity.TrapID, TargetID: id, Frame: frame}, source}:
 				sent++
 			default:
 				skipped++

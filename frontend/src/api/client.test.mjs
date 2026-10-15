@@ -218,6 +218,17 @@ test('demo logout allows signing in again', async () => {
   assert.equal((await api.getSession()).user.role, 'admin')
 })
 
+test('demo session polling keeps its identity stable and signing in rotates the session token', async () => {
+  const { api } = await client('')
+  const first = await api.getSession()
+  const refreshed = await api.getSession()
+  assert.equal(refreshed.csrf_token, first.csrf_token)
+  await api.logout()
+  const signedIn = await api.login('demo@example.com', 'demo-password')
+  assert.notEqual(signedIn.csrf_token, first.csrf_token)
+  assert.equal((await api.getSession()).csrf_token, signedIn.csrf_token)
+})
+
 test('trap links use authenticated REST and preserve errors', async () => {
   const { api, ApiError } = await client('https://operator.example')
   const originalFetch = globalThis.fetch

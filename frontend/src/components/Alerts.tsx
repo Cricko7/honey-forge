@@ -7,6 +7,7 @@ import { subscribeMutationAlerts } from '@/api/alert-mutations'
 import { useTraps } from '@/api/hooks'
 import { cn, formatDateTime } from '@/lib/utils'
 import { PickerPopover } from './PickerPopover'
+import { MobileAlertSummary } from './MobileAlertSummary'
 import type { StreamNotification } from '@/types'
 
 const icons = { info: Info, success: CircleCheck, warning: ShieldAlert, error: TriangleAlert }
@@ -47,8 +48,11 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
     historyOpen, setHistoryOpen,
     readAll: () => dispatch({ type: 'read-all' }), clear: () => dispatch({ type: 'clear' }) }}>
     {children}
-    <div className={cn('fixed bottom-6 right-6 z-[110] w-[380px] max-w-[calc(100vw-2rem)] space-y-3', historyOpen && 'hidden')} aria-label="Всплывающие уведомления">
-      {items.filter((a) => a.toast).map((a) => <AlertToast key={a.id} item={a} />)}
+    <div className={cn('fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40 w-[380px] max-w-[calc(100%-2rem)]', historyOpen && 'hidden')} aria-label="Всплывающие уведомления">
+      <MobileAlertSummary items={items} onOpen={() => setHistoryOpen(true)} />
+      <div className="hidden sm:block space-y-3 max-h-[calc(100dvh-2rem)] overflow-y-auto">
+        {items.filter((a) => a.toast).map((a) => <AlertToast key={a.id} item={a} />)}
+      </div>
     </div>
   </AlertsContext.Provider>
 }

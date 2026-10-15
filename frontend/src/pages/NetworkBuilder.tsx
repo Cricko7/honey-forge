@@ -208,14 +208,14 @@ export function NetworkBuilderPage() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between px-6 py-4 border-b border-line/60">
+      <div className="flex flex-wrap shrink-0 items-center justify-between gap-3 px-6 py-4 border-b border-line/60">
         <div>
           <h1 className="text-xl font-semibold">Конструктор сети</h1>
           <p className="text-sm text-muted">
             {canManage ? 'A → B разрешает передачу данных · HTTP-сценарий отправки задаётся в конструкторе ловушек' : 'Карта ловушек организации · только просмотр, кликните для деталей'}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {canManage && selectedLink && <button className="btn-ghost text-danger" disabled={deleteLink.isPending} onClick={() => removeLink(selectedLink)}>
             <Trash2 size={16} /> Удалить связь
           </button>}
@@ -254,31 +254,36 @@ export function NetworkBuilderPage() {
           onNodeDragStop={canManage ? () => saveLayout() : undefined}
           nodeTypes={nodeTypes}
           fitView
+          minZoom={0.1}
           proOptions={{ hideAttribution: true }}
           defaultEdgeOptions={{ style: { stroke: c.line } }}
         >
           <Background variant={BackgroundVariant.Dots} gap={22} size={1} color={c.line} />
           <Controls showInteractive={canManage} className="!bg-bg-panel !border-line !rounded-xl [&_button]:!bg-bg-elevated [&_button]:!border-line [&_button]:!text-fg [&_button]:!fill-current" />
           <MiniMap
-            className="!bg-bg-panel !border !border-line !rounded-xl"
+            style={{ width: 120, height: 80 }}
+            className="!bg-bg-panel !border !border-line !rounded-xl sm:!w-[200px] sm:!h-[150px]"
             maskColor={c.mask}
             nodeColor={(n) => ((n.data as TrapNodeData)?.underAttack ? ATTACK : c.brand)}
           />
         </ReactFlow>
-        <div className="absolute bottom-4 left-4 card px-4 py-3 text-xs space-y-1.5 z-10">
-          <div className="font-semibold text-fg mb-1">Легенда</div>
-          <div className="flex items-center gap-2 text-muted"><span className="text-brand-soft">→</span> Передача JSON · настроенный HTTP-сценарий</div>
-          <div className="flex items-center gap-2 text-muted"><span className="text-brand-soft">→</span> Копия трафика · входящие байты</div>
-          <div className="flex items-center gap-2 text-muted">
-            <Server size={12} className="text-brand-soft" /> tcp-banner (Low)
+
+        <details className="absolute top-4 left-4 max-w-[calc(100%-2rem)] card px-3 py-2 text-xs z-10">
+          <summary className="cursor-pointer font-semibold text-fg">Легенда</summary>
+          <div className="mt-3 space-y-1.5">
+            <div className="flex items-center gap-2 text-muted"><span className="text-brand-soft">→</span> Передача JSON · настроенный HTTP-сценарий</div>
+            <div className="flex items-center gap-2 text-muted"><span className="text-brand-soft">→</span> Копия трафика · входящие байты</div>
+            <div className="flex items-center gap-2 text-muted">
+              <Server size={12} className="text-brand-soft" /> tcp-banner (Low)
+            </div>
+            <div className="flex items-center gap-2 text-muted">
+              <Database size={12} className="text-brand-soft" /> redis-emulator (Medium)
+            </div>
+            <div className="flex items-center gap-2 text-muted">
+              <span className="h-2 w-2 rounded-full bg-danger" /> под атакой
+            </div>
           </div>
-          <div className="flex items-center gap-2 text-muted">
-            <Database size={12} className="text-brand-soft" /> redis-emulator (Medium)
-          </div>
-          <div className="flex items-center gap-2 text-muted">
-            <span className="h-2 w-2 rounded-full bg-danger" /> под атакой
-          </div>
-        </div>
+        </details>
       </div>
 
       <AddTrapModal

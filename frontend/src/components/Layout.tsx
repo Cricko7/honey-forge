@@ -17,7 +17,6 @@ import { USE_MOCK, api } from '@/api/client'
 import { cn } from '@/lib/utils'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { Logo } from '@/components/Logo'
-import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { replaceSessionCache } from '@/api/cache'
 import { canManage, canManageTraps, sessionDestination } from '@/lib/auth'
@@ -25,9 +24,10 @@ import { usePresence } from '@/lib/presence'
 import { ApiError } from '@/api/client'
 import { AlertsProvider, AlertsBell, useAlerts } from '@/components/Alerts'
 import type { SessionView } from '@/types'
+import { SessionScope, useSessionClient } from '@/api/session-scope'
 
 const nav = [
-  { to: '/app', end: true, icon: LayoutDashboard, label: 'Дашборд' },
+  { to: '/app', end: true, icon: LayoutDashboard, label: 'Обзор' },
   { to: '/app/constructor', icon: Workflow, label: 'Конструктор ловушек' },
   { to: '/app/network', icon: Network, label: 'Конструктор сети' },
   { to: '/app/servers', icon: Server, label: 'Серверы' },
@@ -39,15 +39,19 @@ const nav = [
 
 export function Layout() {
   const { data: session, isLoading, error, refetch } = useSession()
+  const sessionClient = useSessionClient()
   if (isLoading) return <div className="h-screen grid place-items-center text-muted text-sm"><span className="h-5 w-5 rounded-full border-2 border-brand/30 border-t-brand animate-spin" /></div>
   if (sessionDestination(session, isLoading, error) === 'guest') return <Navigate to="/login" replace />
-  if (error || !session) return <div className="p-8">Не удалось проверить сессию. <button className="btn-primary" onClick={() => refetch()}>Повторить</button></div>
-  return <AlertsProvider key={`${session.organization.id}:${session.user.id}`}><AuthenticatedLayout session={session} /></AlertsProvider>
+  const unavailable = <div className="p-8">Не удалось проверить сессию. <button className="btn-primary" onClick={() => refetch()}>Повторить</button></div>
+  if (!session) return unavailable
+  return <SessionScope key={`${session.organization.id}:${session.user.id}:${session.csrf_token}`} sessionClient={sessionClient}>
+    {error ? unavailable : <AlertsProvider><AuthenticatedLayout session={session} /></AlertsProvider>}
+  </SessionScope>
 }
 
 function AuthenticatedLayout({ session }: { session: SessionView }) {
   usePresence(session.user.id)
-  const qc = useQueryClient()
+  const qc = useSessionClient()
   const [logoutError, setLogoutError] = useState('')
   const [loggingOut, setLoggingOut] = useState(false)
   const { onStream, notify } = useAlerts()
@@ -77,26 +81,18 @@ function AuthenticatedLayout({ session }: { session: SessionView }) {
   const sections = canManage(session)
     ? [...nav, { to: '/app/admin', end: false, icon: ShieldCheck, label: 'Админ-панель' }, { to: '/app/organization', end: false, icon: Link2, label: 'Приглашения' }]
     : nav
-  const active =
-    sections
-      .filter((s) =>
-        s.end ? location.pathname === s.to : location.pathname === s.to || location.pathname.startsWith(s.to + '/'),
-      )
-      .sort((a, b) => b.to.length - a.to.length)[0] ?? nav[0]
-  const ActiveIcon = active.icon
-
   return (
-    <div className="flex h-screen overflow-hidden gap-5 p-5 bg-bg-base">
-      <aside className="w-60 shrink-0 card flex flex-col overflow-hidden">
-        <div className="px-5 h-16 flex items-center gap-2.5">
+    <div className="flex h-dvh flex-col md:flex-row overflow-hidden bg-bg-base">
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[120] focus:bg-bg-panel focus:p-3">К содержимому</a>
+      <aside className="md:w-56 shrink-0 bg-bg-panel border-b md:border-b-0 md:border-r border-line flex flex-col min-h-0">
+        <div className="px-5 h-12 md:h-16 flex items-center gap-2.5">
           <Logo size={30} className="shrink-0" />
           <div className="leading-tight">
             <div className="font-semibold text-fg">HoneyForge</div>
-            <div className="text-[10px] text-muted tracking-wide">deception platform</div>
           </div>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-0.5">
+        <nav aria-label="Основная навигация" className="flex md:block md:flex-1 gap-1 overflow-x-auto md:overflow-y-auto px-3 py-1 md:py-2 md:space-y-0.5">
           {sections.map((item) => (
             <NavLink
               key={item.to}
@@ -104,60 +100,43 @@ function AuthenticatedLayout({ session }: { session: SessionView }) {
               end={item.end}
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                  'flex shrink-0 items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
                   isActive
                     ? 'bg-brand/10 text-brand'
                     : 'text-muted hover:text-fg hover:bg-bg-hover',
                 )
               }
             >
-              <item.icon size={18} />
+              <item.icon size={17} aria-hidden="true" />
               {item.label}
             </NavLink>
           ))}
         </nav>
 
-        <div className="p-3">
-          <div className="rounded-xl bg-bg-elevated/60 border border-line/50 p-3">
-            <div className="flex items-center gap-2.5 mb-3">
-              <div className="h-8 w-8 rounded-full bg-brand/10 grid place-items-center text-brand text-xs font-semibold shrink-0">
-                {(session?.user.email ?? '?').slice(0, 1).toUpperCase()}
-              </div>
+        <div className="px-3 py-2 md:py-3 border-t border-line">
+          <div className="flex md:block items-center gap-3">
+            <div className="min-w-0 flex-1 md:mb-3">
               <div className="min-w-0 leading-tight">
                 <div className="text-sm text-fg truncate">{session?.user.email ?? '—'}</div>
                 <div className="text-xs text-muted truncate">
-                  {session?.organization.name} · {canManage(session) ? 'Администратор' : canManageTraps(session) ? 'Оператор ловушек' : 'Пользователь · только чтение'}
+                  {canManage(session) ? 'Администратор' : canManageTraps(session) ? 'Оператор ловушек' : 'Только чтение'}
                 </div>
               </div>
             </div>
             {logoutError && <p className="text-xs text-danger mb-2">{logoutError}</p>}
-            <button onClick={logout} disabled={loggingOut} className="btn-ghost w-full">
+            <button type="button" onClick={logout} disabled={loggingOut} className="btn-ghost md:w-full">
               <LogOut size={16} /> Выйти
             </button>
           </div>
         </div>
       </aside>
-      <div className="flex-1 flex flex-col min-w-0 gap-5">
-        <header className="shrink-0 card h-16 flex items-center justify-between pl-4 pr-3.5">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-brand/25 to-brand/5 text-brand grid place-items-center shrink-0 ring-1 ring-brand/15 shadow-sm">
-              <ActiveIcon size={18} />
-            </div>
-            <div className="leading-tight min-w-0">
-              <div className="text-sm font-semibold text-fg truncate">{active.label}</div>
-              <div className="text-[11px] text-muted truncate">
-                {session.organization.name} · deception platform
-              </div>
-            </div>
-          </div>
+
+      <div className="flex-1 flex flex-col min-w-0 min-h-0">
+        <header className="shrink-0 bg-bg-panel border-b border-line h-14 flex items-center justify-between gap-3 px-5">
+          <div className="text-sm font-medium truncate">{session.organization.name}</div>
           <div className="flex items-center gap-2">
-            <span className="hidden sm:inline-flex items-center gap-2 text-xs font-medium text-muted">
-              <span className="h-1.5 w-1.5 rounded-full bg-ok animate-pulseGlow" />
-              Поток активен
-            </span>
-            <span className="sm:hidden h-1.5 w-1.5 rounded-full bg-ok animate-pulseGlow" />
             {USE_MOCK && (
-              <span className="chip bg-warn/10 text-warn ring-1 ring-warn/20">demo · mock</span>
+              <span className="chip bg-warn/10 text-warn" title="Тестовые данные. Изменения не сохраняются на сервере.">Демонстрация</span>
             )}
             <div className="h-5 w-px bg-line mx-1" />
             <AlertsBell />
@@ -165,8 +144,8 @@ function AuthenticatedLayout({ session }: { session: SessionView }) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-auto card">
-          <div key={location.pathname} className="h-full animate-fadeInUp">
+        <main key={location.pathname} id="main-content" tabIndex={-1} className="flex-1 min-h-0 overflow-auto">
+          <div className="h-full">
             <Outlet />
           </div>
         </main>
