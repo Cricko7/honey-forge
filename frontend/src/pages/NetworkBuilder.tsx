@@ -23,6 +23,7 @@ import { useDeploymentNodes, useCanManage, useTraps, useCatalog, useCreateProfil
 import { configPorts } from '@/lib/profile-config'
 import { ApiError } from '@/api/client'
 import { canConnectTraps, trapLinkKey, trapLinkLabel, trapLinkHandles } from '@/lib/network-links'
+import { createNetworkActivity, reconcileNetworkNodes } from '@/lib/network-state'
 import { useThemeColors } from '@/lib/theme'
 import { LoadError } from '@/components/ui'
 
@@ -82,10 +83,21 @@ export function NetworkBuilderPage() {
 
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
-  const [attackPulse, setAttackPulse] = useState<Record<string, number>>({})
+  const [attackPulse, setAttackPulse] = useState<Record<string, true>>({})
+  const activity = useRef<ReturnType<typeof createNetworkActivity>>()
   const [addOpen, setAddOpen] = useState(false)
   const [layoutRevision, setLayoutRevision] = useState(0)
   const savedLayout = useRef(loadLayout())
+  const resetPositions = useRef(false)
+
+  useEffect(() => {
+    const tracker = createNetworkActivity(setAttackPulse)
+    activity.current = tracker
+    return () => {
+      tracker.dispose()
+      activity.current = undefined
+    }
+  }, [])
 
   useEffect(() => {
     if (canManage && searchParams.get('create') === '1') setAddOpen(true)
@@ -101,14 +113,7 @@ export function NetworkBuilderPage() {
   }
 
   useLiveStream((e) => {
-    setAttackPulse((p) => ({ ...p, [e.trap_id]: Date.now() }))
-    setTimeout(() => {
-      setAttackPulse((p) => {
-        const next = { ...p }
-        if (next[e.trap_id] && Date.now() - next[e.trap_id] >= 2500) delete next[e.trap_id]
-        return next
-      })
-    }, 2600)
+    if (traps.some((trap) => trap.id === e.trap_id)) activity.current?.accept(e.trap_id)
   })
 
   useEffect(() => {
@@ -141,11 +146,12 @@ export function NetworkBuilderPage() {
         connectivity: t.connectivity,
         runtime: t.runtime_state,
         kind: 'trap',
-        underAttack: !!attackPulse[t.id],
       },
     }))
 
-    setNodes([gateway, ...trapNodes])
+    const reset = resetPositions.current
+    resetPositions.current = false
+    setNodes((previous) => reconcileNetworkNodes(previous, [gateway, ...trapNodes], reset))
 
     setEdges((prev) => {
       const autoEdges: Edge[] = traps.map((t) => ({
@@ -154,12 +160,8 @@ export function NetworkBuilderPage() {
         target: t.id,
         targetHandle: 'top',
         deletable: false,
-        animated: !!attackPulse[t.id],
-        style: {
-          stroke: attackPulse[t.id] ? ATTACK : c.line,
-          strokeWidth: attackPulse[t.id] ? 2.5 : 1.5,
-        },
-        markerEnd: { type: MarkerType.ArrowClosed, color: attackPulse[t.id] ? ATTACK : c.line },
+        style: { stroke: c.line, strokeWidth: 1.5 },
+        markerEnd: { type: MarkerType.ArrowClosed, color: c.line },
       }))
       const userEdges: Edge[] = links
         .filter((link) => traps.some((t) => t.id === link.source_id) && traps.some((t) => t.id === link.target_id))
@@ -177,7 +179,15 @@ export function NetworkBuilderPage() {
       return [...autoEdges, ...userEdges]
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [traps, links, profilesPage, attackPulse, c, canManage, layoutRevision])
+  }, [traps, links, profilesPage, c, canManage, layoutRevision])
+
+  const visibleNodes = useMemo(() => nodes.map((node) => attackPulse[node.id]
+    ? { ...node, data: { ...node.data, underAttack: true } }
+    : node), [nodes, attackPulse])
+  const visibleEdges = useMemo(() => edges.map((edge) => edge.source === 'gateway' && attackPulse[edge.target]
+    ? { ...edge, animated: true, style: { ...edge.style, stroke: ATTACK, strokeWidth: 2.5 },
+      markerEnd: { type: MarkerType.ArrowClosed, color: ATTACK } }
+    : edge), [edges, attackPulse])
 
   const onConnect = useCallback((connection: Connection) => {
     if (!canManage || createLink.isPending || !canConnectTraps(connection.source, connection.target, traps, links)) return
@@ -218,6 +228,7 @@ export function NetworkBuilderPage() {
   function resetLayout() {
     localStorage.removeItem(LAYOUT_KEY)
     savedLayout.current = {}
+    resetPositions.current = true
     setLayoutRevision((revision) => revision + 1)
   }
 
@@ -261,8 +272,8 @@ export function NetworkBuilderPage() {
         </div>}
         <ReactFlow
           key={nodes.length > 1 ? 'traps' : 'gateway'}
-          nodes={nodes}
-          edges={edges}
+          nodes={visibleNodes}
+          edges={visibleEdges}
           onNodesChange={onNodesChange}
           onEdgesChange={canManage ? changeEdges : undefined}
           onConnect={canManage ? onConnect : undefined}
