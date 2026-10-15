@@ -1,0 +1,5 @@
+# The server's production manifest may predate custom HTTP traps.
+services:
+  orchestrator:
+    environment:
+      DECOY_HTTP_IMAGE: ${DECOY_HTTP_IMAGE:?Release must define DECOY_HTTP_IMAGE}
