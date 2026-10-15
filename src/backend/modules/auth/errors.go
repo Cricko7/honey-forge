@@ -3,6 +3,7 @@ package auth
 import "errors"
 
 var (
+	ErrMemberProtected           = errors.New("organization creator and administrators cannot be removed")
 	ErrAdminConfirmationRequired = errors.New("admin password confirmation required")
 	ErrPermissionChanged         = errors.New("member permission changed")
 	ErrPermissionProtected       = errors.New("administrator permissions are protected")

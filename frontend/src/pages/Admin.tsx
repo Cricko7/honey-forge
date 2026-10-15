@@ -8,6 +8,7 @@ import { canManage } from '@/lib/auth'
 import { Spinner } from '@/components/ui'
 import { MemberTable } from './organization/MemberTable'
 import { AdminAccessGate } from './organization/AdminAccessGate'
+import { RemoveMemberDialog } from './organization/RemoveMemberDialog'
 import type { OrganizationMember } from '@/types'
 
 export function AdminPage() {
@@ -21,6 +22,7 @@ function AdminContent() {
   const allowed = canManage(session)
   const qc = useQueryClient()
   const [selected, setSelected] = useState<OrganizationMember | null>(null)
+  const [removing, setRemoving] = useState<OrganizationMember | null>(null)
   const key = ['organization-members', session?.organization.id, session?.user.id]
   const members = useInfiniteQuery({
     queryKey: key,
@@ -41,12 +43,23 @@ function AdminContent() {
     },
     onError: async () => { await qc.invalidateQueries({ queryKey: key }) },
   })
+  const removal = useMutation({
+    mutationFn: (member: OrganizationMember) => api.removeMember(member.id),
+    meta: { alertSuccess: 'Участник удалён из организации, доступ отозван', alertError: 'Не удалось удалить участника' },
+    onSuccess: async () => {
+      setRemoving(null)
+      await qc.invalidateQueries({ queryKey: key })
+      await qc.invalidateQueries({ queryKey: ['organization', 'api-keys'] })
+    },
+    onError: async () => { await qc.invalidateQueries({ queryKey: key }) },
+  })
+  const pending = mutation.isPending || removal.isPending
   useEffect(() => {
-    const error = members.error ?? mutation.error
+    const error = members.error ?? mutation.error ?? removal.error
     if (error instanceof ApiError && (error.code === 'admin_confirmation_required' || error.status === 401)) {
       qc.setQueryData(['admin-access', session?.organization.id, session?.user.id], { expires_at: null })
     }
-  }, [members.error, mutation.error, qc, session?.organization.id, session?.user.id])
+  }, [members.error, mutation.error, removal.error, qc, session?.organization.id, session?.user.id])
   if (!allowed) return <Navigate to="/app" replace />
   const items = members.data?.pages.flatMap(page => page.items) ?? []
   const uniqueMembers = [...new Map(items.map(member => [member.id, member])).values()]
@@ -60,7 +73,7 @@ function AdminContent() {
       <section>
         <div><h2 className="text-sm font-semibold">Создатель организации</h2>
           <p className="mt-1 text-sm break-all">{members.isError ? 'Не удалось проверить' : creator?.email ?? (members.isPending ? 'Загрузка…' : 'Не установлен в исторических данных')}</p>
-          <p className="mt-2 text-xs text-muted">Только создатель выдаёт и отзывает делегированное право. Права администраторов защищены.</p>
+          <p className="mt-2 text-xs text-muted">Только создатель выдаёт и отзывает делегированное право и удаляет участников. Создатель и администраторы защищены от удаления.</p>
         </div>
       </section>
       <section>
@@ -75,16 +88,23 @@ function AdminContent() {
         <h2 className="font-semibold flex items-center gap-2"><Users size={18} className="text-brand" /> Участники</h2>
         <div className="flex flex-wrap gap-3 items-center">
           <Link className="text-sm text-brand" to="/app/organization">Приглашения и API-ключи</Link>
-          <button className="btn-ghost" disabled={members.isFetching || mutation.isPending} onClick={() => { void members.refetch() }}><RefreshCw size={15} /> Обновить</button>
+          <button className="btn-ghost" disabled={members.isFetching || pending} onClick={() => { void members.refetch() }}><RefreshCw size={15} /> Обновить</button>
         </div>
       </div>
       {members.isPending ? <div className="p-8"><Spinner /></div> : members.isError ?
         <p role="alert" className="p-6 text-sm text-danger">Не удалось проверить состав команды и права. Обновите данные.</p> :
-        <MemberTable members={uniqueMembers} creatorID={creator?.id} canDelegate={canDelegate} pending={mutation.isPending || members.isFetching} onChange={member => { mutation.reset(); setSelected(member) }} />}
-      {members.hasNextPage && !members.isError && <div className="p-4 border-t border-line"><button className="btn-ghost" disabled={members.isFetching || mutation.isPending} onClick={() => { void members.fetchNextPage() }}>Загрузить ещё</button></div>}
+        <MemberTable members={uniqueMembers} creatorID={creator?.id} canDelegate={canDelegate} pending={pending || members.isFetching}
+          onChange={member => { mutation.reset(); setSelected(member) }} onRemove={member => { removal.reset(); setRemoving(member) }} />}
+      {members.hasNextPage && !members.isError && <div className="p-4 border-t border-line"><button className="btn-ghost" disabled={members.isFetching || pending} onClick={() => { void members.fetchNextPage() }}>Загрузить ещё</button></div>}
     </section>
     <p className="text-xs text-muted leading-relaxed">«В сети» — видимая вкладка платформы подтверждала активность в последние 90 секунд. Обновление списка каждые 15 секунд. При закрытии вкладок статус изменится после истечения этого срока; выход завершает активность текущей сессии.</p>
     {USE_MOCK && <p className="text-sm text-warn">Демонстрационные данные. Для выдачи прав подключите сервер.</p>}
+    {removing && <RemoveMemberDialog member={removing} pending={removal.isPending}
+      error={removal.isError ? removal.error instanceof ApiError && removal.error.status === 404
+        ? 'Участник уже удалён или отсутствует. Закройте окно и проверьте обновлённый список.'
+        : 'Удаление не подтверждено. Закройте окно и проверьте обновлённый список перед повторной попыткой.'
+        : !canDelegate || members.isError ? 'Не удалось подтвердить права. Обновите список перед удалением.' : undefined}
+      onClose={() => setRemoving(null)} onConfirm={() => { if (canDelegate && !members.isError) removal.mutate(removing) }} />}
     {selected && <div className="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4">
       <section role="dialog" aria-modal="true" aria-labelledby="permission-title" className="card p-6 max-w-lg w-full space-y-4">
         <h2 id="permission-title" className="text-lg font-semibold">{selected.can_manage_traps ? 'Отозвать' : 'Выдать'} право управления ловушками?</h2>

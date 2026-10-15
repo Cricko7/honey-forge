@@ -11,6 +11,10 @@ import (
 
 func (r *Repository) CreateAPIKey(ctx context.Context, key authcore.APIKey) error {
 	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
+		var activeID string
+		if err := tx.QueryRow(ctx, `SELECT id::text FROM users WHERE id = $1 AND removed_at IS NULL FOR SHARE`, key.UserID).Scan(&activeID); err != nil {
+			return fmt.Errorf("locking active API key user: %w", err)
+		}
 		_, err := tx.Exec(ctx, `INSERT INTO operator_api_keys (id, user_id, name, prefix, token_hash, created_at)
 			VALUES ($1, $2, $3, $4, $5, $6)`, key.ID, key.UserID, key.Name, key.Prefix, key.Hash, key.CreatedAt)
 		if err != nil {
@@ -67,7 +71,7 @@ func (r *Repository) ResolveAPIKey(ctx context.Context, hash []byte) (authcore.R
 		u.id::text, u.organization_id::text, u.email, u.role, u.created_at, (u.role = 'admin' OR u.trap_management),
 		o.id::text, o.name, o.created_at
 		FROM operator_api_keys k JOIN users u ON u.id = k.user_id
-		JOIN organizations o ON o.id = u.organization_id WHERE k.token_hash = $1`, hash).
+		JOIN organizations o ON o.id = u.organization_id WHERE k.token_hash = $1 AND u.removed_at IS NULL`, hash).
 		Scan(&sess.ID, &sess.View.User.ID, &sess.View.User.OrganizationID,
 			&sess.View.User.Email, &sess.View.User.Role, &sess.View.User.CreatedAt, &sess.View.User.CanManageTraps,
 			&sess.View.Organization.ID, &sess.View.Organization.Name, &sess.View.Organization.CreatedAt)

@@ -75,6 +75,11 @@ export const api = {
     })
   },
 
+  async removeMember(id: string): Promise<void> {
+    if (USE_MOCK) throw new ApiError(503, 'demo_unavailable', 'Удаление участников доступно с подключённым сервером')
+    await real(`/api/organization/members/${encodeURIComponent(id)}`, { method: 'DELETE', cache: 'no-store' })
+  },
+
   async sendPresence(signal?: AbortSignal): Promise<void> {
     if (USE_MOCK) return
     await real('/api/session/presence', { method: 'POST', cache: 'no-store', signal })

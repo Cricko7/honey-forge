@@ -20,6 +20,8 @@ func (h *Handler) fail(c *gin.Context, event string, err error) {
 	var adminRateError *authcore.AdminPasswordRateError
 
 	switch {
+	case errors.Is(err, authcore.ErrMemberProtected):
+		status, code, message = 409, "member_protected", "Organization creator and administrators cannot be removed"
 	case errors.Is(err, authcore.ErrAdminConfirmationRequired):
 		status, code, message = 403, "admin_confirmation_required", "Confirm your account password to access the admin panel"
 	case errors.As(err, &adminRateError):

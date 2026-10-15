@@ -12,9 +12,10 @@ import (
 )
 
 type storedUser struct {
-	user authcore.User
-	org  authcore.Organization
-	hash string
+	user    authcore.User
+	org     authcore.Organization
+	hash    string
+	removed bool
 }
 
 type storedOrg struct {
@@ -83,7 +84,7 @@ func (m *Store) Register(_ context.Context, user authcore.User, org authcore.Org
 		m.creators[org.ID] = user.ID
 	}
 
-	m.users[user.Email] = storedUser{user, org, hash}
+	m.users[user.Email] = storedUser{user: user, org: org, hash: hash}
 	m.revisions[user.ID] = 1
 	m.Sessions[hex.EncodeToString(sess.Hash)] = sess
 
@@ -99,7 +100,7 @@ func (m *Store) Credentials(_ context.Context, email string) (authcore.User, aut
 	}
 
 	record, ok := m.users[email]
-	if !ok {
+	if !ok || record.removed {
 		return authcore.User{}, authcore.Organization{}, "", authcore.ErrNotFound
 	}
 
@@ -114,6 +115,16 @@ func (m *Store) CreateSession(_ context.Context, sess authcore.Session, old []by
 		return m.Err
 	}
 
+	active := false
+	for _, record := range m.users {
+		if record.user.ID == sess.UserID && !record.removed {
+			active = true
+			break
+		}
+	}
+	if !active {
+		return authcore.ErrNotFound
+	}
 	delete(m.Sessions, hex.EncodeToString(old))
 	m.Sessions[hex.EncodeToString(sess.Hash)] = sess
 
@@ -134,7 +145,7 @@ func (m *Store) ResolveSession(_ context.Context, hash []byte) (authcore.Resolve
 	}
 
 	for _, record := range m.users {
-		if record.user.ID == sess.UserID {
+		if record.user.ID == sess.UserID && !record.removed {
 			return authcore.ResolvedSession{
 				ID:       sess.ID,
 				CSRFHash: sess.CSRFHash,

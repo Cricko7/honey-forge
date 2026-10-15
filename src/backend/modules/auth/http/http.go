@@ -38,6 +38,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) error {
 	group.POST("/admin-session", private, h.requireBrowserSession(), rejectQuery, limiter.middleware, h.confirmAdminAccess)
 	group.DELETE("/admin-session", private, h.requireBrowserSession(), rejectQuery, h.lockAdminAccess)
 	group.GET("/organization/members", private, h.requireBrowserSession(), h.requireAdminAccess(), h.members)
+	group.DELETE("/organization/members/:id", private, h.requireBrowserSession(), h.requireAdminAccess(), rejectQuery, h.removeMember)
 	group.PATCH("/organization/members/:id/trap-permission", private, h.requireBrowserSession(), h.requireAdminAccess(), rejectQuery, h.setTrapPermission)
 	group.POST("/session/presence", private, h.requireBrowserSession(), rejectQuery, h.presence)
 	group.POST("/registrations", limiter.middleware, rejectQuery, h.register)

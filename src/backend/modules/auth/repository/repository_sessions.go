@@ -11,6 +11,10 @@ import (
 )
 
 func insertSession(ctx context.Context, tx pgx.Tx, sess authcore.Session) error {
+	var activeID string
+	if err := tx.QueryRow(ctx, `SELECT id::text FROM users WHERE id = $1 AND removed_at IS NULL FOR SHARE`, sess.UserID).Scan(&activeID); err != nil {
+		return fmt.Errorf("locking active session user: %w", err)
+	}
 	_, err := tx.Exec(ctx, `
 		INSERT INTO operator_sessions (id, token_hash, csrf_hash, user_id, expires_at)
 		VALUES ($1, $2, $3, $4, $5)
@@ -46,7 +50,7 @@ func (r *Repository) ResolveSession(ctx context.Context, hash []byte) (authcore.
 		FROM operator_sessions s
 		JOIN users u ON u.id = s.user_id
 		JOIN organizations o ON o.id = u.organization_id
-		WHERE s.token_hash = $1 AND s.expires_at > now()
+		WHERE s.token_hash = $1 AND s.expires_at > now() AND u.removed_at IS NULL
 	`, hash).Scan(&sess.ID, &sess.CSRFHash, &sess.View.ExpiresAt,
 		&sess.View.User.ID, &sess.View.User.OrganizationID, &sess.View.User.Email, &sess.View.User.Role, &sess.View.User.CreatedAt, &sess.View.User.CanManageTraps,
 		&sess.View.Organization.ID, &sess.View.Organization.Name, &sess.View.Organization.CreatedAt)

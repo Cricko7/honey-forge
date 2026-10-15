@@ -86,7 +86,7 @@ func (r *Repository) Credentials(ctx context.Context, email string) (authcore.Us
 		SELECT u.id::text, u.organization_id::text, u.email, u.role, u.created_at, (u.role = 'admin' OR u.trap_management),
 			o.id::text, o.name, o.created_at, u.password_hash
 		FROM users u JOIN organizations o ON o.id = u.organization_id
-		WHERE u.email = $1
+		WHERE u.email = $1 AND u.removed_at IS NULL
 	`, email).Scan(&user.ID, &user.OrganizationID, &user.Email, &user.Role, &user.CreatedAt, &user.CanManageTraps,
 		&org.ID, &org.Name, &org.CreatedAt, &hash)
 

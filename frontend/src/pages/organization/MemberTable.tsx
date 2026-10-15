@@ -1,12 +1,13 @@
 import type { OrganizationMember } from '@/types'
 import { formatDateTime } from '@/lib/utils'
 
-export function MemberTable({ members, creatorID, canDelegate, pending, onChange }: {
+export function MemberTable({ members, creatorID, canDelegate, pending, onChange, onRemove }: {
   members: OrganizationMember[]
   creatorID?: string
   canDelegate: boolean
   pending: boolean
   onChange: (member: OrganizationMember) => void
+  onRemove: (member: OrganizationMember) => void
 }) {
   return <div className="overflow-x-auto">
     <table className="data-table w-full min-w-[720px] text-sm">
@@ -34,10 +35,12 @@ export function MemberTable({ members, creatorID, canDelegate, pending, onChange
           </span>
         </td>
         <td className="px-5 py-4 whitespace-nowrap">
-          {member.role === 'admin' ? <span className="text-xs text-muted">Права защищены</span> : canDelegate ?
+          {member.role === 'admin' || member.id === creatorID ? <span className="text-xs text-muted">Права защищены</span> : canDelegate ? <div className="flex flex-col items-start gap-2">
             <button className={member.can_manage_traps ? 'btn-ghost text-danger' : 'btn-ghost text-brand'} disabled={pending} onClick={() => onChange(member)}>
               {member.can_manage_traps ? 'Отозвать право' : 'Выдать право'}
-            </button> : <span className="text-xs text-muted">Меняет создатель</span>}
+            </button>
+            <button className="btn-ghost text-danger" disabled={pending} onClick={() => onRemove(member)}>Удалить из организации</button>
+          </div> : <span className="text-xs text-muted">Меняет создатель</span>}
         </td>
       </tr>)}</tbody>
     </table>

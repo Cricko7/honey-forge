@@ -37,7 +37,7 @@ func (m *Store) Members(_ context.Context, actor auth.AuthContext, limit int, cu
 	now := time.Now()
 	for _, rec := range m.users {
 		u := rec.user
-		if u.OrganizationID != actor.OrganizationID {
+		if u.OrganizationID != actor.OrganizationID || rec.removed {
 			continue
 		}
 		if u.ID == m.creators[actor.OrganizationID] {
@@ -86,7 +86,7 @@ func (m *Store) SetTrapPermission(_ context.Context, actor auth.AuthContext, id 
 		return auth.ErrAdminConfirmationRequired
 	}
 	for email, rec := range m.users {
-		if rec.user.ID != id || rec.user.OrganizationID != actor.OrganizationID {
+		if rec.user.ID != id || rec.user.OrganizationID != actor.OrganizationID || rec.removed {
 			continue
 		}
 		if rec.user.Role == auth.RoleAdmin {

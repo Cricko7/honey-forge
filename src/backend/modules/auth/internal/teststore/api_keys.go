@@ -14,6 +14,16 @@ func (m *Store) CreateAPIKey(_ context.Context, key authcore.APIKey) error {
 		return m.Err
 	}
 
+	active := false
+	for _, record := range m.users {
+		if record.user.ID == key.UserID && !record.removed {
+			active = true
+			break
+		}
+	}
+	if !active {
+		return authcore.ErrNotFound
+	}
 	m.Keys[key.ID] = key
 
 	return nil
@@ -67,7 +77,7 @@ func (m *Store) ResolveAPIKey(_ context.Context, hash []byte) (authcore.Resolved
 		}
 
 		for _, user := range m.users {
-			if user.user.ID == key.UserID {
+			if user.user.ID == key.UserID && !user.removed {
 				return authcore.ResolvedSession{ID: key.ID, View: authcore.SessionView{User: user.user, Organization: user.org}}, nil
 			}
 		}

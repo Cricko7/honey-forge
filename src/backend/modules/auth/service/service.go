@@ -17,6 +17,7 @@ type store interface {
 	LockAdminAccess(context.Context, authcore.AuthContext) error
 	Members(context.Context, authcore.AuthContext, int, string) (authcore.MemberPage, error)
 	SetTrapPermission(context.Context, authcore.AuthContext, string, bool, int32) error
+	RemoveMember(context.Context, authcore.AuthContext, string) error
 	TouchPresence(context.Context, string, string) error
 	Register(context.Context, authcore.User, authcore.Organization, authcore.OrganizationInput, string, authcore.Session, authcore.JoinCode) (authcore.Organization, error)
 	Credentials(context.Context, string) (authcore.User, authcore.Organization, string, error)
@@ -122,6 +123,9 @@ func (s *Service) Login(ctx context.Context, req authcore.LoginRequest, currentC
 	}
 
 	if err := s.store.CreateSession(ctx, sess, oldHash); err != nil {
+		if errors.Is(err, authcore.ErrNotFound) {
+			return authcore.SessionView{}, "", authcore.ErrInvalidCredentials
+		}
 		return authcore.SessionView{}, "", fmt.Errorf("replacing browser session: %w", err)
 	}
 

@@ -3103,6 +3103,40 @@ paths:
           $ref: '#/components/responses/InternalError'
         '503':
           $ref: '#/components/responses/Unavailable'
+  /api/organization/members/{id}:
+    delete:
+      operationId: removeOrganizationMember
+      summary: Remove a viewer from the organization and revoke access
+      description: Only the organization's creator with an active browser administrator session and unexpired password confirmation can remove a member. Bearer credentials are rejected. Missing confirmation returns 403 admin_confirmation_required before target validation. The creator, the acting user and administrators are protected (409 member_protected). Foreign, absent and previously removed targets return the same 404 resource_not_found. Atomically disables the account, revokes all its browser sessions and API keys, and commits member.removed audit and notification targeting the user. Retains the user identity, email uniqueness and all history; the account cannot log in or re-register with the same email. Removed members disappear from the member list and cannot receive trap permissions. Concurrent login/key issuance cannot restore access after removal. Already accepted requests and commands may complete; existing streams use their normal authentication revalidation. No self-service restoration. Empty body and no query parameters. Cache-Control is no-store.
+      security:
+      - sessionCookie: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/ID'
+      - $ref: '#/components/parameters/Origin'
+      - $ref: '#/components/parameters/CSRF'
+      responses:
+        '204':
+          description: Member removed and credentials revoked; empty response.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
   /api/organization/members/{id}/trap-permission:
     patch:
       operationId: setMemberTrapPermission

@@ -48,7 +48,7 @@ func (r *Repository) Members(ctx context.Context, actor auth.AuthContext, limit 
 			SELECT max(s.last_seen_at) AS last_seen_at FROM operator_sessions s
 			WHERE s.user_id = u.id AND s.expires_at > now()
 		) p ON true
-		WHERE u.organization_id = $1 AND ($2::uuid IS NULL OR u.id > $2::uuid)
+		WHERE u.organization_id = $1 AND u.removed_at IS NULL AND ($2::uuid IS NULL OR u.id > $2::uuid)
 		ORDER BY u.id LIMIT $3`, actor.OrganizationID, after, limit+1)
 	if err != nil {
 		return page, databaseError("listing members", err)
@@ -81,7 +81,7 @@ func (r *Repository) SetTrapPermission(ctx context.Context, actor auth.AuthConte
 			EXISTS (SELECT 1 FROM operator_sessions s WHERE s.id = $3 AND s.user_id = actor.id
 			AND s.expires_at > now() AND s.admin_verified_until > now())
 			FROM organizations o JOIN users actor ON actor.organization_id = o.id
-			WHERE o.id = $1 AND actor.id = $2 FOR UPDATE OF o`, actor.OrganizationID, actor.UserID, actor.SessionID).Scan(&allowed, &confirmed)
+			WHERE o.id = $1 AND actor.id = $2 FOR NO KEY UPDATE OF o`, actor.OrganizationID, actor.UserID, actor.SessionID).Scan(&allowed, &confirmed)
 		if errors.Is(err, pgx.ErrNoRows) || (err == nil && !allowed) {
 			return auth.ErrForbidden
 		}
@@ -95,7 +95,7 @@ func (r *Repository) SetTrapPermission(ctx context.Context, actor auth.AuthConte
 		var current bool
 		var revision int32
 		err = tx.QueryRow(ctx, `SELECT role, trap_management, permission_revision FROM users
-			WHERE organization_id = $1 AND id = $2 FOR UPDATE`, actor.OrganizationID, id).Scan(&role, &current, &revision)
+			WHERE organization_id = $1 AND id = $2 AND removed_at IS NULL FOR NO KEY UPDATE`, actor.OrganizationID, id).Scan(&role, &current, &revision)
 		if err != nil {
 			return err
 		}

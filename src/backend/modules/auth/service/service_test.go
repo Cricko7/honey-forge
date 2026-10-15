@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"encoding/hex"
 	"errors"
 	"strings"
@@ -14,6 +15,23 @@ import (
 	authcore "honey-forge/modules/auth"
 	"honey-forge/modules/auth/internal/teststore"
 )
+
+type removedDuringLoginStore struct{ *teststore.Store }
+
+func (s removedDuringLoginStore) CreateSession(context.Context, authcore.Session, []byte) error {
+	return authcore.ErrNotFound
+}
+
+func TestLoginRemovedDuringPasswordCheck(t *testing.T) {
+	repo := teststore.New()
+	if _, _, err := NewService(repo).Register(t.Context(), createRequest("removed@example.com"), ""); err != nil {
+		t.Fatal(err)
+	}
+	s := NewService(removedDuringLoginStore{repo})
+	if _, _, err := s.Login(t.Context(), authcore.LoginRequest{Email: "removed@example.com", Password: "demo-password-2026"}, ""); !errors.Is(err, authcore.ErrInvalidCredentials) {
+		t.Fatalf("concurrent removal must give generic login failure: %v", err)
+	}
+}
 
 func createRequest(email string) authcore.RegisterRequest {
 	return authcore.RegisterRequest{
