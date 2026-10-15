@@ -5,7 +5,7 @@ import { ThemeToggle } from './ThemeToggle'
 export function AuthShell({ title, description, children }: { title: string; description: string; children: ReactNode }) {
   return <div className="min-h-dvh flex flex-col">
     <header className="flex items-center justify-between px-6 py-4 border-b border-line bg-bg-panel">
-      <div className="flex items-center gap-2.5 font-semibold"><Logo size={28} /> HoneyForge</div>
+      <div className="flex items-center gap-2.5 font-semibold"><Logo className="shrink-0" /> HoneyForge</div>
       <ThemeToggle />
     </header>
     <main className="flex-1 flex items-center justify-center px-5 py-10">

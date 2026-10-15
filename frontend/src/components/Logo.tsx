@@ -1,29 +1,46 @@
-export function Logo({ size = 32, className = '' }: { size?: number; className?: string }) {
+export function Logo({ size = 40, className = '' }: { size?: number; className?: string }) {
   return (
     <svg
       width={size}
       height={size}
-      viewBox="0 0 32 32"
+      viewBox="290 100 1040 1320"
       fill="none"
       className={className}
       aria-hidden="true"
+      focusable="false"
     >
-      <defs>
-        <linearGradient id="hf-logo-grad" x1="5" y1="3" x2="27" y2="29" gradientUnits="userSpaceOnUse">
-          <stop stopColor="rgb(var(--brand-soft))" />
-          <stop offset="1" stopColor="rgb(var(--brand-deep))" />
-        </linearGradient>
-      </defs>
-      <path
-        d="M16 2.6 L27.4 9.3 L27.4 22.7 L16 29.4 L4.6 22.7 L4.6 9.3 Z"
-        stroke="url(#hf-logo-grad)"
-        strokeWidth="2.1"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M16 9 C16.75 13.1 18.9 15.25 23 16 C18.9 16.75 16.75 18.9 16 23 C15.25 18.9 13.1 16.75 9 16 C13.1 15.25 15.25 13.1 16 9 Z"
-        fill="url(#hf-logo-grad)"
-      />
+      {/* Shared silhouette, with the two reference palettes supplied by the theme. */}
+      <g fill="rgb(var(--logo-primary))">
+        {/* Hammer */}
+        <path d="M516 289 Q545 254 570 244 Q590 235 615 250 Q662 278 693 313 Q711 336 697 356 L670 388 Q665 395 657 387 Q593 323 516 291Z" />
+        <path d="M403 431 L489 318 Q501 299 511 306 L534 319 L433 454 L407 442 Q397 438 403 431Z" />
+        <path d="M449 461 L543 335 Q549 325 557 331 L643 394 Q653 401 645 412 L550 537 Q544 546 536 539 L452 475 Q445 469 449 461Z" />
+        <path d="M354 495 L379 463 Q385 452 396 459 Q472 493 529 553 Q539 562 530 575 L502 610 Q486 630 463 614 Q403 579 363 537 Q344 520 354 495Z" />
+        <path d="M594 508 L646 440 L895 606 L847 664Z" />
+        <path d="M868 659 L899 620 Q909 608 922 618 L933 626 Q941 632 931 645 L900 686 Q893 697 882 690 L869 681 Q860 674 868 659Z" />
+        <path d="M906 703 L953 640 L1100 733 Q1112 740 1106 754 L1085 803 Q1079 818 1068 809Z" />
+        {/* Honeycomb shield */}
+        <path d="M319 668 Q407 691 513 652 L512 730 L405 804 L323 774Z" />
+        <path d="M535 642 L645 575 L747 632 L746 727 L638 789 L533 730Z" />
+        <path d="M767 645 L940 748 L874 785 L766 725Z" />
+        <path d="M326 798 L383 828 L383 922 L349 941 Q330 881 326 798Z" />
+        <path d="M406 825 L520 750 L624 807 L624 930 L519 977 L405 922Z" />
+        <path d="M645 805 L752 745 L860 807 L859 919 L750 974 L643 930Z" />
+        <path d="M883 808 L958 766 L1031 810 Q1023 902 996 970 L881 918Z" />
+        <path d="M356 962 L397 943 L498 995 L497 1092 L431 1133 Q380 1052 356 962Z" />
+        <path d="M520 996 L634 931 L738 993 L738 1095 L632 1154 L519 1093Z" />
+        <path d="M759 995 L870 943 L979 990 Q950 1080 876 1154 L758 1095Z" />
+        <path d="M438 1153 L510 1113 L615 1174 L615 1279 L582 1298 Q492 1232 438 1153Z" />
+        <path d="M636 1174 L744 1113 L853 1174 L737 1325 L636 1276Z" />
+        <path d="M585 1314 L625 1290 L725 1345 L704 1380 Q700 1393 688 1385 Q630 1352 585 1314Z" />
+      </g>
+      {/* Flame */}
+      <g fill="rgb(var(--logo-secondary))">
+        <path d="M1004 126 C947 225 989 298 1097 387 C1188 462 1203 557 1097 691 C1128 559 1085 507 999 436 C874 332 873 225 1004 126Z" />
+        <path d="M877 326 C850 399 897 446 979 510 C1043 561 1082 614 1062 680 C1022 662 987 626 950 595 C848 515 766 426 877 326Z" />
+        <path d="M1213 467 C1320 584 1347 735 1236 863 C1148 961 1048 1017 995 1073 C1023 945 1104 872 1136 774 C1166 682 1128 676 1149 646 C1211 578 1235 524 1213 467Z" />
+        <path d="M1274 853 C1314 993 1221 1110 1079 1173 C924 1243 829 1307 730 1391 C801 1282 876 1193 996 1110 C1139 1010 1235 961 1274 853Z" />
+      </g>
     </svg>
   )
 }

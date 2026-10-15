@@ -36,6 +36,8 @@
     --brand: 110 86 207; /* #6E56CF благородный фиолет (Radix violet) — мостик warm/cool */
     --brand-soft: 138 116 232; /* #8A74E8 */
     --brand-deep: 88 68 170; /* #5844AA */
+    --logo-primary: 91 54 148;
+    --logo-secondary: 161 171 183;
     --ok: 18 112 84;
     --warn: 140 98 20;
     --danger: 178 42 70;
@@ -61,6 +63,8 @@
     --brand: 139 122 243;
     --brand-soft: 173 158 255;
     --brand-deep: 109 92 214;
+    --logo-primary: 124 72 250;
+    --logo-secondary: 194 201 216;
     --ok: 52 200 150;
     --warn: 240 185 60;
     --danger: 240 72 102;
