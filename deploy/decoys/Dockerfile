@@ -56,7 +56,7 @@ RUN git init . \
     && mkdir -p /opt/conpot/.venv/lib/python3.14/site-packages/conpot/tests/data/data_temp_fs
 
 FROM python:3.14-slim AS conpot
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates iptables gosu docker.io busybox \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates iptables gosu docker-cli busybox \
     && ln -s /usr/sbin/gosu /usr/local/bin/su-exec \
     && ln -s /usr/bin/busybox /usr/local/bin/nslookup \
     && ln -s /usr/bin/busybox /usr/local/bin/pidof \

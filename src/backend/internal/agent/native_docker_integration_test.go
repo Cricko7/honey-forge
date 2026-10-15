@@ -124,7 +124,13 @@ http.server.HTTPServer(('0.0.0.0',18080),Handler).serve_forever()`
 	if err == nil {
 		t.Fatalf("outbound TCP allowed: %s", out)
 	}
-	docker("exec", "--user", "65532:65532", p.workerName(), "python3", "-I", "-c", `import socket,sys;s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.sendto(b'test',(sys.argv[1],18080))`, peer)
+	// A local OUTPUT DROP can reject sendto with EPERM instead of silently dropping.
+	docker("exec", "--user", "65532:65532", p.workerName(), "python3", "-I", "-c", `import socket,sys
+s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+try:
+ s.sendto(b'test',(sys.argv[1],18080))
+except PermissionError:
+ pass`, peer)
 	if count := docker("run", "--rm", "--network", network, "--entrypoint", "python3", image, "-I", "-c", query, peer); count != "0" {
 		t.Fatalf("outbound UDP reached peer: %s", count)
 	}
