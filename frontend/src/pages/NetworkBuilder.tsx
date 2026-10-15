@@ -168,7 +168,7 @@ export function NetworkBuilderPage() {
           ...trapLinkHandles(trapNodes.find((node) => node.id === link.source_id)!.position, trapNodes.find((node) => node.id === link.target_id)!.position),
           type: 'smoothstep',
           selected: prev.find((edge) => edge.id === trapLinkKey(link))?.selected,
-          label: trapLinkLabel(link, profilesPage?.items.find((p) => p.id === traps.find((t) => t.id === link.source_id)?.profile_id)?.config),
+          label: trapLinkLabel(link, profilesPage?.items.find((p) => p.id === traps.find((t) => t.id === link.source_id)?.profile_id)?.config, traps.find((t) => t.id === link.target_id)?.type_id),
           style: { stroke: c.brand, strokeWidth: 2 },
           labelStyle: { fill: c.brand, fontSize: 11 },
           labelBgStyle: { fill: c.panel },
@@ -233,7 +233,7 @@ export function NetworkBuilderPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Конструктор сети</h1>
           <p className="text-sm text-muted">
-            {canManage ? 'A → B разрешает передачу данных · HTTP-сценарий отправки задаётся в конструкторе ловушек' : 'Карта ловушек организации · только просмотр, кликните для деталей'}
+            {canManage ? 'Стрелки задают получателей блока «Передать JSON по сети» · без HTTP-связей отправляемые данные отбрасываются' : 'Карта ловушек организации · только просмотр, кликните для деталей'}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

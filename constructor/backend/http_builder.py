@@ -1,10 +1,11 @@
 """HTTP behavior blocks compiled to the Python managed runtime contract."""
 import json
 import re
-import uuid
 from fastapi import HTTPException
 from .models import Node
 from .node_registry import field, port
+
+NETWORK_TARGET_ID = '00000000-0000-0000-0000-000000000000'
 
 
 def spec(kind, name, fields, outputs=('out',), doc=''):
@@ -25,7 +26,7 @@ HTTP_TYPES = [
     spec('transform', 'Преобразовать данные', [field('key', 'Переменная', 'text', 'data'), field('operation', 'Операция', 'select', 'assign', options=['assign', 'upper', 'lower', 'add', 'merge', 'remove']), field('value', 'Значение JSON / шаблон', 'textarea', '"${json}"')], ('out', 'error')),
     spec('state', 'Данные сессии', [field('operation', 'Операция', 'select', 'get', options=['get', 'set', 'delete']), field('key', 'Ключ', 'text', 'step'), field('value', 'Значение JSON / шаблон', 'textarea', '1')], ('out', 'error'), 'Сессия определяется cookie hf_session, срок хранения 30 минут.'),
     spec('call', 'Вызвать другую ловушку', [field('target', 'HTTP-вход получателя', 'node', ''), field('payload', 'Передаваемый JSON', 'textarea', '"${json}"'), field('key', 'Переменная результата', 'text', 'result')], ('out', 'error'), 'Выберите HTTP-вход на этой доске. Результат доступен в vars.result, статус — vars.result_status.'),
-    spec('send', 'Передать в отдельную ловушку', [field('target_id', 'Ловушка-получатель', 'trap', ''), field('service', 'Имя HTTP-входа получателя', 'text', 'web'), field('method', 'Метод', 'select', 'POST', options=['POST', 'PUT', 'PATCH']), field('path', 'Эндпоинт получателя', 'text', '/pipeline'), field('payload', 'Передаваемый JSON', 'textarea', '"${json}"')], ('out', 'error'), 'Передаёт JSON в отдельно развёрнутую HTTP-ловушку вашей организации. out означает принятие в очередь агента; обработка продолжается у получателя. На получателе настройте HTTP-вход с этим именем, методом и путём. Ошибки связи идут в error. Развёртывание создаёт разрешённую связь.'),
+    spec('send', 'Передать JSON по сети', [field('service', 'Имя HTTP-входа получателей', 'text', 'web'), field('method', 'Метод', 'select', 'POST', options=['POST', 'PUT', 'PATCH']), field('path', 'Эндпоинт получателей', 'text', '/pipeline'), field('payload', 'Передаваемый JSON', 'textarea', '"${json}"')], ('out', 'error'), 'Получатели задаются стрелками из этой ловушки в Конструкторе сети. JSON передаётся каждой связанной HTTP-ловушке вашей организации. Без HTTP-стрелок данные отбрасываются, сценарий продолжается через out. Новые стрелки действуют только на новые отправки; повторно развёртывать источник не нужно. На получателях должны совпадать имя входа, метод и путь. При наличии получателей out означает принятие передачи, а не завершение обработки. Ошибки передачи идут в error.'),
     spec('fork', 'Параллельные ветки', [], ('branch1', 'branch2', 'branch3', 'out', 'error'), 'Каждая ветка имеет свою копию данных и должна закончиться ответом. out продолжается после завершения всех веток.'),
     spec('join', 'Собрать результаты', [field('key', 'Переменная результатов', 'text', 'results')], ('out', 'error'), 'Собирает результаты предшествующего разветвления по именам branch1, branch2, branch3.'),
     spec('event', 'Отправить событие', [field('name', 'Имя события', 'text', 'pipeline.stage'), field('severity', 'Важность телеметрии', 'select', 'medium', options=['low', 'medium', 'high', 'critical'], hint='low — обычное (белый); medium — средняя важность (жёлтый); high — высокая (красный); critical — критическая (багровый). Цвет применяется в журнале и уведомлениях.'), field('payload', 'Данные события (JSON / шаблон)', 'textarea', '"${json}"')], ('out', 'error'), 'Поставьте блок на нужном этапе или после условия, чтобы отметить важную телеметрию. Выберите важность события в настройках блока. Отправляет http.custom с вашим именем и JSON; технический журнал сохраняется. Данные события — до 4 КБ.'),
@@ -69,10 +70,7 @@ def compile_http(chain):
         if node.type == 'http/event' and not re.fullmatch(r'[a-z][a-z0-9_.-]{0,63}', config['name']):
             raise HTTPException(422, f'{node.id}: неверное имя события')
         if node.type == 'http/send':
-            try:
-                config['target_id']=str(uuid.UUID(config['target_id']))
-            except (ValueError,AttributeError) as error:
-                raise HTTPException(422,f'{node.id}: выберите ловушку-получатель') from error
+            config['target_id'] = NETWORK_TARGET_ID
             if not re.fullmatch(r'[a-z][a-z0-9_-]{0,31}',config['service']) or not config['path'].startswith('/') or config['path'].startswith('//') or any(ch in config['path'] for ch in ('?', '#', '\r', '\n')):
                 raise HTTPException(422,f'{node.id}: неверный HTTP-вход или эндпоинт')
         json_fields = []

@@ -28,6 +28,13 @@ test('configured HTTP sends are labelled as directed JSON delivery', () => {
   assert.equal(trapLinkLabel(link, { blocks: [null, { kind: 'send' }] }), 'копия трафика')
 })
 
+test('network-routed sends use each outgoing HTTP arrow', () => {
+  const config = { blocks: [{ kind: 'send', config: { target_id: '00000000-0000-0000-0000-000000000000' } }] }
+  assert.equal(trapLinkLabel({ source_id: 'a', target_id: 'b' }, config, 'custom-http'), 'передача JSON')
+  assert.equal(trapLinkLabel({ source_id: 'a', target_id: 'c' }, config, 'custom-http'), 'передача JSON')
+  assert.equal(trapLinkLabel({ source_id: 'a', target_id: 'redis' }, config, 'redis-emulator'), 'копия трафика')
+})
+
 test('rejects duplicates, self links, gateway and missing traps', () => {
   const traps = [{ id: 'a' }, { id: 'b' }]
   const links = [{ source_id: 'a', target_id: 'b' }]

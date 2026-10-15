@@ -2105,8 +2105,8 @@ paths:
           $ref: '#/components/responses/Error'
     post:
       operationId: createTrapLink
-      summary: Connect two traps for passive incoming traffic mirroring
-      description: Admin only. Unknown/deleted/cross-organization endpoints return 404. Self links return 422; an existing direction returns 409 trap_link_exists. Reverse links are independent. Takes effect on subsequent mirrored frames, including active connections; buffered frames already accepted may still arrive after deletion. Neither trap revision changes.
+      summary: Connect traps for traffic mirroring and network-routed HTTP JSON sends
+      description: Admin only. Unknown/deleted/cross-organization endpoints return 404. Self links return 422; an existing direction returns 409 trap_link_exists. Reverse links are independent. Takes effect on subsequent mirrored frames, including active connections; buffered frames already accepted may still arrive after deletion. Custom HTTP send blocks using network routing resolve all outgoing custom-http targets from these links at admission time; their service, method and path must match each installed receiver. With no outgoing HTTP links the send succeeds and discards its JSON; later links never replay an acknowledged discard. Fan-out admission is atomic and idempotent. Changing arrows requires no source redeployment. Legacy sends with an explicit target retain their existing behavior. Neither trap revision changes.
       security:
       - sessionCookie: []
       - apiKeyBearer: []
@@ -3852,7 +3852,7 @@ x-websockets:
     http_pipeline:
       opt_in: agent.hello http_pipeline=true and http_pipeline_receipts=true enable durable delivery; welcome returns supported flags. Agents without receipts retain legacy best-effort sends and do not consume the durable queue.
       authorization: Requires a directed trap-link, current custom-http snapshots, live credentials/connections in the same organization and matching service/method/path. No arbitrary URL or outgoing decoy socket.
-      delivery: Asynchronous PostgreSQL queue; acknowledgement means committed, not processed. Request IDs make admission idempotent. Deliveries retry after a 45-second lease across reconnects and API restarts until http.response or terminal http.failure is persisted atomically with telemetry or the chain expires. Stopped/offline receivers wait; local overload does not stop workers. A running worker suppresses duplicate tokens. Worker crashes before receipt persistence can repeat execution. Revoked links, rotated credentials, deleted traps and changed endpoints cancel retries.
+      delivery: Asynchronous PostgreSQL queue; acknowledgement means committed, not processed. Network routing resolves outgoing custom-http links atomically at admission; a send without such links is acknowledged and discarded, never replayed to later links. Network admission requires durable receipts and is bounded to 4096 records per organization until five-minute expiry. Request IDs make admission idempotent. Deliveries retry after a 45-second lease across reconnects and API restarts until http.response or terminal http.failure is persisted atomically with telemetry or the chain expires. Stopped/offline receivers with installed configurations wait; local overload does not stop workers. A running worker suppresses duplicate tokens. Worker crashes before receipt persistence can repeat execution. Revoked links, rotated credentials, deleted traps and changed endpoints cancel retries.
       limits: 8192 JSON payload bytes; 16 concurrent deliveries per runtime; 4096 admitted handoffs and five minutes per chain; 4096 admission receipts and continuation tokens per organization until expiry. Tokens are bound to the receiving organization/trap and credential generation, survive reconnects and expire with the chain.
       messages:
         pipeline.send:
@@ -3862,7 +3862,7 @@ x-websockets:
           properties:
             request_id: {type: string, format: uuid}
             node_id: {type: string, minLength: 1, maxLength: 64}
-            target_id: {type: string, format: uuid}
+            target_id: {type: string, format: uuid, description: 'Receiver UUID, or 00000000-0000-0000-0000-000000000000 to route through the current outgoing network links'}
             service: {type: string, pattern: '^[a-z][a-z0-9_-]{0,31}$'}
             method: {type: string, enum: [POST, PUT, PATCH]}
             path: {type: string, minLength: 1, maxLength: 2048, description: Absolute endpoint path without host, query, fragment or control characters}

@@ -434,15 +434,7 @@ function renderInspector() {
 
   for (const f of spec.config) html += renderField(f, node.config[f.key]);
   if (node.type === 'http/send') {
-    const target = S.realTraps.find(t => t.id === node.config.target_id);
-    const profile = S.realProfiles?.find(p => p.id === target?.profile_id);
-    if (profile?.config?.services) {
-      const inputs = profile.config.services.map(s => {
-        const entry = profile.config.blocks?.find(b => b.id === s.entry);
-        return `${s.name}: ${entry?.config?.method || 'ANY'} ${entry?.config?.path || '*'} · порт ${s.port}`;
-      });
-      html += `<div class="insp-doc">HTTP-входы получателя:<br>${inputs.map(esc).join('<br>')}</div>`;
-    }
+    html += `<div class="insp-doc">Соедините ловушки стрелками в Конструкторе сети. Без исходящих HTTP-связей данные уходят в пустоту, а сценарий продолжается.</div>`;
   }
 
   html += `<div class="insp-doc">${esc(spec.doc || "")}</div>`;

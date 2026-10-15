@@ -67,7 +67,11 @@ func (h *Handler) handlePipeline(entry *sessionEntry, session *agentSession, mes
 			return h.PipelineStore.EnqueuePipeline(ctx, session.identity, r)
 		})
 	} else if err == nil {
-		err = h.routePipeline(session, r)
+		if r.TargetID == pipeline.NetworkTargetID {
+			err = fmt.Errorf("network routing requires durable pipeline receipts")
+		} else {
+			err = h.routePipeline(session, r)
+		}
 	}
 
 	return session.socket.Reply(session.ctx, message, "pipeline.ack", map[string]any{"request_id": r.RequestID, "accepted": err == nil})

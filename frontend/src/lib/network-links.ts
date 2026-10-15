@@ -9,11 +9,14 @@ export function trapLinkHandles(source: { x: number; y: number }, target: { x: n
   return dy >= 0 ? { sourceHandle: 'bottom', targetHandle: 'top' } : { sourceHandle: 'top', targetHandle: 'bottom' }
 }
 
-export function trapLinkLabel(link: Link, config?: Record<string, unknown>): string {
+export function trapLinkLabel(link: Link, config?: Record<string, unknown>, targetType?: string): string {
   const blocks = config?.blocks
   if (!Array.isArray(blocks)) return 'копия трафика'
 
-  const sendsJSON = blocks.some((block) => block?.kind === 'send' && block.config?.target_id === link.target_id)
+  const sendsJSON = blocks.some((block) => block?.kind === 'send' && (
+    block.config?.target_id === link.target_id ||
+    block.config?.target_id === '00000000-0000-0000-0000-000000000000' && targetType === 'custom-http'
+  ))
 
   return sendsJSON ? 'передача JSON' : 'копия трафика'
 }

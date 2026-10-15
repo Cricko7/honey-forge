@@ -7,6 +7,16 @@ from .custom import compile_chain, registry_types
 
 
 class HTTPBuilderTests(unittest.TestCase):
+    def test_send_uses_network_links_without_a_recipient_picker(self):
+        board = self.board()
+        board.nodes.append(Node(id='send', type='http/send', config={'target_id': 'obsolete-selection'}))
+        board.edges[0].target = 'send'
+        board.edges.append(Edge(source='send', source_port='out', target='parse', target_port='in'))
+        compiled = compile_chain(board).config['compiled']
+        self.assertEqual(compiled['blocks'][-1]['config']['target_id'], '00000000-0000-0000-0000-000000000000')
+        send = next(s for s in registry_types() if s['type'] == 'http/send')
+        self.assertNotIn('target_id', [f['key'] for f in send['config']])
+
     def board(self):
         return Chain(nodes=[
             Node(id='web', type='http/input', config={'name': 'web', 'port': 32001, 'method': 'POST', 'path': '/login'}),
@@ -80,7 +90,7 @@ class HTTPBuilderTests(unittest.TestCase):
     def test_compile_separate_trap_send_and_validate_destination_shape(self):
         for name,config,valid in [
             ('valid',{'target_id':'11111111-1111-4111-8111-111111111111','service':'web','method':'POST','path':'/pipeline','payload':'{"count":"${json.count}"}'},True),
-            ('invalid trap',{'target_id':'http://localhost/'},False),
+            ('no recipient',{},True),
             ('invalid endpoint',{'target_id':'11111111-1111-4111-8111-111111111111','path':'//localhost/'},False),
             ('query',{'target_id':'11111111-1111-4111-8111-111111111111','path':'/ingest?token=x'},False),
             ('bad json',{'target_id':'11111111-1111-4111-8111-111111111111','payload':'{'},False),

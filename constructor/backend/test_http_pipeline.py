@@ -6,6 +6,13 @@ from .http_pipeline import validate_destinations, connect_destinations
 
 
 class HTTPPipelineTests(unittest.TestCase):
+    def test_network_send_does_not_require_or_create_a_destination(self):
+        config = {'blocks': [{'kind': 'send', 'config': {'target_id': '00000000-0000-0000-0000-000000000000'}}]}
+        with patch.object(real_api, '_request') as request:
+            validate_destinations(config, None)
+            connect_destinations(config, 'source')
+            request.assert_not_called()
+
     def config(self):
         return {'blocks':[{'kind':'send','config':{'target_id':'target','service':'web','method':'POST','path':'/pipeline'}}]}
 

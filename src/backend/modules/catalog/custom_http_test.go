@@ -6,6 +6,13 @@ import (
 	"testing"
 )
 
+func TestNetworkRoutedSendUsesPublishedHTTPConfiguration(t *testing.T) {
+	service := testService(t)
+	raw := `{"services":[{"name":"web","port":8080,"entry":"web"}],"blocks":[{"id":"web","kind":"input","config":{"name":"web","port":8080,"method":"POST","path":"/pipeline"},"outputs":{"out":"send"}},{"id":"send","kind":"send","config":{"target_id":"00000000-0000-0000-0000-000000000000","service":"web","method":"POST","path":"/pipeline","payload":"{}"},"outputs":{"out":"reply"}},{"id":"reply","kind":"response","config":{"status":202,"format":"json","body":"{}","headers":"{}"},"outputs":{}}],"limits":{"max_steps":512,"timeout_ms":10000,"max_body_bytes":65536},"management":{"heartbeat_interval_seconds":10,"telemetry_flush_interval_ms":500}}`
+	wantCode(t, service.CheckConfig(t.Context(), "custom-http", 2, json.RawMessage(raw)), "")
+	wantCode(t, service.CheckConfig(t.Context(), "custom-http", 3, json.RawMessage(raw)), "")
+}
+
 func TestCustomHTTPConfigReferences(t *testing.T) {
 	service := testService(t)
 	raw := `{"services":[{"name":"web","port":8080,"entry":"web"}],"blocks":[{"id":"web","kind":"input","config":{"name":"web","port":8080,"method":"ANY","path":"*"},"outputs":{"out":"reply"}},{"id":"reply","kind":"response","config":{"status":200,"format":"json","body":"{}","headers":"{}"},"outputs":{}}],"limits":{"max_steps":512,"timeout_ms":10000,"max_body_bytes":65536},"management":{"heartbeat_interval_seconds":10,"telemetry_flush_interval_ms":500}}`

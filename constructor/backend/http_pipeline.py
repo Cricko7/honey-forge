@@ -1,6 +1,7 @@
 """Organization-scoped preflight and permission links for separate HTTP traps."""
 from fastapi import HTTPException
 from . import real_api
+from .http_builder import NETWORK_TARGET_ID
 
 
 def validate_destinations(config, source_id):
@@ -9,6 +10,8 @@ def validate_destinations(config, source_id):
         if block['kind']!='send':
             continue
         c=block['config']
+        if c['target_id'] == NETWORK_TARGET_ID:
+            continue
         if c['target_id']==source_id:
             raise HTTPException(422,'Выберите отдельную ловушку-получатель')
         if c['target_id'] not in targets:
@@ -24,7 +27,7 @@ def validate_destinations(config, source_id):
 
 
 def connect_destinations(config, source_id):
-    for target_id in {b['config']['target_id'] for b in config['blocks'] if b['kind']=='send'}:
+    for target_id in {b['config']['target_id'] for b in config['blocks'] if b['kind']=='send' and b['config']['target_id'] != NETWORK_TARGET_ID}:
         try:
             real_api._request('POST','/api/trap-links',{'source_id':source_id,'target_id':target_id})
         except real_api.RealApiError as error:

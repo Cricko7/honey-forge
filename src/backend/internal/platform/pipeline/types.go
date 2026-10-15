@@ -18,6 +18,10 @@ const MaxPayloadBytes = 8192
 const MaxHops = 4096
 const Lifetime = 5 * time.Minute
 
+// NetworkTargetID resolves recipients from the current directed network links.
+// A reserved UUID keeps published custom-http configuration schemas unchanged.
+const NetworkTargetID = "00000000-0000-0000-0000-000000000000"
+
 type Request struct {
 	RequestID  string          `json:"request_id" validate:"required,uuid"`
 	NodeID     string          `json:"node_id" validate:"required,min=1,max=64"`
