@@ -81,8 +81,10 @@ RUN git init . \
     && git fetch --depth=1 origin 4e459f1b672a5b4c1e8335c0bff1b93738019215 \
     && git checkout --detach FETCH_HEAD \
     && test "$(git rev-parse HEAD)" = 4e459f1b672a5b4c1e8335c0bff1b93738019215
-COPY deploy/decoys/dionaea-build.py /tmp/prepare.py
-RUN python3 /tmp/prepare.py \
+COPY deploy/decoys/dionaea-build.py /tmp/dionaea-build.py
+COPY deploy/decoys/dionaea-build_test.py /tmp/dionaea-build_test.py
+RUN python3 -B /tmp/dionaea-build_test.py
+RUN python3 /tmp/dionaea-build.py \
     && cmake -S . -B /build -DCMAKE_BUILD_TYPE=Release -DRELEASE_BUILD=ON \
        -DCMAKE_INSTALL_PREFIX=/opt/dionaea -DCMAKE_INSTALL_LIBDIR=lib \
        -DPYTHON_EXECUTABLE=/usr/bin/python3 \

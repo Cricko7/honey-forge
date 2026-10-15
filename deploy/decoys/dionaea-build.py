@@ -14,3 +14,7 @@ replace("src/dionaea.c", "threads = (threads <= 1?2:threads);", "threads = (thre
 # Resolve code/config paths independently of the writable working directory.
 for name in ("DIONAEA_MODDIR", "DIONAEA_CONFDIR", "DIONAEA_PYTHON_SITELIBDIR"):
     replace("config.h.cmake", f'#define {name} "${{{name}}}"', f'#define {name} "${{CMAKE_INSTALL_PREFIX}}/${{{name}}}"')
+# The embedded interpreter inserts this directory into sys.path without reading
+# .pth files. Install a flat package so core and the copied bridge share it.
+replace("modules/python/CMakeLists.txt", "${SETUP_PY} install --install-lib=",
+        "${SETUP_PY} install --single-version-externally-managed --record=installed-files.txt --install-lib=")
