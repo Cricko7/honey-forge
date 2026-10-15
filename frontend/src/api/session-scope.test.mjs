@@ -26,7 +26,9 @@ test('late queries, mutations and stream messages remain confined to the previou
   const next = createSessionCache(source)
   const inviteKey = ['organization', 'join-code']
   const eventKey = ['event', 'a']
+  const statisticsKey = ['statistics', 100]
   previous.setQueryData(inviteKey, { code: 'private-a' })
+  previous.setQueryData(statisticsKey, { items: [{ event_id: 'private-a' }], hasMore: true })
 
   let resolveQuery, resolveMutation
   const request = previous.fetchQuery({
@@ -50,6 +52,8 @@ test('late queries, mutations and stream messages remain confined to the previou
   previous.setQueryData(['events'], { items: [{ event_id: 'old-stream' }] })
   assert.equal(next.getQueryData(inviteKey), undefined)
   assert.equal(next.getQueryData(eventKey), undefined)
+  assert.equal(previous.getQueryData(statisticsKey), undefined)
+  assert.equal(next.getQueryData(statisticsKey), undefined)
   assert.equal(next.getQueryData(['events']), undefined)
 
   await Promise.all([disposeSessionCache(previous), disposeSessionCache(next)])

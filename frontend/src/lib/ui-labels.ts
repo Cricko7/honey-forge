@@ -31,6 +31,7 @@ const eventLabels: Record<string, string> = {
   'process.exec': 'Запуск процесса',
 }
 
-export const eventLabel = (type: string) => eventLabels[type] ?? type
+export const eventLabel = (type: string) => Object.hasOwn(eventLabels, type) ? eventLabels[type] : type
 
-export const levelLabel = (level: string) => ({ low: 'Низкий', medium: 'Средний', high: 'Высокий' })[level] ?? level
+const levelLabels: Record<string, string> = { low: 'Низкий', medium: 'Средний', high: 'Высокий' }
+export const levelLabel = (level: string) => Object.hasOwn(levelLabels, level) ? levelLabels[level] : level

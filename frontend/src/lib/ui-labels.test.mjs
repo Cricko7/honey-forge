@@ -14,3 +14,10 @@ test('unknown catalog values stay identifiable rather than becoming empty labels
   assert.equal(eventLabel('future.event'), 'future.event')
   assert.equal(levelLabel('future-level'), 'future-level')
 })
+
+test('catalog labels treat inherited object names as untrusted plain text', () => {
+  for (const key of ['__proto__', 'constructor', 'toString']) {
+    assert.equal(eventLabel(key), key)
+    assert.equal(levelLabel(key), key)
+  }
+})

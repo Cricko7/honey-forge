@@ -54,12 +54,12 @@ test('dashboard identifies sampled data and exposes recent event details without
   const html = await renderDashboard()
   assert.match(html, /AS51167/)
   assert.match(html, /Германия/)
-  assert.match(html, /Выборка: последние 100 событий/)
+  assert.match(html, /href="\/app\/statistics"/)
   assert.doesNotMatch(html, /за всё время|перехвачено|LIVE|Активные ловушки/)
   assert.match(html, /На связи/)
   assert.match(html, /href="\/app\/events\?event=auth%2Fid"/)
   assert.match(html, /service\.auth_attempt/)
-  assert.match(html, /За 24 часа в выборке/)
+  assert.doesNotMatch(html, /За 24 часа в выборке|Типы событий|Частые источники/)
   assert.doesNotMatch(html, />События за 24 часа</)
   assert.match(html, /href="\/app\/network\?create=1"/)
 })
@@ -71,10 +71,10 @@ test('dashboard shows a retryable failure instead of presenting unavailable data
   assert.doesNotMatch(html, /PRIVATE SERVER DETAILS|Событий пока нет/)
 })
 
-test('dashboard exposes named activity and journal sections for keyboard and screen reader navigation', async () => {
+test('dashboard exposes a named journal section and a separate statistics page', async () => {
   const html = await renderDashboard()
-  assert.match(html, /<section[^>]*aria-labelledby="activity-title"/)
-  assert.match(html, /<h2[^>]*id="activity-title"[^>]*>Активность за 24 часа<\/h2>/)
+  assert.doesNotMatch(html, /activity-title/)
+  assert.match(html, /href="\/app\/statistics"/)
   assert.match(html, /<section[^>]*aria-labelledby="recent-events-title"/)
   assert.match(html, /<h2[^>]*id="recent-events-title"[^>]*>Последние события<\/h2>/)
 })

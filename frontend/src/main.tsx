@@ -22,6 +22,8 @@ import { CatalogPage } from '@/pages/Catalog'
 import { UpdatesPage } from '@/pages/Updates'
 import { SupportPage } from '@/pages/Support'
 
+const StatisticsPage = React.lazy(() => import('@/pages/Statistics').then(module => ({ default: module.StatisticsPage })))
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { staleTime: 10_000, refetchOnWindowFocus: false, retry: 1 },
@@ -37,6 +39,7 @@ const router = createBrowserRouter([
     element: <Layout />,
     children: [
       { index: true, element: <DashboardPage /> },
+      { path: 'statistics', element: <React.Suspense fallback={<p className="p-8" role="status">Загружаем статистику…</p>}><StatisticsPage /></React.Suspense> },
       { path: 'network', element: <NetworkBuilderPage /> },
       { path: 'constructor', element: <ConstructorPage /> },
       { path: 'traps', element: <TrapsPage /> },

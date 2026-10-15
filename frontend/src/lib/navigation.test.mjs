@@ -22,6 +22,8 @@ test('navigation groups tasks and preserves administrator visibility', async () 
     assert.match(html, /Мониторинг/)
     assert.match(html, /Настройка ловушек/)
     assert.match(html, /aria-current="page"/)
+    assert.match(html, /href="\/app\/statistics"/)
+    assert.match(html, /Статистика/)
   }
   assert.match(view.admin, /Приглашения/)
   assert.doesNotMatch(view.viewer, /Приглашения|Админ-панель/)

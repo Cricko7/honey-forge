@@ -13,6 +13,27 @@ async function client(base) {
   return import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 }
 
+test('statistics page requests use session cookies, opaque cursors, no-store and cancellation', async () => {
+  const { api } = await client('https://operator.example')
+  const originalFetch = globalThis.fetch
+  const controller = new AbortController()
+  let sent
+  globalThis.fetch = async (url, init) => {
+    sent = { url, ...init }
+    return new Response(JSON.stringify({ items: [], next_cursor: null, stream_cursor: 'snapshot' }))
+  }
+  try {
+    await api.listEvents({ limit: 50, cursor: 'opaque&cursor' }, controller.signal)
+    assert.equal(sent.url, 'https://operator.example/api/events?limit=50&cursor=opaque%26cursor')
+    assert.equal(sent.credentials, 'include')
+    assert.equal(sent.cache, 'no-store')
+    assert.equal(sent.signal, controller.signal)
+    controller.abort()
+    globalThis.fetch = () => assert.fail('aborted request must never reach fetch')
+    await assert.rejects(api.listEvents({ limit: 100 }, controller.signal), { name: 'AbortError' })
+  } finally { globalThis.fetch = originalFetch }
+})
+
 test('support sends only form fields using the authenticated CSRF session', async () => {
   const { api } = await client('https://operator.example')
   const originalFetch = globalThis.fetch

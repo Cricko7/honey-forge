@@ -304,13 +304,15 @@ export const api = {
     return real(`/api/traps/${trapId}/commands?limit=50`)
   },
 
-  async listEvents(filter?: EventFilter): Promise<EventPage> {
+  async listEvents(filter?: EventFilter, signal?: AbortSignal): Promise<EventPage> {
+    signal?.throwIfAborted()
     if (USE_MOCK) {
       await delay()
+      signal?.throwIfAborted()
       return mockApi.listEvents(filter)
     }
     const qs = eventQuery(filter)
-    return real(`/api/events?${qs}`)
+    return real(`/api/events?${qs}`, { signal, cache: 'no-store' })
   },
 
   async exportEvents(format: 'csv' | 'stix', filter?: EventFilter): Promise<Blob> {

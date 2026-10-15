@@ -1,10 +1,11 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Server, Bug, ScrollText, Boxes, Workflow, Network, FileSliders, Link2, ShieldCheck, History, LifeBuoy } from 'lucide-react'
+import { LayoutDashboard, ChartNoAxesCombined, Server, Bug, ScrollText, Boxes, Workflow, Network, FileSliders, Link2, ShieldCheck, History, LifeBuoy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const groups = [
   { title: 'Мониторинг', items: [
     { to: '/app', end: true, icon: LayoutDashboard, label: 'Обзор' },
+    { to: '/app/statistics', end: false, icon: ChartNoAxesCombined, label: 'Статистика' },
     { to: '/app/traps', end: false, icon: Bug, label: 'Ловушки' },
     { to: '/app/events', end: false, icon: ScrollText, label: 'События' },
     { to: '/app/network', end: false, icon: Network, label: 'Конструктор сети' },

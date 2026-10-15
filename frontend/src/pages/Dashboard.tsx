@@ -1,13 +1,9 @@
 import { eventSeverity } from '@/lib/event-severity'
 import { SourceGeo } from '@/components/SourceGeo'
 import { Link } from 'react-router-dom'
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
-import { SectionTitle, EventTypeBadge, Spinner, EmptyState } from '@/components/ui'
+import { EventTypeBadge, Spinner, EmptyState } from '@/components/ui'
 import { useCanManage, useEvents, useTraps } from '@/api/hooks'
 import { formatDateTime } from '@/lib/utils'
-import { useThemeColors } from '@/lib/theme'
-import { summarizeDashboard } from '@/lib/dashboard-summary'
-import { eventLabel } from '@/lib/ui-labels'
 
 function Metric({ label, value, note }: { label: string; value: number | undefined; note?: string }) {
   return <div className="py-3">
@@ -20,12 +16,10 @@ function Metric({ label, value, note }: { label: string; value: number | undefin
 
 export function DashboardPage() {
   const canManage = useCanManage()
-  const c = useThemeColors()
   const trapsQuery = useTraps()
-  const eventsQuery = useEvents({ limit: 100 })
+  const eventsQuery = useEvents({ limit: 8 })
   const traps = trapsQuery.data?.items ?? []
   const events = eventsQuery.data?.items ?? []
-  const summary = summarizeDashboard(events)
   const haveTraps = !!trapsQuery.data
   const haveEvents = !!eventsQuery.data
   const failed = trapsQuery.error || eventsQuery.error
@@ -44,35 +38,15 @@ export function DashboardPage() {
       <button type="button" className="btn-ghost" onClick={() => { void trapsQuery.refetch(); void eventsQuery.refetch() }}>Повторить</button>
     </div>}
 
-    <dl className="grid grid-cols-2 xl:grid-cols-4 gap-x-6 gap-y-2 border-y border-line py-2">
+    <dl className="grid grid-cols-2 gap-x-6 gap-y-2 border-y border-line py-2">
       <Metric label="На связи" value={haveTraps ? traps.filter(t => t.connectivity === 'online').length : undefined} note={haveTraps ? `из ${traps.length}${trapsQuery.data?.next_cursor ? '+ ловушек' : ' ловушек'}` : 'Данные о ловушках'} />
-      <Metric label="За 24 часа в выборке" value={haveEvents ? summary.events24h : undefined} />
-      <Metric label="Попытки входа" value={haveEvents ? summary.authAttempts : undefined} />
-      <Metric label="Источники · IP" value={haveEvents ? summary.uniqueSources : undefined} />
+      <Metric label="Ловушки без связи" value={haveTraps ? traps.filter(t => t.connectivity !== 'online').length : undefined} note="В загруженном списке" />
     </dl>
 
-    <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
-      <span>Выборка: последние 100 событий. По ней рассчитаны активность и источники.</span>
+    <div className="card p-4 flex flex-wrap items-center justify-between gap-3">
+      <div><h2 className="text-base font-semibold">Статистика событий</h2><p className="mt-1 text-sm text-muted">Карта стран, активность и источники по последним N событиям.</p></div>
+      <Link to="/app/statistics" className="btn-ghost text-brand">Открыть статистику</Link>
     </div>
-
-    <section aria-labelledby="activity-title" className="min-w-0">
-      <h2 id="activity-title" className="mb-5 text-base font-semibold">Активность за 24 часа</h2>
-      {eventsQuery.isLoading ? <Spinner /> : !haveEvents ? <p className="text-sm text-muted">Данные недоступны.</p> : summary.events24h === 0 ? <EmptyState title="За последние 24 часа событий в выборке нет" /> : <>
-        <div className="h-56" role="img" aria-label={`События по часам за последние 24 часа: ${summary.events24h}`}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={summary.activity} margin={{ left: -20, right: 12 }}>
-              <CartesianGrid stroke={c.line} vertical={false} />
-              <XAxis dataKey="at" stroke={c.muted} fontSize={11} tickLine={false} interval={3}
-                tickFormatter={at => new Date(at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })} />
-              <YAxis stroke={c.muted} fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
-              <Tooltip labelFormatter={at => formatDateTime(new Date(Number(at)).toISOString())} contentStyle={{ background: c.panel, border: `1px solid ${c.line}`, borderRadius: 6, fontSize: 12 }} />
-              <Line name="События" type="linear" dataKey="count" stroke={c.brand} strokeWidth={2} dot={false} isAnimationActive={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-        <p className="mt-2 text-xs text-muted">Время местное. Первый и последний час могут быть неполными.</p>
-      </>}
-    </section>
 
     <section aria-labelledby="recent-events-title" className="min-w-0 border-t border-line pt-6">
       <div className="mb-4 flex items-center justify-between gap-3">
@@ -97,19 +71,5 @@ export function DashboardPage() {
       </div>}
     </section>
 
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 border-t border-line pt-6">
-      <section className="min-w-0">
-        <SectionTitle>Типы событий</SectionTitle>
-        {haveEvents ? summary.byType.length ? <ul className="divide-y divide-line/60">{summary.byType.map(item => <li key={item.type} className="flex items-center justify-between gap-4 py-2 text-sm">
-          <span title={item.type} className="text-sm break-words">{eventLabel(item.type)}</span><span className="tabular-nums text-muted">{item.count}</span>
-        </li>)}</ul> : <p className="text-sm text-muted">Нет данных для сравнения.</p> : <p className="text-sm text-muted">{eventsQuery.isLoading ? 'Загрузка…' : 'Данные недоступны.'}</p>}
-      </section>
-      <section className="min-w-0">
-        <SectionTitle>Частые источники</SectionTitle>
-        {haveEvents ? summary.sources.length ? <ol className="divide-y divide-line/60">{summary.sources.map(item => <li key={item.ip} className="flex items-center justify-between gap-4 py-2 text-sm">
-          <span className="font-mono text-xs break-all">{item.ip}</span><span className="tabular-nums text-muted">{item.count}</span>
-        </li>)}</ol> : <p className="text-sm text-muted">Нет данных для сравнения.</p> : <p className="text-sm text-muted">{eventsQuery.isLoading ? 'Загрузка…' : 'Данные недоступны.'}</p>}
-      </section>
-    </div>
   </div>
 }

@@ -5,6 +5,17 @@ import { applyStreamNotification, replaceSessionCache, removeDeletedTrap } from 
 
 const page = (items) => ({ items, next_cursor: null, stream_cursor: 'cursor' })
 
+test('statistics snapshots remain unchanged while live journal events arrive', () => {
+  const qc = new QueryClient()
+  const key = ['statistics', 100]
+  const sample = { items: [{ event_id: 'snapshot' }], hasMore: true }
+  qc.setQueryData(key, sample)
+  applyStreamNotification(qc, { kind: 'event.created', event: { event_id: 'new' } })
+  assert.deepEqual(qc.getQueryData(key), sample)
+  assert.equal(qc.getQueryState(key).isInvalidated, false)
+  qc.clear()
+})
+
 test('profile deletion removes its card without removing shared or unrelated profiles', () => {
   const qc = new QueryClient()
   const shared = { id: 'shared' }
