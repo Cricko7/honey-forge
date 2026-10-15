@@ -4,6 +4,7 @@ package app
 
 import (
 	"encoding/json"
+	"reflect"
 	"sync"
 	"testing"
 
@@ -85,8 +86,20 @@ func TestNetworkPipelineFollowsLinksWithoutReplayingDiscardedTraffic(t *testing.
 		}
 	}
 	assertCount(2)
-	if delivery, err := store.ClaimPipeline(firstCtx, firstIdentity, firstConnection); err != nil || delivery == nil || delivery.TargetID != first.ID || string(delivery.Payload) != string(request.Payload) {
+	delivery, err := store.ClaimPipeline(firstCtx, firstIdentity, firstConnection)
+	if err != nil || delivery == nil || delivery.TargetID != first.ID {
 		t.Fatalf("first receiver: %+v %v", delivery, err)
+	}
+
+	var wantPayload, receivedPayload any
+	if err := json.Unmarshal(request.Payload, &wantPayload); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(delivery.Payload, &receivedPayload); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(receivedPayload, wantPayload) {
+		t.Fatalf("receiver payload: %s, want: %s", delivery.Payload, request.Payload)
 	}
 
 	changed := request
