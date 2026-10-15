@@ -89,3 +89,16 @@ func TestPythonHTTPDescriptor(t *testing.T) {
 		t.Fatalf("ports %v: %v", ports, err)
 	}
 }
+
+func TestPythonHTTPLegacyPipelinePorts(t *testing.T) {
+	snapshot := testSnapshot(t)
+	snapshot.Config["blocks"] = []any{
+		map[string]any{"id": "web", "kind": "input", "config": map[string]any{"name": "web", "port": 32189, "method": "POST", "path": "/api"}, "outputs": map[string]any{"out": "event"}},
+		map[string]any{"id": "event", "kind": "event", "config": map[string]any{"name": "stage", "severity": "high", "payload": "{}"}, "outputs": map[string]any{"out": "reply"}},
+		map[string]any{"id": "reply", "kind": "response", "config": map[string]any{"status": 200, "format": "json", "body": "{}", "headers": "{}"}, "outputs": map[string]any{}},
+	}
+	ports, err := Ports(t.Context(), snapshot)
+	if err != nil || len(ports) != 1 || ports[0] != 32189 {
+		t.Fatalf("legacy pipeline ports %v: %v", ports, err)
+	}
+}

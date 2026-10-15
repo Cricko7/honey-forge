@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"unicode/utf8"
@@ -141,15 +142,25 @@ func fieldPointer(namespace string) string {
 	return "/" + strings.Join(parts, "/")
 }
 
-// CheckJSON rejects invalid UTF-8, duplicate keys at every depth and trailing documents.
+// CheckJSON rejects invalid UTF-8, duplicate keys and trailing documents.
 func CheckJSON(b []byte) error {
+	return checkJSON(b, "", false)
+}
+
+// CheckStoredJSON additionally rejects null characters unsupported by PostgreSQL
+// JSONB. Ephemeral values such as account passwords retain their existing rules.
+func CheckStoredJSON(b []byte, path string) error {
+	return checkJSON(b, path, true)
+}
+
+func checkJSON(b []byte, path string, stored bool) error {
 	if !utf8.Valid(b) {
 		return errors.New("invalid UTF-8")
 	}
 
 	d := json.NewDecoder(bytes.NewReader(b))
 	d.UseNumber()
-	if err := scanValue(d); err != nil {
+	if err := scanValue(d, path, stored); err != nil {
 		return err
 	}
 
@@ -160,7 +171,7 @@ func CheckJSON(b []byte) error {
 	return nil
 }
 
-func scanValue(d *json.Decoder) error {
+func scanValue(d *json.Decoder, path string, stored bool) error {
 	token, err := d.Token()
 	if err != nil {
 		return err
@@ -168,6 +179,10 @@ func scanValue(d *json.Decoder) error {
 
 	delim, ok := token.(json.Delim)
 	if !ok {
+		if value, ok := token.(string); stored && ok && strings.ContainsRune(value, 0) {
+			return nullCharacterError(path)
+		}
+
 		return nil
 	}
 
@@ -184,23 +199,35 @@ func scanValue(d *json.Decoder) error {
 			if !ok || seen[s] {
 				return errors.New("duplicate or invalid object key")
 			}
+			if stored && strings.ContainsRune(s, 0) {
+				return nullCharacterError(path)
+			}
 
 			seen[s] = true
-			if err := scanValue(d); err != nil {
+			if err := scanValue(d, path+"/"+escapePointer(s), stored); err != nil {
 				return err
 			}
 		}
 	case '[':
+		index := 0
 		for d.More() {
-			if err := scanValue(d); err != nil {
+			if err := scanValue(d, path+"/"+strconv.Itoa(index), stored); err != nil {
 				return err
 			}
+			index++
 		}
 	default:
 		return errors.New("unexpected delimiter")
 	}
 
 	_, err = d.Token()
+
+	return err
+}
+
+func nullCharacterError(path string) *Error {
+	err := NewError("validation_failed")
+	err.Fields = []FieldError{{Path: path, Code: "invalid_value", Message: "Null characters are not supported"}}
 
 	return err
 }

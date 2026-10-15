@@ -3737,6 +3737,7 @@ paths:
 servers:
 - url: https://localhost:8443
 x-limits:
+  json_strings: Null characters in persisted names, descriptions and schema-validated JSON values or object keys are rejected with 422 before persistence. Password rules are unchanged.
   effective_config_bytes: 131072
   field_errors: 20
   rest_body_bytes: 262144

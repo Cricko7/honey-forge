@@ -3,52 +3,48 @@
 @tailwind utilities;
 
 @layer base {
-  /* ---- Светлая тема: приглушённый тонированный фон (не чисто белый) + благородный фиолет ---- */
   :root,
   [data-theme='light'] {
     color-scheme: light;
-    /* SPI: Silver · Purple · Ivory — тёплый ivory (60%) + greige silver-структура (30%) + фиолет-акцент (10%) */
-    --bg-base: 243 240 232; /* #F3F0E8 тёплый ivory — фон страницы */
-    --bg-panel: 252 251 246; /* #FCFBF6 светлейший ivory — карточки приподнимаются */
-    --bg-elevated: 238 235 226; /* #EEEBE2 подложка */
-    --bg-hover: 232 228 217; /* #E8E4D9 */
-    --line: 225 220 208; /* #E1DCD0 тёплая silver-грань */
-    --fg: 44 41 37; /* #2C2925 тёплый графит (ink) */
-    --muted: 122 116 105; /* #7A7469 greige silver-текст */
-    --brand: 110 86 207; /* #6E56CF благородный фиолет (Radix violet) — мостик warm/cool */
-    --brand-soft: 138 116 232; /* #8A74E8 */
-    --brand-deep: 88 68 170; /* #5844AA */
+    --bg-base: 243 240 232;
+    --bg-panel: 252 251 246;
+    --bg-elevated: 238 235 226;
+    --bg-hover: 232 228 217;
+    --line: 225 220 208;
+    --fg: 44 41 37;
+    --muted: 122 116 105;
+    --brand: 110 86 207;
+    --brand-soft: 138 116 232;
+    --brand-deep: 88 68 170;
     --ok: 22 150 110;
     --warn: 176 128 24;
     --danger: 210 52 82;
     --info: 44 118 198;
-    /* боковая панель / топбар — тёмные фиолетово-графитовые в любой теме */
-    --graphite: 23 21 31; /* #17151F */
-    --graphite-soft: 30 27 41; /* #1E1B29 */
-    --graphite-line: 44 41 58; /* #2C293A */
+    --graphite: 23 21 31;
+    --graphite-soft: 30 27 41;
+    --graphite-line: 44 41 58;
     --graphite-fg: 233 231 240;
     --graphite-muted: 158 155 176;
     --shadow-glass: 0 1px 2px rgba(60, 50, 30, 0.04), 0 16px 40px -14px rgba(60, 50, 30, 0.14);
   }
 
-  /* ---- Тёмная тема: глубокий фиолетово-чёрный ---- */
   [data-theme='dark'] {
     color-scheme: dark;
-    --bg-base: 15 14 21; /* #0F0E15 */
-    --bg-panel: 23 21 31; /* #17151F */
-    --bg-elevated: 30 27 41; /* #1E1B29 */
-    --bg-hover: 38 34 52; /* #262234 */
-    --line: 42 39 56; /* #2A2738 */
-    --fg: 231 230 238; /* #E7E6EE */
-    --muted: 154 151 173; /* #9A97AD */
-    --brand: 139 122 243; /* #8B7AF3 */
-    --brand-soft: 173 158 255; /* #AD9EFF */
-    --brand-deep: 109 92 214; /* #6D5CD6 */
+    --bg-base: 15 14 21;
+    --bg-panel: 23 21 31;
+    --bg-elevated: 30 27 41;
+    --bg-hover: 38 34 52;
+    --line: 42 39 56;
+    --fg: 231 230 238;
+    --muted: 154 151 173;
+    --brand: 139 122 243;
+    --brand-soft: 173 158 255;
+    --brand-deep: 109 92 214;
     --ok: 52 200 150;
     --warn: 240 185 60;
     --danger: 240 72 102;
     --info: 70 168 238;
-    --graphite: 19 17 27; /* #13111B чуть темнее панели */
+    --graphite: 19 17 27;
     --graphite-soft: 26 24 36;
     --graphite-line: 42 39 56;
     --graphite-fg: 231 230 238;
@@ -78,9 +74,6 @@
     border-radius: 999px;
   }
 
-  /* Плавная смена темы по всему приложению: класс .theme-transition
-     вешается на <html> только на время переключения (~400мс), поэтому
-     в остальное время hover/интеракции остаются мгновенными и отзывчивыми. */
   html.theme-transition,
   html.theme-transition *,
   html.theme-transition *::before,
@@ -90,7 +83,6 @@
     transition-delay: 0s !important;
   }
 
-  /* Уважение к системной настройке «уменьшить движение». */
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -104,15 +96,12 @@
 }
 
 @layer components {
-  /* Премиум + «воздух»: сплошные поверхности, граница почти незаметна,
-     отделение задаёт мягкая парящая тень (как окна macOS) */
   .glass {
     @apply bg-bg-panel border border-line/50;
   }
   .card {
     @apply glass rounded-2xl shadow-glass;
   }
-  /* Интерактивная карточка: мягкий подъём и усиление тени при наведении. */
   .card-hover {
     @apply transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_1px_2px_rgba(60,50,30,0.05),0_24px_52px_-16px_rgba(60,50,30,0.22)] hover:border-brand/30;
   }

@@ -18,7 +18,6 @@ import (
 	profileservice "honey-forge/modules/profiles/service"
 )
 
-// RegisterServices connects modules 02, 03 and 04 in plan order to one real session.
 func RegisterServices(
 	router *gin.Engine,
 	browser *contract.BrowserPolicy,

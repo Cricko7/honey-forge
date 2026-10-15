@@ -52,6 +52,8 @@ func TestHTTPBoundaries(t *testing.T) {
 		status                                   int
 	}{
 		{"read", "GET", "/api/traps/" + testID, "", "", "viewer", 200},
+		{"null patch name", "PATCH", "/api/traps/" + testID, `{"name":"bad\u0000name"}`, "1", "admin", 422},
+		{"null patch description", "PATCH", "/api/traps/" + testID, `{"description":"bad\u0000description"}`, "1", "admin", 422},
 		{"viewer patch", "PATCH", "/api/traps/" + testID, `{"name":"x"}`, "1", "viewer", 403},
 		{"viewer credentials", "GET", "/api/traps/" + testID + "/agent-credentials", "", "", "viewer", 403},
 		{"foreign", "GET", "/api/traps/44444444-4444-4444-8444-444444444444", "", "", "admin", 404},

@@ -1,7 +1,5 @@
 import type { CatalogEntry } from '@/types'
 
-// Каталог типов ловушек — взят из api/03-catalog.md (immutable-версии).
-// В mock-режиме повторяет встроенные типы; реальный режим читает каталог API.
 
 export const CATALOG: CatalogEntry[] = [
   {

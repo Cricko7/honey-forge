@@ -7,7 +7,6 @@ import { LevelBadge } from '@/components/ui'
 import { ApiError } from '@/api/client'
 import type { CatalogEntry, DeploymentNode } from '@/types'
 
-// Случайный порт из «пользовательского» диапазона, не пересекающийся с занятыми.
 function randomFreePort(used: Set<number> | Map<number, unknown>): number {
   for (let i = 0; i < 100; i++) {
     const p = 1025 + Math.floor(Math.random() * (65500 - 1025))
@@ -16,15 +15,12 @@ function randomFreePort(used: Set<number> | Map<number, unknown>): number {
   return 1025
 }
 
-// Иконка и дефолтный порт для каждого типа каталога.
 const TYPE_ICON: Record<string, typeof Bug> = {
   'tcp-banner': Server,
   'redis-emulator': Database,
   'honeytoken-http': KeyRound,
   'ssh-high-interaction': TerminalSquare,
 }
-// Валидный дефолт-конфиг под config_schema типа — чтобы создавать ловушку
-// любого типа прямо из конструктора без ручного JSON.
 export function defaultConfig(typeId: string, port: number): Record<string, unknown> {
   const management = { heartbeat_interval_seconds: 10, telemetry_flush_interval_ms: 500 }
   switch (typeId) {
@@ -84,7 +80,6 @@ export function AddTrapModal({
     [catalog, typeKey],
   )
 
-  // Выбрать первый тип при открытии.
   useEffect(() => {
     if (open && catalog.length && !typeKey) {
       const first = catalog[0]
@@ -92,7 +87,6 @@ export function AddTrapModal({
     }
   }, [open, catalog, typeKey])
 
-  // Каждый раз при открытии формы подставляем новый случайный свободный порт.
   useEffect(() => {
     if (open) setPort(randomFreePort(usedPorts))
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -121,7 +115,6 @@ export function AddTrapModal({
   return (
     <Modal open={open} onClose={onClose} title="Новая ловушка" width="max-w-2xl">
       <div className="space-y-5">
-        {/* Каталог типов прямо в конструкторе */}
         <div>
           <label className="label">Тип ловушки из каталога</label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -200,8 +193,6 @@ export function AddTrapModal({
             />
           </div>
         </div>
-
-        {/* Премиальное сообщение о конфликте/некорректном порте */}
         {!portValid ? (
           <div role="alert" className="flex items-start gap-3 rounded-xl border border-warn/30 bg-warn/10 p-3.5 animate-fadeIn">
             <div className="h-8 w-8 rounded-lg bg-warn/15 text-warn grid place-items-center shrink-0">

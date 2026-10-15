@@ -57,7 +57,7 @@ func (d *Description) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
-	if utf8.RuneCountInString(s) > 1000 {
+	if utf8.RuneCountInString(s) > 1000 || strings.ContainsRune(s, 0) {
 		return NewError("validation_failed")
 	}
 

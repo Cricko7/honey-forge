@@ -9,7 +9,6 @@ import { ApiError } from '@/api/client'
 import type { CatalogEntry } from '@/types'
 import { parseProfileConfig } from '@/lib/profile-config'
 
-// Шаблоны config под типы каталога — стартовая заготовка для редактора.
 function configTemplate(typeId: string): Record<string, unknown> {
   if (typeId === 'custom-http') {
     return {

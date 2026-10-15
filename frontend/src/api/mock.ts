@@ -14,11 +14,6 @@ import type {
 } from '@/types'
 import { CATALOG } from './catalog'
 
-// ---------------------------------------------------------------------------
-// In-memory mock backend под контракт HoneyForge. Заменяется реальным API
-// установкой VITE_API_BASE (см. client.ts). Данные демонстрационные.
-// ---------------------------------------------------------------------------
-
 const now = () => new Date().toISOString()
 const minsAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString()
 
@@ -42,8 +37,6 @@ const USER: User = {
   email: 'admin@perimetr.ru',
   role: 'admin',
 }
-
-// --- Профили ---------------------------------------------------------------
 
 function mkProfile(
   name: string,
@@ -89,8 +82,6 @@ const profiles: Profile[] = [
     ['/services/0/password'],
   ),
 ]
-
-// --- Ловушки ---------------------------------------------------------------
 
 function mkTrap(
   name: string,
@@ -140,8 +131,6 @@ const traps: Trap[] = [
   mkTrap('lan-ssh-02', profiles[0], 'offline', 'stopped', 'lan-host-09'),
   mkTrap('edge-ftp-02', profiles[1], 'online', 'error', 'edge-host-03'),
 ]
-
-// --- События (лог атак) ----------------------------------------------------
 
 const ATTACKER_IPS = [
   { ip: '185.220.101.44', cc: 'RU', asn: 205100 },
@@ -243,7 +232,6 @@ function genEvent(trap: Trap, occurredAt: string): Event {
   }
 }
 
-// Засев истории за последние сутки
 ;(function seed() {
   for (let i = 0; i < 180; i++) {
     const trap = pickTrap()
@@ -252,11 +240,7 @@ function genEvent(trap: Trap, occurredAt: string): Event {
   events.sort((a, b) => b.occurred_at.localeCompare(a.occurred_at))
 })()
 
-// --- Команды ---------------------------------------------------------------
-
 const commandsByTrap = new Map<string, Command[]>()
-
-// --- Live-стрим (замена WSS /api/stream) -----------------------------------
 
 type Listener = (n: StreamNotification) => void
 const listeners = new Set<Listener>()
@@ -409,7 +393,6 @@ export const mockApi = {
     trap.active_command_id = cmd.id
     emit({ kind: 'command.changed', trap_id: trapId, command: cmd })
 
-    // Симуляция выполнения
     setTimeout(() => {
       cmd.status = 'running'
       cmd.started_at = now()

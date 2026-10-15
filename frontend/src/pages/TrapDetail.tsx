@@ -152,7 +152,6 @@ export function TrapDetailPage() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Параметры */}
         <Card>
           <SectionTitle>Параметры</SectionTitle>
           <dl className="space-y-2.5 text-sm">
@@ -169,8 +168,6 @@ export function TrapDetailPage() {
             <Row label="Последний сигнал" value={timeAgo(trap.last_seen_at)} />
           </dl>
         </Card>
-
-        {/* Агент */}
         <Card>
           <SectionTitle
             action={<KeyRound size={14} className="text-muted" />}
@@ -197,8 +194,6 @@ export function TrapDetailPage() {
             />
           )}
         </Card>
-
-        {/* Команды */}
         <Card>
           <SectionTitle>История команд</SectionTitle>
           <div className="space-y-2 max-h-64 overflow-auto">
@@ -218,8 +213,6 @@ export function TrapDetailPage() {
           </div>
         </Card>
       </div>
-
-      {/* События этой ловушки */}
       <Card className="!p-0 overflow-hidden">
         <div className="px-5 py-4 border-b border-line/60">
           <SectionTitle>Последние события</SectionTitle>

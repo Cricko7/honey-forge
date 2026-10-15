@@ -35,7 +35,6 @@ export function LoginPage() {
       <div className="absolute top-5 right-5 z-20">
         <ThemeToggle />
       </div>
-      {/* Левая панель — бренд */}
       <div className="hidden lg:flex flex-col justify-between p-12 bg-grid-fade relative overflow-hidden">
         <div className="flex items-center gap-3">
           <Logo size={42} />
@@ -63,8 +62,6 @@ export function LoginPage() {
         <div className="text-xs text-muted">Seg_Fault · HoneyForge API 0.1.0</div>
         <div className="absolute -right-32 -bottom-32 h-96 w-96 rounded-full bg-brand/20 blur-3xl" />
       </div>
-
-      {/* Правая панель — форма */}
       <div className="flex items-center justify-center p-8">
         <form onSubmit={submit} className="w-full max-w-sm">
           <h2 className="text-2xl font-semibold mb-1">Вход для оператора</h2>

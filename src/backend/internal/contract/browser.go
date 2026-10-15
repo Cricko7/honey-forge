@@ -63,15 +63,7 @@ func ValidHTTPSOrigin(s string) bool {
 	return err == nil && u.Scheme == "https" && u.Host != "" && u.Hostname() != "" && u.User == nil && u.Path == "" && u.RawQuery == "" && u.Fragment == "" && !u.ForceQuery
 }
 
-// CORSMiddleware emits CORS headers for the allowlisted browser origins and
-// answers preflight (OPTIONS) requests. A separate frontend origin
-// (app.example.org → api.example.org) otherwise fails: the Origin check alone
-// rejects nothing, but the browser blocks the response without these headers.
-//
-// Credentials (the __Host-session cookie) require echoing the exact Origin and
-// Vary: Origin; a wildcard is not permitted with Allow-Credentials. Only
-// allowlisted origins receive headers, so this does not widen access beyond
-// what CheckOrigin already enforces for mutations.
+// Cookie-сессия требует точный разрешённый Origin вместо wildcard.
 func (p *BrowserPolicy) CORSMiddleware() gin.HandlerFunc {
 	const allowHeaders = "Content-Type, X-CSRF-Token, X-Expected-Revision, If-Match, If-None-Match"
 	const allowMethods = "GET, POST, PATCH, DELETE, OPTIONS"

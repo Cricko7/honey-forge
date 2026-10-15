@@ -101,7 +101,7 @@ func (s *Service) CheckEvent(ctx context.Context, id string, version contract.Ty
 	if (id == "tcp-banner" || id == "custom-tcp") && version == 1 && event == "tcp.payload_received" {
 		return checkTCPPayload(data)
 	}
-	if id == "custom-http" && version == 2 && event == "http.custom" {
+	if id == "custom-http" && (version == 1 || version == 2) && event == "http.custom" {
 		return checkCustomHTTPEvent(data)
 	}
 

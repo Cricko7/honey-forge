@@ -30,12 +30,9 @@ export interface APIKey {
   created_at: string
 }
 
-// Переключатель источника данных. Пусто → mock-слой (демо хакатона).
-// Для реального backend: VITE_API_BASE=https://api.example.org
 const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 export const USE_MOCK = API_BASE === ''
 
-// Имитация сетевой задержки для mock, чтобы спиннеры/skeleton были видны.
 const delay = (ms = 220) => new Promise((r) => setTimeout(r, ms))
 
 let csrfToken = ''
@@ -147,8 +144,6 @@ export const api = {
     return s
   },
 
-  // Регистрация первого админа + организации (mode:create) — настоящий вход
-  // на свежем бэке. Атомарно создаёт org + admin + сессию, возвращает SessionView.
   async register(email: string, password: string, organizationName: string, mode: RegistrationMode = 'create'): Promise<SessionView> {
     if (USE_MOCK) {
       if (mode === 'join') throw new ApiError(503, 'demo_unavailable', 'Регистрация по коду доступна с подключённым сервером')
@@ -337,8 +332,6 @@ export const api = {
     return real(`/api/events/recordings/${encodeURIComponent(sessionId)}?trap_id=${encodeURIComponent(trapId)}`)
   },
 }
-
-// --- Поток уведомлений дашборда (WSS /api/stream или mock pub/sub) ---------
 
 export function subscribeStream(onNotify: (n: StreamNotification) => void, options?: {
   onSynchronize?: () => Promise<unknown>

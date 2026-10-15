@@ -108,8 +108,6 @@ export function useSendCommand() {
   })
 }
 
-// Подписка на live-стрим: пушит новые события/изменения ловушек прямо в кэш
-// React Query, чтобы дашборд и конструктор обновлялись в реальном времени.
 export function useLiveStream(onEvent?: (e: EventSummary) => void, onNotification?: (n: StreamNotification) => void) {
   const qc = useQueryClient()
   const { data: session } = useSession()

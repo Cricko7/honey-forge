@@ -1,13 +1,10 @@
-// HoneyForge Chain Constructor — движок бесконечной доски (vanilla JS).
 import { api, req, BASE } from "./api.js";
 
-// ---------- Геометрия узла (порты вычисляются детерминированно) ----------
 const NODE_W = 200;
 const HEAD_H = 42;
 const PORT_START = HEAD_H + 18;
 const PORT_GAP = 22;
 
-// ---------- Состояние ----------
 const S = {
   registry: null,
   typesById: {},
@@ -25,7 +22,6 @@ const S = {
 };
 const GRID = 26;
 
-// ---------- Иконки типов узлов (Lucide-подобные контуры) ----------
 const ICONS = {
   globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.6 2.6 15.4 0 18M12 3c-2.6 2.6-2.6 15.4 0 18"/>',
   network: '<rect x="9" y="2" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="16" y="16" width="6" height="6" rx="1"/><path d="M12 8v4M12 12H5v4M12 12h7v4"/>',
@@ -48,12 +44,10 @@ function nodeIcon(name) {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 }
 
-// ---------- DOM ----------
 const $ = (id) => document.getElementById(id);
 const wrap = $("canvasWrap"), nodeLayer = $("nodeLayer"), edgeGroup = $("edgeGroup");
 const edgeLayer = $("edgeLayer"), canvasBg = $("canvasBg"), tempEdge = $("tempEdge");
 
-// ================= Утилиты =================
 function toast(msg, kind = "", issues = null) {
   const t = $("toast");
   t.className = "toast " + kind;
@@ -90,7 +84,6 @@ function nodeHeight(type) {
   return PORT_START + Math.max(ins.length, outs.length, 1) * PORT_GAP + 6;
 }
 
-// ================= Отрисовка =================
 function applyViewport() {
   const { x, y, zoom } = S.vp;
   nodeLayer.style.transform = `translate(${x}px, ${y}px) scale(${zoom})`;
@@ -133,7 +126,6 @@ function buildNode(node) {
     </div>
     <div class="node-body">${chips}</div>`;
 
-  // статус ловушки в боевом режиме / реальной ловушки из бэкенда
   if (node.type.startsWith("trap/") || node.type.startsWith("endpoint/") || node.type === 'custom/listener' || node.type === 'http/input' || isReal) {
     const st = document.createElement("div");
     const running = isReal
@@ -154,7 +146,6 @@ function buildNode(node) {
   badge.title = `Событий узла за текущий просмотр: ${hits}. Начало и завершение блока считаются отдельно.`;
   el.appendChild(badge);
 
-  // порты
   const { ins, outs } = portGroups(node.type);
   ins.forEach((p, i) => el.appendChild(buildPort(node, p, i, "in")));
   outs.forEach((p, i) => el.appendChild(buildPort(node, p, i, "out")));
@@ -177,7 +168,6 @@ function summaryChips(node, spec) {
   return out.slice(0, 3).map(c => `<span class="node-chip">${esc(c)}</span>`).join("") || "";
 }
 
-// чипы для реальной ловушки (connectivity + runtime из бэкенда)
 function realChips(node) {
   const r = (node.config && node.config._real) || {};
   return [r.connectivity, r.runtime].filter(Boolean)
@@ -244,7 +234,6 @@ function renderEdges(activeSet) {
 
 function renderAll() { renderEdges(); renderNodes(); applyViewport(); }
 
-// ================= Миникарта =================
 function drawMinimap() {
   const cv = $("minimap");
   if (!cv) return;
@@ -263,7 +252,6 @@ function drawMinimap() {
     ctx.fillStyle = S.catsById[spec.category]?.accent || "#888";
     ctx.fillRect((n.position.x - minX) * sc, (n.position.y - minY) * sc, NODE_W * sc, nodeHeight(n.type) * sc);
   }
-  // окно вьюпорта
   const r = wrap.getBoundingClientRect();
   const vx = (-S.vp.x / S.vp.zoom - minX) * sc, vy = (-S.vp.y / S.vp.zoom - minY) * sc;
   const vw = (r.width / S.vp.zoom) * sc, vh = (r.height / S.vp.zoom) * sc;
@@ -271,7 +259,6 @@ function drawMinimap() {
   ctx.strokeRect(vx, vy, vw, vh);
 }
 
-// ================= Взаимодействие: pan / zoom =================
 wrap.addEventListener("wheel", (e) => {
   e.preventDefault();
   const r = wrap.getBoundingClientRect();
@@ -303,7 +290,6 @@ window.addEventListener("mousemove", (e) => {
 });
 window.addEventListener("mouseup", () => { if (pan) { pan = null; wrap.classList.remove("panning"); markDirty(); } });
 
-// ================= Перетаскивание узлов + создание рёбер =================
 let drag = null, linking = null;
 nodeLayer.addEventListener("mousedown", (e) => {
   const portEl = e.target.closest(".port");
@@ -353,7 +339,6 @@ window.addEventListener("mousemove", (e) => {
     const b = clientToWorld(e.clientX, e.clientY);
     tempEdge.setAttribute("transform", edgeGroup.getAttribute("transform"));
     tempEdge.setAttribute("d", bez(a, b));
-    // подсветка совместимого входного порта
     document.querySelectorAll(".port.hot").forEach(p => p.classList.remove("hot"));
     const tp = e.target.closest(".port");
     if (tp && tp.dataset.kind === "in") tp.classList.add("hot");
@@ -372,7 +357,6 @@ window.addEventListener("mouseup", (e) => {
   }
 });
 
-// ================= Мутации графа =================
 function createEdge(source, source_port, target, target_port) {
   const sf = portFlavor(S.chain.nodes.find(n => n.id === source).type, source_port);
   const tf = portFlavor(S.chain.nodes.find(n => n.id === target).type, target_port);
@@ -403,7 +387,6 @@ function deleteNode(id) {
   select(null); renderAll(); autosave();
 }
 
-// ================= Выбор + инспектор =================
 function select(id) {
   S.selection = id;
   document.querySelectorAll(".node").forEach(n => n.classList.toggle("selected", n.dataset.id === id));
@@ -430,7 +413,6 @@ function renderInspector() {
       <input class="input" id="f_label" value="${esc(node.label || "")}" placeholder="${esc(spec.name)}" />
     </div>`;
 
-  // блок реальной ловушки (данные из бэкенда/агента)
   if (node.config && node.config._real) {
     const r = node.config._real;
     const stateCls = r.runtime === "running" ? "ok" : r.runtime === "error" ? "err" : "soft";
@@ -446,7 +428,6 @@ function renderInspector() {
       </div>
     </div>`;
   } else if (node.type.startsWith("asset/")) {
-    // Блок-сервис ещё не привязан к реальной ловушке → предложить создать её на дашборде.
     const profs = S.realProfiles || [];
     html += `<div class="insp-real insp-materialize">
       <div class="im-hint">Сделать блок боевым: создать ловушку на дашборде по профилю и привязать к узлу.</div>` +
@@ -553,7 +534,6 @@ function bindInspector(node, spec) {
   }
 }
 
-// Создать РЕАЛЬНУЮ ловушку на дашборде из блока-сервиса и привязать её к узлу.
 async function materializeNode(node, spec) {
   const profileId = $("f_profile")?.value;
   if (!profileId) { toast("Выберите профиль", "err"); return; }
@@ -577,7 +557,6 @@ async function materializeNode(node, spec) {
   }
 }
 
-// Отправить реальную команду ловушке на бэкенд и обновить статус узла.
 async function realNodeCommand(node, action) {
   const r = node.config && node.config._real;
   if (!r || !r.id) return;
@@ -590,7 +569,6 @@ async function realNodeCommand(node, action) {
   } catch (e) { toast("Ошибка команды: " + e.message, "err"); }
 }
 
-// Подтянуть актуальный статус реальной ловушки из бэкенда.
 async function refreshRealState(node) {
   const r = node.config && node.config._real;
   if (!r || !r.id) return;
@@ -609,7 +587,6 @@ function refreshNodeCard(node) {
   if (el) el.innerHTML = node.type.startsWith("real/") ? realChips(node) : summaryChips(node, S.typesById[node.type]);
 }
 
-// ================= Палитра: проектные блоки + реальные ловушки =================
 function renderPalette(filter = "") {
   const list = $("paletteList");
   list.innerHTML = "";
@@ -634,7 +611,6 @@ function renderPalette(filter = "") {
     }
   }
 
-  // 2) Реальные ловушки из дашборда
   const hr = document.createElement("div");
   hr.className = "pal-cat"; hr.textContent = "Ловушки из дашборда"; list.appendChild(hr);
   if (!S.realOnline) {
@@ -670,7 +646,6 @@ function centerWorld() {
   const r = wrap.getBoundingClientRect();
   return clientToWorld(r.left + r.width / 2, r.top + r.height / 2);
 }
-// Поместить реальную ловушку на доску как узел (или выбрать, если уже есть).
 function placeTrap(t, world) {
   if (!S.chain) return;
   const ex = S.chain.nodes.find(n => n.config?._real?.id === t.id);
@@ -700,7 +675,6 @@ wrap.addEventListener("drop", (e) => {
   if (type && S.typesById[type]) addNode(type, clientToWorld(e.clientX - NODE_W / 2 * S.vp.zoom, e.clientY - 20));
 });
 
-// ================= Автосохранение =================
 function markDirty() { S.dirty = true; $("saveState").textContent = "не сохранено"; $("saveState").classList.add("dirty"); }
 let saveTimer = null;
 function autosave() {
@@ -722,7 +696,6 @@ async function doSave() {
   } catch (err) { toast("Ошибка сохранения: " + err.message, "err"); return false; }
 }
 
-// ================= Zoom-кнопки / fit =================
 function zoomBy(f) {
   const r = wrap.getBoundingClientRect(), sx = r.width / 2, sy = r.height / 2;
   const nz = Math.min(2.5, Math.max(0.2, S.vp.zoom * f));
@@ -745,7 +718,6 @@ function fit() {
   applyViewport(); markDirty();
 }
 
-// ================= Авто-раскладка (послойно слева направо) =================
 function autoLayout() {
   if (!S.chain || !S.chain.nodes.length) return;
   const byId = Object.fromEntries(S.chain.nodes.map(n => [n.id, n]));
@@ -768,7 +740,6 @@ function autoLayout() {
     }
   }
   S.chain.nodes.forEach(n => { if (level[n.id] === undefined) level[n.id] = 0; });
-  // раскладка по колонкам
   const cols = {};
   for (const n of S.chain.nodes) (cols[level[n.id]] ||= []).push(n);
   const COL_W = 290, ROW_H = 150, X0 = 90, Y0 = 90;
@@ -779,7 +750,6 @@ function autoLayout() {
   toast("Узлы разложены по attack-path", "ok");
 }
 
-// ================= Экспорт =================
 function exportJSON() {
   if (!S.chain) return;
   const data = JSON.stringify(S.chain, null, 2);
@@ -792,7 +762,6 @@ function exportJSON() {
   toast("Цепочка выгружена в JSON", "ok");
 }
 
-// ================= Валидация =================
 async function validate() {
   if (!S.chain) return;
   await doSave();
@@ -800,7 +769,6 @@ async function validate() {
   if (res.ok && !res.issues.length) return toast("Цепочка валидна — готова к развёртыванию", "ok");
   const items = res.issues.map(i => `<li>[${i.level}] ${esc(i.message)}</li>`).join("");
   toast(res.ok ? "Предупреждения:" : "Найдены ошибки:", res.ok ? "" : "err", items);
-  // подсветка проблемных узлов
   document.querySelectorAll(".node.active").forEach(n => n.classList.remove("active"));
   for (const i of res.issues) if (i.node_id) {
     const el = nodeLayer.querySelector(`.node[data-id="${i.node_id}"]`);
@@ -808,7 +776,6 @@ async function validate() {
   }
 }
 
-// ================= Симуляция =================
 async function simulate() {
   if (!S.chain) return;
   await doSave();
@@ -848,7 +815,6 @@ function animatePath(res) {
   }, 750);
 }
 
-// ================= БОЕВОЙ РЕЖИМ: развёртывание + живой поток атак =================
 async function toggleDeploy() {
   if (!S.chain) return;
   const action = Object.values(S.runtime.status).some(s => s === 'running') ? 'stop' : 'deploy';
@@ -903,7 +869,6 @@ function updateKPI(k) {
   $("kpiTraps").textContent = k.active_traps ?? 0;
 }
 
-// найти узлы ребра по id и построить путь
 function edgeGeom(edgeId) {
   const e = S.chain.edges.find(x => x.id === edgeId);
   if (!e) return null;
@@ -913,7 +878,6 @@ function edgeGeom(edgeId) {
   return { d: bez(portPos(sn, e.source_port), portPos(tn, e.target_port)) };
 }
 
-// красная анимированная стрелка атаки вдоль ребра + летящий «пакет»
 function flashAttackEdge(edgeId) {
   const g = edgeGeom(edgeId);
   if (!g) return;
@@ -949,7 +913,6 @@ function pulseNode(nodeId, isDetection) {
   if (isDetection) el.classList.add("compromised");
   clearTimeout(el._atk);
   el._atk = setTimeout(() => el.classList.remove("under-attack"), 2200);
-  // счётчик попаданий по узлу
   S.runtime.hits[nodeId] = (S.runtime.hits[nodeId] || 0) + 1;
   const badge = el.querySelector(".node-hits");
   if (badge) {
@@ -961,7 +924,6 @@ function pulseNode(nodeId, isDetection) {
   }
 }
 
-// всплывающая метка техники над узлом в момент удара
 function floatLabel(nodeId, text) {
   if (!text) return;
   const node = S.chain?.nodes.find(n => n.id === nodeId);
@@ -979,7 +941,6 @@ function floatLabel(nodeId, text) {
   setTimeout(() => d.remove(), 1400);
 }
 
-// ================= РЕАЛЬНЫЙ бэкенд: типы каталога + импорт ловушек =========
 const REAL_PORTS = [
   { id: "in", label: "вход", kind: "in", flavor: "flow" },
   { id: "out", label: "скомпрометирован", kind: "out", flavor: "flow" },
@@ -990,7 +951,6 @@ function realIcon(typeId) {
   if (typeId === "tcp-banner") return "terminal";
   return "shield";
 }
-// Загрузить типы и ловушки из реального бэкенда дашборда.
 async function loadRealData() {
   try {
     const [catRes, trapRes, profRes] = await Promise.all([
@@ -1014,7 +974,6 @@ async function loadRealData() {
     S.realTraps = trapRes.items || [];
   } catch (_) { S.realOnline = false; S.realTraps = []; }
 }
-// Гарантировать наличие корневого узла «Интернет» (сервер-периметр).
 function ensureRoot() {
   if (!S.chain || !S.typesById["entry/internet"]) return;
   if (S.chain.nodes.some(n => n.type === "entry/internet")) return;
@@ -1026,7 +985,6 @@ function ensureRoot() {
     position: { x: 80, y: 40 }, label: null, config, notes: "",
   });
 }
-// Авто-разложить все ловушки дашборда и соединить их цепочкой от «Интернет» (под ключ).
 function autoPlaceAll() {
   const root = S.chain.nodes.find(n => n.type === "entry/internet");
   let n = 0;
@@ -1049,11 +1007,9 @@ function autoPlaceAll() {
   }
   if (n && $("canvasHint")) $("canvasHint").style.opacity = "0";
 }
-// Синхронизация доски с дашбордом: обновить статусы, убрать удалённые, авто-залить пустую доску.
 async function syncReal(auto = false) {
   await loadRealData();
   if (S.chain) {
-    // обновить статусы реальных ловушек
     for (const n of S.chain.nodes) {
       const r = n.config && n.config._real; if (!r) continue;
       const t = S.realTraps.find(x => x.id === r.id);
@@ -1066,7 +1022,6 @@ async function syncReal(auto = false) {
                    S.realOnline ? "ok" : "err");
 }
 
-// ================= Меню цепочек =================
 async function refreshChains() {
   S.chains = await api.listChains();
   const menu = $("chainMenu");
@@ -1082,10 +1037,8 @@ async function refreshChains() {
       </div>`).join("") +
     `<div class="dd-sep"></div>
      <div class="dd-item" id="ddNew"><strong>+ Новая доска</strong></div>`;
-  // переход к доске по клику на название
   menu.querySelectorAll(".dd-item[data-id] .dd-item-main").forEach(main =>
     main.addEventListener("click", () => { closeMenu(); loadChain(main.closest("[data-id]").dataset.id); }));
-  // per-board действия
   menu.querySelectorAll(".dd-act").forEach(btn => btn.addEventListener("click", async (e) => {
     e.stopPropagation();
     const id = btn.dataset.id, act = btn.dataset.act;
@@ -1120,7 +1073,6 @@ async function newChainFlow() {
 }
 function closeMenu() { $("chainMenu").classList.add("hidden"); }
 
-// ================= Загрузка цепочки =================
 async function loadChain(id) {
   unsubscribeLive();
   if (!id) { S.chain = null; renderAll(); $("chainName").textContent = "—"; return; }
@@ -1135,7 +1087,6 @@ async function loadChain(id) {
   subscribeLive();
 }
 
-// ================= Тема =================
 function toggleTheme() {
   const html = document.documentElement;
   const next = html.dataset.theme === "dark" ? "light" : "dark";
@@ -1144,7 +1095,6 @@ function toggleTheme() {
   setTimeout(drawMinimap, 50);
 }
 
-// ================= Клавиатура =================
 window.addEventListener("keydown", (e) => {
   if (e.target.matches("input, textarea, select")) return;
   if ((e.key === "Delete" || e.key === "Backspace") && S.selection) { e.preventDefault(); deleteNode(S.selection); }
@@ -1154,7 +1104,6 @@ window.addEventListener("keydown", (e) => {
   }
 });
 
-// ================= Вспомогательное =================
 function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 function rid() { return Math.random().toString(36).slice(2, 12); }
 
@@ -1171,7 +1120,6 @@ window.addEventListener("message", (e) => {
   if (d && d.type === "hf-theme") applyTheme(d.theme);
 });
 
-// ================= Старт =================
 async function init() {
   const session = await fetch('/api/session');
   if (!session.ok) throw new Error('Войдите в HoneyForge');
@@ -1192,7 +1140,6 @@ async function init() {
 
   setInterval(() => syncReal(true).catch(() => {}), 120000);
 
-  // обработчики UI
   $("btnTheme").addEventListener("click", toggleTheme);
   $("btnDeploy").addEventListener('click', () => toggleDeploy().catch(e => toast(e.message, 'err')));
   $("btnZoomIn").addEventListener("click", () => zoomBy(1.2));

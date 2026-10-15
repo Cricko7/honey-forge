@@ -107,6 +107,8 @@ func TestHTTPProfileValidation(t *testing.T) {
 		status                         int
 		code                           string
 	}{
+		{"null name", "POST", "/api/profiles", `{"request_id":"` + requestID + `","name":"bad\u0000name","type_id":"demo","type_version":1,"config":{}}`, "", 422, "validation_failed"},
+		{"null description", "POST", "/api/profiles", `{"request_id":"` + requestID + `","name":"valid","description":"bad\u0000description","type_id":"demo","type_version":1,"config":{}}`, "", 422, "validation_failed"},
 		{
 			"missing request ID", "POST", "/api/profiles",
 			`{"name":"a","type_id":"demo","type_version":1,"config":{}}`,

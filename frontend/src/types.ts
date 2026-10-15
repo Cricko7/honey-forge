@@ -1,4 +1,3 @@
-// Типы DTO — 1:1 с api/openapi.yaml (HoneyForge API 0.1.0).
 // snake_case сохраняем специально: это формат обмена с backend.
 
 export type UUID = string
@@ -201,7 +200,6 @@ export interface EventPage extends Page<EventSummary> {
   stream_cursor: string
 }
 
-// WSS /api/stream — уведомления дашборда
 export type StreamNotification =
   | { kind: 'event.created'; event: EventSummary }
   | { kind: 'trap.changed'; trap: Trap }

@@ -53,7 +53,6 @@ function AuthenticatedLayout({ session }: { session: SessionView }) {
   const { onStream, notify } = useAlerts()
   const navigate = useNavigate()
   const location = useLocation()
-  // Глобальная подписка на live-стрим: держит кэш свежим на всех экранах.
   useLiveStream(undefined, onStream)
 
   async function logout() {
@@ -75,7 +74,6 @@ function AuthenticatedLayout({ session }: { session: SessionView }) {
     }
   }
 
-  // Активный раздел для контекстной шапки: самое длинное совпадение пути.
   const sections = canManage(session)
     ? [...nav, { to: '/app/admin', end: false, icon: ShieldCheck, label: 'Админ-панель' }, { to: '/app/organization', end: false, icon: Link2, label: 'Приглашения' }]
     : nav
@@ -89,7 +87,6 @@ function AuthenticatedLayout({ session }: { session: SessionView }) {
 
   return (
     <div className="flex h-screen overflow-hidden gap-5 p-5 bg-bg-base">
-      {/* Боковое меню — отдельная плавающая карточка с отступами со всех сторон */}
       <aside className="w-60 shrink-0 card flex flex-col overflow-hidden">
         <div className="px-5 h-16 flex items-center gap-2.5">
           <Logo size={30} className="shrink-0" />
@@ -140,12 +137,8 @@ function AuthenticatedLayout({ session }: { session: SessionView }) {
           </div>
         </div>
       </aside>
-
-      {/* Правая колонка: закреплённый навбар-карточка + прокручиваемый контент-карточка */}
       <div className="flex-1 flex flex-col min-w-0 gap-5">
-        {/* Навбар — скруглённый, закреплён на всех разделах, контент уходит под него */}
         <header className="shrink-0 card h-16 flex items-center justify-between pl-4 pr-3.5">
-          {/* Левая часть — контекст текущего раздела */}
           <div className="flex items-center gap-3 min-w-0">
             <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-brand/25 to-brand/5 text-brand grid place-items-center shrink-0 ring-1 ring-brand/15 shadow-sm">
               <ActiveIcon size={18} />
@@ -157,8 +150,6 @@ function AuthenticatedLayout({ session }: { session: SessionView }) {
               </div>
             </div>
           </div>
-
-          {/* Правая часть — живой статус и управление */}
           <div className="flex items-center gap-2">
             <span className="hidden sm:inline-flex items-center gap-2 text-xs font-medium text-muted">
               <span className="h-1.5 w-1.5 rounded-full bg-ok animate-pulseGlow" />

@@ -1,6 +1,6 @@
 # Профили
 
-Реализация `docs/api/04-profiles.md` с правилами `01-common.md`. Модуль подключён в `internal/app`; настоящая cookie-сессия и CSRF берутся из auth.
+Модуль подключён в `internal/app`; настоящая cookie-сессия и CSRF берутся из auth.
 
 ## Что работает
 

@@ -11,7 +11,6 @@ from fastapi import HTTPException
 from . import real_api
 from .custom import compile_chain
 from .http_pipeline import validate_destinations, connect_destinations
-from .models import ChainUpdate
 from .store import store
 
 
@@ -20,7 +19,10 @@ def trap_id(chain, node):
         return chain.bindings.get('__custom__', {}).get('trap_id')
     if node.type == 'http/input':
         return chain.bindings.get('__http__', {}).get('trap_id')
-    value = chain.bindings.get(node.id, {}).get('trap_id') or node.config.get('_real', {}).get('id')
+    binding = node.config.get('_real', {})
+    if not isinstance(binding, dict):
+        raise HTTPException(422, 'Invalid trap binding')
+    value = chain.bindings.get(node.id, {}).get('trap_id') or binding.get('id')
     if value:
         try:
             return str(uuid.UUID(value))
@@ -98,12 +100,12 @@ class RuntimeManager:
                                     {'If-Match': '"profile:' + profile['id'] + ':' + str(profile['revision']) + '"'})
                                 binding['digest'] = digest
                                 binding['apply_revision'] = str(profile['revision'])
-                                store.update(chain_id, ChainUpdate())
+                                store.save(chain)
                             if binding.get('apply_revision'):
                                 if not binding.get('apply_command'):
                                     command = real_api.send_command(tid, 'apply_config', {'profile_revision': int(binding['apply_revision'])})
                                     binding['apply_command'] = command['id']
-                                    store.update(chain_id, ChainUpdate())
+                                    store.save(chain)
                                 deadline = time.monotonic() + 20
                                 while True:
                                     command = real_api._request('GET', '/api/traps/' + tid + '/commands/' + binding['apply_command'])
@@ -111,20 +113,20 @@ class RuntimeManager:
                                         break
                                     if command['status'] in ('failed', 'expired'):
                                         binding.pop('apply_command')
-                                        store.update(chain_id, ChainUpdate())
+                                        store.save(chain)
                                         raise HTTPException(409, 'Не удалось применить конфигурацию; проверьте ловушку и повторите развёртывание')
                                     if time.monotonic() > deadline:
                                         raise HTTPException(503, 'Конфигурация ещё применяется; повторите развёртывание после завершения команды')
                                     time.sleep(0.2)
                                 binding.pop('apply_revision')
                                 binding.pop('apply_command')
-                                store.update(chain_id, ChainUpdate())
+                                store.save(chain)
                         current = real_api._request('GET', '/api/traps/' + tid)
                         if current.get('desired_state') != 'running':
                             real_api.send_command(tid, 'start')
                         continue
                     binding = chain.bindings.setdefault(node.id, {'profile_request': str(uuid.uuid4()), 'trap_request': str(uuid.uuid4())})
-                    store.update(chain_id, ChainUpdate())
+                    store.save(chain)
                     type_id = node.type.removeprefix('build/')
                     name = (node.label or chain.name + ' ' + type_id)[:100]
                     if not binding.get('profile_id'):
@@ -132,19 +134,19 @@ class RuntimeManager:
                             'type_id': type_id, 'type_version': catalog[type_id]['type_version'], 'config': configs[node.id]})
                         binding['profile_id'] = profile['id']
                         binding['digest'] = hashlib.sha256(json.dumps(configs[node.id], sort_keys=True).encode()).hexdigest()
-                        store.update(chain_id, ChainUpdate())
+                        store.save(chain)
                     digest = hashlib.sha256(json.dumps(configs[node.id], sort_keys=True).encode()).hexdigest()
                     if binding.get('digest') != digest:
                         profile = real_api._request('GET', '/api/profiles/' + binding['profile_id'])
                         real_api._request('PATCH', '/api/profiles/' + binding['profile_id'], {'config': configs[node.id]},
                             {'If-Match': '"profile:' + profile['id'] + ':' + str(profile['revision']) + '"'})
                         binding['digest'] = digest
-                        store.update(chain_id, ChainUpdate())
+                        store.save(chain)
                     trap = real_api._request('POST', '/api/traps', {'request_id': binding['trap_request'], 'name': name, 'profile_id': binding['profile_id']})
                     binding['trap_id'] = trap['id']
                     binding['digest'] = hashlib.sha256(json.dumps(configs[node.id], sort_keys=True).encode()).hexdigest()
                     node.config.pop('password', None)
-                    store.update(chain_id, ChainUpdate())
+                    store.save(chain)
                 if '__http__' in configs:
                     connect_destinations(configs['__http__'],chain.bindings['__http__']['trap_id'])
             else:

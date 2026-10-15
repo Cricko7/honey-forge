@@ -111,7 +111,7 @@ func NormalizeName(s string) string {
 
 func ValidName(s string) bool {
 	n := utf8.RuneCountInString(NormalizeName(s))
-	return n >= 1 && n <= 100
+	return n >= 1 && n <= 100 && !strings.ContainsRune(s, 0)
 }
 
 func NextRevision(r Revision) (Revision, error) {

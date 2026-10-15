@@ -34,7 +34,6 @@ function StatCard({
 }) {
   return (
     <Card className="relative overflow-hidden">
-      {/* приглушённая иконка-watermark в правом верхнем углу */}
       <Icon
         size={52}
         strokeWidth={1.5}
@@ -61,13 +60,11 @@ export function DashboardPage() {
   const events = eventsPage?.items ?? []
   const onlineTraps = trapsList.filter((t) => t.connectivity === 'online').length
 
-  // События именно за последние 24 часа (совпадает с графиком активности ниже).
   const events24h = useMemo(() => {
     const dayAgo = Date.now() - 24 * 3600 * 1000
     return events.filter((e) => new Date(e.occurred_at).getTime() >= dayAgo)
   }, [events])
 
-  // Активность атак по часам (последние 24ч)
   const activity = useMemo(() => {
     const buckets = new Array(24).fill(0)
     const dayAgo = Date.now() - 24 * 3600 * 1000
@@ -80,14 +77,12 @@ export function DashboardPage() {
     return buckets.map((count, h) => ({ hour: `${String(h).padStart(2, '0')}:00`, count }))
   }, [events])
 
-  // Распределение по типам событий
   const byType = useMemo(() => {
     const m = new Map<string, number>()
     for (const e of events) m.set(e.event_type, (m.get(e.event_type) ?? 0) + 1)
     return [...m.entries()].map(([type, count]) => ({ type: type.split('.')[1] ?? type, count }))
   }, [events])
 
-  // Топ источников атак по IP (страна доступна в деталях события)
   const byCountry = useMemo(() => {
     const colors = [c.brand, c.brandSoft, '#38bdf8', '#34d399', '#fbbf24', '#f43f5e']
     const counts = new Map<string, number>()
@@ -109,8 +104,6 @@ export function DashboardPage() {
           Открыть конструктор <ArrowUpRight size={16} />
         </Link>
       </div>
-
-      {/* Статкарточки */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <StatCard icon={Bug} label="Активные ловушки" value={String(onlineTraps)} delta={`${trapsList.length} всего`} />
         <StatCard icon={Activity} label="События за 24 часа" value={String(events24h.length)} delta={`${events.length} за всё время`} />
@@ -124,7 +117,6 @@ export function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Активность атак */}
         <Card className="lg:col-span-2">
           <SectionTitle>Активность атак · 24 часа</SectionTitle>
           <div className="h-64">
@@ -139,8 +131,6 @@ export function DashboardPage() {
             </ResponsiveContainer>
           </div>
         </Card>
-
-        {/* Live-лента */}
         <Card>
           <SectionTitle action={<span className="chip bg-danger/10 text-danger animate-pulseGlow">LIVE</span>}>
             Поток событий
@@ -161,7 +151,6 @@ export function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Типы событий */}
         <Card className="lg:col-span-2">
           <SectionTitle>Типы событий</SectionTitle>
           <div className="h-56">
@@ -176,8 +165,6 @@ export function DashboardPage() {
             </ResponsiveContainer>
           </div>
         </Card>
-
-        {/* Топ источников */}
         <Card>
           <SectionTitle>Топ источников атак</SectionTitle>
           <div className="flex items-center gap-4">

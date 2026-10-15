@@ -1,4 +1,3 @@
-// Тонкий REST-клиент конструктора. Работает против FastAPI-бэкенда того же origin.
 export const BASE = location.pathname.startsWith('/constructor/') ? '/constructor' : '';
 let csrf = '';
 
@@ -39,7 +38,6 @@ export const api = {
   simulate: (id, data) => req("POST", `/api/chains/${id}/simulate`, data),
   runtime: (id) => req("GET", `/api/chains/${id}/runtime`),
   deploy: (id, action) => req("POST", `/api/chains/${id}/deploy`, { action }),
-  // реальный бэкенд дашборда
   realProfiles: () => req("GET", "/api/real/profiles"),
   realCreateTrap: (data) => req("POST", "/api/real/traps", data),
 };

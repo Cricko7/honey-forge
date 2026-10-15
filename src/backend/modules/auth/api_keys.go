@@ -16,7 +16,7 @@ type APIKey struct {
 }
 
 type CreateAPIKeyRequest struct {
-	Name string `json:"name" binding:"required,min=1,max=120" validate:"required,min=1,max=120"`
+	Name string `json:"name" binding:"required,min=1,max=120,excludes=\x00" validate:"required,min=1,max=120,excludes=\x00"`
 }
 
 type APIKeyRateError struct {

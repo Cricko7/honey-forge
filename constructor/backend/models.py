@@ -5,7 +5,7 @@ import time
 import uuid
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 def _id(prefix: str) -> str:
@@ -24,6 +24,15 @@ class Node(BaseModel):
     label: str | None = None       # пользовательское имя узла
     config: dict[str, Any] = Field(default_factory=dict)
     notes: str = ""
+
+    @field_validator('config')
+    @classmethod
+    def valid_binding(cls, config):
+        if '_real' in config:
+            binding = config['_real']
+            if not isinstance(binding, dict) or ('id' in binding and not isinstance(binding['id'], str)):
+                raise ValueError('Invalid trap binding')
+        return config
 
 
 class Edge(BaseModel):
@@ -62,7 +71,6 @@ class ChainSummary(ChainMeta):
     edge_count: int = 0
 
 
-# ---- входные DTO ----
 class ChainCreate(BaseModel):
     model_config = ConfigDict(extra='forbid')
     name: str = Field(default='Новая цепочка', min_length=1, max_length=100)

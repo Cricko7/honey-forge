@@ -6,9 +6,7 @@ import (
 	"honey-forge/internal/contract"
 )
 
-// NewRouter builds the engine. Optional pre-middleware run before the shared
-// contract middleware; the runtime uses this to install CORS first so preflight
-// is answered and headers are set for allowlisted browser origins.
+// CORS должен обработать preflight до общей проверки контракта.
 func NewRouter(pre ...gin.HandlerFunc) *gin.Engine {
 	r := gin.New()
 	r.HandleMethodNotAllowed = true

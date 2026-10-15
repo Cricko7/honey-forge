@@ -9,7 +9,6 @@
   <link rel="stylesheet" href="./css/app.css?v=10" />
 </head>
 <body>
-  <!-- ======= Полноэкранная бесконечная доска ======= -->
   <main class="canvas-wrap" id="canvasWrap">
     <div class="canvas-bg" id="canvasBg"></div>
     <svg class="edge-layer" id="edgeLayer">
@@ -19,7 +18,6 @@
     <div class="node-layer" id="nodeLayer"></div>
   </main>
 
-  <!-- ======= Плавающая панель: бренд + переключатель цепочки ======= -->
   <div class="dock dock-tl">
     <div class="brand-pill">
       <svg class="logo" width="28" height="28" viewBox="0 0 32 32" fill="none" aria-hidden="true">
@@ -48,14 +46,12 @@
     </div>
   </div>
 
-  <!-- ======= Плавающая панель: действия ======= -->
   <div class="dock dock-tr">
     <span id="saveState" class="save-state">сохранено</span>
     <button id="btnSync" class="pill pill-primary" title="Обновить ловушки из дашборда">Синхронизировать</button>
     <button id="btnTheme" class="pill pill-icon" title="Тема" aria-label="Тема"></button>
   </div>
 
-  <!-- ======= Выезжающая палитра ловушек (слева) ======= -->
   <button class="drawer-tab tab-left" id="paletteTab" title="Ловушки">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
   </button>
@@ -68,12 +64,10 @@
     <div class="palette-list" id="paletteList"></div>
   </aside>
 
-  <!-- ======= Выезжающий инспектор (справа) ======= -->
   <aside class="drawer drawer-right" id="inspector">
     <div class="inspector-body" id="inspectorBody"></div>
   </aside>
 
-  <!-- ======= Сворачиваемый островок инструментов (снизу) ======= -->
   <div class="tooldock" id="toolDock">
     <button class="td-handle" id="tdHandle" title="Свернуть / развернуть">
       <svg class="td-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m6 9 6 6 6-6"/></svg>
@@ -111,7 +105,6 @@
   </div>
 
   <div id="kpiDock" class="hidden live-status">Работают: <span id="kpiTraps">0</span></div>
-  <!-- ======= Тост ======= -->
   <div class="toast hidden" id="toast"></div>
 
   <script type="module" src="./js/api.js?v=10"></script>

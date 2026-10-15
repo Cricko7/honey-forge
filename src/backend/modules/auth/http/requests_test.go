@@ -34,6 +34,8 @@ func TestRegistrationValidationBoundaries(t *testing.T) {
 		status     int
 	}{
 		{"valid trim", base(" A@Example.com ", "demo-password-2026", create), 204},
+		{"null name", base("a@example.com", "demo-password-2026", map[string]any{"mode": "create", "name": "bad\x00name"}), 422},
+		{"password null retained", base("a@example.com", "demo\x00password-2026", create), 204},
 		{"empty name", base("a@example.com", "demo-password-2026", map[string]any{"mode": "create", "name": " "}), 422},
 		{"name 100", base("a@example.com", "demo-password-2026", map[string]any{"mode": "create", "name": strings.Repeat("я", 100)}), 204},
 		{"name 101", base("a@example.com", "demo-password-2026", map[string]any{"mode": "create", "name": strings.Repeat("я", 101)}), 422},

@@ -1,10 +1,4 @@
-"""Хранилище досок (цепочек): in-memory + JSON-persistence на диск.
-
-Доски — это пользовательские схемы защиты. Демо-контент не засевается: при
-первом запуске создаётся одна пустая доска, которую оператор наполняет сам
-(реальными ловушками из дашборда через «Синхронизировать» и блоками палитры).
-Встроенные шаблоны-пресеты (TEMPLATES) доступны опционально при создании доски.
-"""
+"""Доски организаций: память и сохранение в JSON."""
 from __future__ import annotations
 
 import json
@@ -19,6 +13,7 @@ from .models import (
     Chain, ChainCreate, ChainSummary, ChainUpdate, Edge, Node, Position,
 )
 from .node_registry import default_config
+from .request_json import check_values
 
 DATA_DIR = Path(os.environ.get('CONSTRUCTOR_DATA_DIR', Path(__file__).resolve().parent.parent / 'data'))
 organization = ContextVar('organization')
@@ -105,7 +100,6 @@ class ChainStore:
         self._chains: dict[str, Chain] = {}
         self._load()
 
-    # --- persistence ---
     def _load(self) -> None:
         if not self.data_file.exists():
             return
@@ -117,20 +111,20 @@ class ChainStore:
         except (ValueError, OSError) as error:
             raise RuntimeError('Cannot load constructor chains') from error
 
-    def _save(self) -> None:
+    def _commit(self, chains: dict[str, Chain]) -> None:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
-        payload = {"chains": [c.model_dump() for c in self._chains.values()]}
+        payload = {"chains": [c.model_dump() for c in chains.values()]}
+        check_values(payload)
+        encoded = json.dumps(payload, ensure_ascii=False, allow_nan=False, indent=2)
         temporary = self.data_file.with_suffix('.tmp')
-        temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        temporary.write_text(encoded, encoding="utf-8")
         temporary.replace(self.data_file)
+        self._chains = chains
 
     def _seed(self) -> None:
-        # Без демо-контента: одна пустая доска, оператор наполняет её сам.
         c = Chain(name="Моя схема", description="", tags=[], nodes=[], edges=[])
-        self._chains[c.id] = c
-        self._save()
+        self._commit({**self._chains, c.id: c})
 
-    # --- CRUD ---
     def list(self) -> list[ChainSummary]:
         with self._lock:
             return [ChainSummary(**c.model_dump(exclude={"nodes", "edges", "viewport"}),
@@ -139,7 +133,14 @@ class ChainStore:
 
     def get(self, chain_id: str) -> Chain | None:
         with self._lock:
-            return self._chains.get(chain_id)
+            chain = self._chains.get(chain_id)
+            return chain.model_copy(deep=True) if chain else None
+
+    def save(self, chain: Chain) -> None:
+        with self._lock:
+            saved = chain.model_copy(deep=True)
+            saved.updated_at = time.time()
+            self._commit({**self._chains, saved.id: saved})
 
     def create(self, data: ChainCreate) -> Chain:
         with self._lock:
@@ -149,13 +150,12 @@ class ChainStore:
                 nodes, edges = TEMPLATES[data.template]["build"]()
             c = Chain(name=data.name, description=data.description, tags=data.tags,
                       nodes=nodes, edges=edges)
-            self._chains[c.id] = c
-            self._save()
-            return c
+            self._commit({**self._chains, c.id: c})
+            return c.model_copy(deep=True)
 
     def update(self, chain_id: str, data: ChainUpdate) -> Chain | None:
         with self._lock:
-            c = self._chains.get(chain_id)
+            c = self.get(chain_id)
             if not c:
                 return None
             patch = {k: getattr(data, k) for k in data.model_fields_set if getattr(data, k) is not None}
@@ -168,15 +168,13 @@ class ChainStore:
             for k, v in patch.items():
                 setattr(c, k, v)
             c.updated_at = time.time()
-            self._chains[chain_id] = c
-            self._save()
-            return c
+            self._commit({**self._chains, chain_id: c})
+            return c.model_copy(deep=True)
 
     def delete(self, chain_id: str) -> bool:
         with self._lock:
             if chain_id in self._chains:
-                del self._chains[chain_id]
-                self._save()
+                self._commit({key: chain for key, chain in self._chains.items() if key != chain_id})
                 return True
             return False
 
@@ -192,9 +190,8 @@ class ChainStore:
                 node.config.pop('_real', None)
             clone.name = f"{src.name} (копия)"
             clone.created_at = clone.updated_at = time.time()
-            self._chains[clone.id] = clone
-            self._save()
-            return clone
+            self._commit({**self._chains, clone.id: clone})
+            return clone.model_copy(deep=True)
 
 
 class OrganizationStore:

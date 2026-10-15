@@ -17,7 +17,8 @@ import (
 	"honey-forge/internal/postgres"
 )
 
-func TestRepositoryInstall(t *testing.T) {
+func repositoryPool(t *testing.T) *pgxpool.Pool {
+	t.Helper()
 	dsn := os.Getenv("TEST_DATABASE_URL")
 	if dsn == "" {
 		t.Skip("TEST_DATABASE_URL required")
@@ -28,7 +29,7 @@ func TestRepositoryInstall(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	defer base.Close()
+	t.Cleanup(base.Close)
 
 	name := "catalog_test_" + strings.ReplaceAll(string(contract.NewID()), "-", "")
 	identifier := pgx.Identifier{name}.Sanitize()
@@ -36,11 +37,11 @@ func TestRepositoryInstall(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	defer func() {
+	t.Cleanup(func() {
 		if _, err := base.Exec(context.Background(), "DROP SCHEMA "+identifier+" CASCADE"); err != nil {
 			t.Error(err)
 		}
-	}()
+	})
 
 	config, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
@@ -53,11 +54,53 @@ func TestRepositoryInstall(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	defer pool.Close()
+	t.Cleanup(pool.Close)
 
 	if err := postgres.Migrate(t.Context(), pool, os.DirFS("../../../../migrations")); err != nil {
 		t.Fatal(err)
 	}
+
+	return pool
+}
+
+func TestRepositoryLegacyHTTPInstall(t *testing.T) {
+	pool := repositoryPool(t)
+	repo := NewRepository(pool)
+	definitions := BuiltinDefinitions()
+	var legacy Definition
+	for _, definition := range definitions {
+		if definition.Entry.TypeID == "custom-http" && definition.Entry.TypeVersion == 2 {
+			legacy = definition
+			legacy.Entry.TypeVersion = 1
+		}
+	}
+	for i := range definitions {
+		if definitions[i].Entry.TypeID == "custom-http" && definitions[i].Entry.TypeVersion == 1 {
+			definitions[i] = legacy
+		}
+	}
+	if err := repo.Install(t.Context(), testService(t, definitions...)); err != nil {
+		t.Fatal(err)
+	}
+
+	retained, err := repo.BuiltinDefinitions(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := testService(t, retained...)
+	if err := repo.Install(t.Context(), s); err != nil {
+		t.Fatalf("known historical catalog rejected: %v", err)
+	}
+
+	event := json.RawMessage(`{"service":"web","node_id":"notify","name":"stage","severity":"high","payload":{}}`)
+	wantCode(t, s.CheckEvent(t.Context(), "custom-http", 1, "http.custom", event), "")
+	if err := repo.Install(t.Context(), testService(t)); err == nil {
+		t.Fatal("replaced retained historical descriptor")
+	}
+}
+
+func TestRepositoryInstall(t *testing.T) {
+	pool := repositoryPool(t)
 
 	repo := NewRepository(pool)
 	var previous []Definition
@@ -126,5 +169,29 @@ func TestRepositoryInstall(t *testing.T) {
 		if _, err := pool.Exec(t.Context(), query); err == nil {
 			t.Fatal("database allowed immutable version mutation")
 		}
+	}
+}
+
+func TestRepositoryRejectsUnknownHTTPVariant(t *testing.T) {
+	pool := repositoryPool(t)
+	repo := NewRepository(pool)
+	definitions := BuiltinDefinitions()
+	unknown := LegacyHTTPPipelineDefinition()
+	unknown.Entry.Title += " changed"
+	for i := range definitions {
+		if definitions[i].Entry.TypeID == "custom-http" && definitions[i].Entry.TypeVersion == 1 {
+			definitions[i] = unknown
+		}
+	}
+	if err := repo.Install(t.Context(), testService(t, definitions...)); err != nil {
+		t.Fatal(err)
+	}
+
+	retained, err := repo.BuiltinDefinitions(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Install(t.Context(), testService(t, retained...)); err == nil {
+		t.Fatal("unknown historical descriptor accepted")
 	}
 }

@@ -1,6 +1,7 @@
 package contract
 
 import (
+	"errors"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -8,12 +9,27 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func TestStoredJSONNullCharacters(t *testing.T) {
+	for _, body := range []string{`{"name":"bad\u0000name"}`, `{"nested":{"bad\u0000key":1}}`, `{"values":["bad\u0000value"]}`} {
+		t.Run(body, func(t *testing.T) {
+			var validation *Error
+			if err := CheckStoredJSON([]byte(body), "/config"); !errors.As(err, &validation) || validation.Status != 422 {
+				t.Fatalf("expected validation error, got %v", err)
+			}
+		})
+	}
+	if err := CheckJSON([]byte(`{"password":"allowed\u0000password"}`)); err != nil {
+		t.Fatalf("changed ephemeral password syntax: %v", err)
+	}
+}
+
 func TestBinding(t *testing.T) {
 	tests := []struct {
 		name, body, media string
 		status            int
 	}{
 		{"success", `{"name":"demo"}`, "application/json", 200},
+		{"null byte name", `{"name":"de\u0000mo"}`, "application/json", 422},
 		{"missing", `{}`, "application/json", 422},
 		{"unknown", `{"name":"x","extra":1}`, "application/json", 400},
 		{"duplicate", `{"name":"x","name":"y"}`, "application/json", 400},

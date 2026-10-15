@@ -1,7 +1,6 @@
 import { Moon, Sun } from 'lucide-react'
 import { useTheme } from '@/lib/theme'
 
-// Минималистичный переключатель темы: иконка-кнопка солнце/луна.
 export function ThemeToggle() {
   const { theme, toggle } = useTheme()
   const dark = theme === 'dark'

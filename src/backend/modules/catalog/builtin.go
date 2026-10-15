@@ -47,3 +47,16 @@ func BuiltinDefinitions() []Definition {
 
 	return definitions
 }
+
+// LegacyHTTPPipelineDefinition retains the exact early pipeline descriptor that
+// was published as version 1 before pipelines received their own version 2.
+func LegacyHTTPPipelineDefinition() Definition {
+	var entry CatalogEntry
+	if err := json.Unmarshal(customHTTPPipelineJSON, &entry); err != nil {
+		panic("invalid embedded HTTP pipeline descriptor: " + err.Error())
+	}
+
+	entry.TypeVersion = 1
+
+	return Definition{Entry: entry}
+}

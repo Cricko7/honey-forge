@@ -30,8 +30,7 @@ function apply(t: Theme) {
   document.documentElement.setAttribute('data-theme', t)
 }
 
-// Включаем плавный кросс-фейд всех поверхностей только на время переключения,
-// чтобы дашборд менял тему так же мягко, как экран входа (а не «щёлкал»).
+// Ограничиваем переход временем переключения темы, чтобы не замедлять hover.
 let transitionTimer: ReturnType<typeof setTimeout> | undefined
 function enableThemeTransition() {
   const el = document.documentElement

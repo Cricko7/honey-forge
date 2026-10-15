@@ -21,7 +21,11 @@ info:
     lifetime, 8 KiB payloads and bounded queues. HTTP flow execution defaults to 512 steps, 10 seconds and 64 KiB bodies;
     call depth is bounded at 32. See api/13-custom-http.md. TCP rules compare LF/CRLF-terminated
     lines and the first matching rule responds. Deleting a board does not delete deployed
-    traps. Runtime and SSE contain real telemetry only.
+    traps. Runtime and SSE contain real telemetry only. JSON bodies reject duplicate
+    keys and non-JSON numeric constants with 400. Unpaired Unicode surrogates,
+    non-finite numbers (including numeric overflow) and malformed trap bindings
+    are rejected with 422 before any board mutation. A storage failure returns 503
+    without publishing the failed board mutation.
 paths:
   /api/registry:
     get:
@@ -46,7 +50,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ConstructorError'
         '503':
-          description: HoneyForge API unavailable
+          description: HoneyForge API or board storage unavailable
           content:
             application/json:
               schema:
@@ -74,7 +78,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ConstructorError'
         '503':
-          description: HoneyForge API unavailable
+          description: HoneyForge API or board storage unavailable
           content:
             application/json:
               schema:
@@ -102,7 +106,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ConstructorError'
         '503':
-          description: HoneyForge API unavailable
+          description: HoneyForge API or board storage unavailable
           content:
             application/json:
               schema:
@@ -117,6 +121,10 @@ paths:
               $ref: '#/components/schemas/ChainCreate'
         required: true
       responses:
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '413':
+          $ref: '#/components/responses/TooLarge'
         '201':
           description: Successful Response
           content:
@@ -141,7 +149,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ConstructorError'
         '503':
-          description: HoneyForge API unavailable
+          description: HoneyForge API or board storage unavailable
           content:
             application/json:
               schema:
@@ -193,7 +201,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ConstructorError'
         '503':
-          description: HoneyForge API unavailable
+          description: HoneyForge API or board storage unavailable
           content:
             application/json:
               schema:
@@ -225,6 +233,10 @@ paths:
             schema:
               $ref: '#/components/schemas/ChainUpdate'
       responses:
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '413':
+          $ref: '#/components/responses/TooLarge'
         '200':
           description: Successful Response
           content:
@@ -249,7 +261,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ConstructorError'
         '503':
-          description: HoneyForge API unavailable
+          description: HoneyForge API or board storage unavailable
           content:
             application/json:
               schema:
@@ -275,6 +287,10 @@ paths:
         schema:
           type: string
       responses:
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '413':
+          $ref: '#/components/responses/TooLarge'
         '204':
           description: Successful Response
         '422':
@@ -296,7 +312,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ConstructorError'
         '503':
-          description: HoneyForge API unavailable
+          description: HoneyForge API or board storage unavailable
           content:
             application/json:
               schema:
@@ -323,6 +339,10 @@ paths:
         schema:
           type: string
       responses:
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '413':
+          $ref: '#/components/responses/TooLarge'
         '201':
           description: Successful Response
           content:
@@ -347,7 +367,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ConstructorError'
         '503':
-          description: HoneyForge API unavailable
+          description: HoneyForge API or board storage unavailable
           content:
             application/json:
               schema:
@@ -388,7 +408,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ConstructorError'
         '503':
-          description: HoneyForge API unavailable
+          description: HoneyForge API or board storage unavailable
           content:
             application/json:
               schema:
@@ -421,6 +441,10 @@ paths:
             schema:
               $ref: '#/components/schemas/DeployRequest'
       responses:
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '413':
+          $ref: '#/components/responses/TooLarge'
         '200':
           description: Successful Response
           content:
@@ -445,7 +469,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ConstructorError'
         '503':
-          description: HoneyForge API unavailable
+          description: HoneyForge API or board storage unavailable
           content:
             application/json:
               schema:
@@ -486,7 +510,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ConstructorError'
         '503':
-          description: HoneyForge API unavailable
+          description: HoneyForge API or board storage unavailable
           content:
             application/json:
               schema:
@@ -514,7 +538,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ConstructorError'
         '503':
-          description: HoneyForge API unavailable
+          description: HoneyForge API or board storage unavailable
           content:
             application/json:
               schema:
@@ -542,7 +566,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ConstructorError'
         '503':
-          description: HoneyForge API unavailable
+          description: HoneyForge API or board storage unavailable
           content:
             application/json:
               schema:
@@ -557,6 +581,10 @@ paths:
               $ref: '#/components/schemas/RealTrapCreate'
         required: true
       responses:
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '413':
+          $ref: '#/components/responses/TooLarge'
         '201':
           description: Successful Response
           content:
@@ -581,7 +609,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ConstructorError'
         '503':
-          description: HoneyForge API unavailable
+          description: HoneyForge API or board storage unavailable
           content:
             application/json:
               schema:
@@ -626,6 +654,10 @@ paths:
             schema:
               $ref: '#/components/schemas/RealCommand'
       responses:
+        '400':
+          $ref: '#/components/responses/InvalidJSON'
+        '413':
+          $ref: '#/components/responses/TooLarge'
         '200':
           description: Successful Response
           content:
@@ -650,7 +682,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ConstructorError'
         '503':
-          description: HoneyForge API unavailable
+          description: HoneyForge API or board storage unavailable
           content:
             application/json:
               schema:
@@ -678,7 +710,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ConstructorError'
         '503':
-          description: HoneyForge API unavailable
+          description: HoneyForge API or board storage unavailable
           content:
             application/json:
               schema:
@@ -706,12 +738,21 @@ paths:
               schema:
                 $ref: '#/components/schemas/ConstructorError'
         '503':
-          description: HoneyForge API unavailable
+          description: HoneyForge API or board storage unavailable
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ConstructorError'
 components:
+  responses:
+    InvalidJSON:
+      description: Malformed JSON, duplicate keys or non-JSON numeric constants. No board mutation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ConstructorError'
+    TooLarge:
+      description: Request body exceeds 256 KiB.
   schemas:
     ChainCreate:
       properties:

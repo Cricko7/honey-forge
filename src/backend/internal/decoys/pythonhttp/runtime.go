@@ -49,7 +49,13 @@ func Ports(ctx context.Context, snapshot profiles.Snapshot) ([]int, error) {
 	if err != nil {
 		return nil, fmt.Errorf("encode HTTP config: %w", err)
 	}
-	for _, definition := range catalog.BuiltinDefinitions() {
+	definitions := catalog.BuiltinDefinitions()
+	if snapshot.TypeVersion == 1 {
+		definitions = append(definitions, catalog.LegacyHTTPPipelineDefinition())
+	}
+
+	var validationErr error
+	for _, definition := range definitions {
 		if definition.Entry.TypeID != "custom-http" || int32(definition.Entry.TypeVersion) != snapshot.TypeVersion {
 			continue
 		}
@@ -61,7 +67,8 @@ func Ports(ctx context.Context, snapshot profiles.Snapshot) ([]int, error) {
 			return nil, err
 		}
 		if err := schema.Validate(raw, ""); err != nil {
-			return nil, fmt.Errorf("validate HTTP config: %w", err)
+			validationErr = err
+			continue
 		}
 		if err := catalog.CheckCustomHTTPConfig(raw); err != nil {
 			return nil, err
@@ -80,6 +87,10 @@ func Ports(ctx context.Context, snapshot profiles.Snapshot) ([]int, error) {
 		}
 		return ports, nil
 	}
+	if validationErr != nil {
+		return nil, fmt.Errorf("validate HTTP config: %w", validationErr)
+	}
+
 	return nil, fmt.Errorf("HTTP descriptor missing")
 }
 

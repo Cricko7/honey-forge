@@ -11,16 +11,16 @@ import (
 type CreateRequest struct {
 	DeploymentNodeID  string `json:"deployment_node_id,omitempty" validate:"omitempty,len=25,alphanum"`
 	RequestID         string `json:"request_id" validate:"required,uuid"`
-	Name              string `json:"name" validate:"required,name"`
-	Description       string `json:"description" validate:"max=1000"`
+	Name              string `json:"name" validate:"required,name,excludes=\x00"`
+	Description       string `json:"description" validate:"max=1000,excludes=\x00"`
 	ProfileID         string `json:"profile_id" validate:"required,uuid"`
 	AutoDeploy        bool   `json:"-"`
 	AutoDeployActorID string `json:"-"`
 }
 
 type PatchRequest struct {
-	Name        *string `json:"name" validate:"omitempty,name"`
-	Description *string `json:"description" validate:"omitempty,max=1000"`
+	Name        *string `json:"name" validate:"omitempty,name,excludes=\x00"`
+	Description *string `json:"description" validate:"omitempty,max=1000,excludes=\x00"`
 }
 
 type CredentialsRequest struct {

@@ -56,8 +56,6 @@ export function NetworkBuilderPage() {
 
   const traps = useMemo(() => trapsPage?.items ?? [], [trapsPage])
 
-  // Порты, уже занятые ловушками (порт → имя ловушки): два процесса не могут
-  // слушать один порт на одном адресе, поэтому дубли запрещаем ещё в форме.
   const usedPorts = useMemo(() => {
     const profiles = profilesPage?.items ?? []
     const byId = new Map(profiles.map((p) => [p.id, p]))
@@ -84,7 +82,6 @@ export function NetworkBuilderPage() {
   const [layoutRevision, setLayoutRevision] = useState(0)
   const savedLayout = useRef(loadLayout())
 
-  // Live: подсветка узла при событии атаки
   useLiveStream((e) => {
     setAttackPulse((p) => ({ ...p, [e.trap_id]: Date.now() }))
     setTimeout(() => {
@@ -96,7 +93,6 @@ export function NetworkBuilderPage() {
     }, 2600)
   })
 
-  // Построение графа из ловушек + gateway
   useEffect(() => {
     const layout = savedLayout.current
     const gateway: Node<TrapNodeData> = {
@@ -134,7 +130,6 @@ export function NetworkBuilderPage() {
     setNodes([gateway, ...trapNodes])
 
     setEdges((prev) => {
-      // авто-связи gateway → ловушка (подсвечиваются при атаке)
       const autoEdges: Edge[] = traps.map((t) => ({
         id: `gateway-${t.id}`,
         source: 'gateway',
@@ -192,8 +187,6 @@ export function NetworkBuilderPage() {
 
   const selectedLink = edges.find((edge) => edge.selected && edge.source !== 'gateway')
 
-  // Авто-сохранение раскладки: позиция каждого узла пишется в localStorage
-  // при завершении перетаскивания — вручную ничего сохранять не нужно.
   function saveLayout() {
     const layout: Record<string, { x: number; y: number }> = {}
     nodes.forEach((n) => (layout[n.id] = n.position))
@@ -272,8 +265,6 @@ export function NetworkBuilderPage() {
             nodeColor={(n) => ((n.data as TrapNodeData)?.underAttack ? ATTACK : c.brand)}
           />
         </ReactFlow>
-
-        {/* Легенда */}
         <div className="absolute bottom-4 left-4 card px-4 py-3 text-xs space-y-1.5 z-10">
           <div className="font-semibold text-fg mb-1">Легенда</div>
           <div className="flex items-center gap-2 text-muted"><span className="text-brand-soft">→</span> Передача JSON · настроенный HTTP-сценарий</div>

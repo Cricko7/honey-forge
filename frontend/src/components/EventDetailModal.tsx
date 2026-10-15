@@ -48,8 +48,6 @@ export function EventDetailModal({ id, onClose }: { id: string | null; onClose: 
               <span className="font-mono text-xs">#{event.session_sequence}</span>
             </Field>
           </div>
-
-          {/* Перехваченные данные атакующего */}
           <div>
             <div className="flex items-center gap-1.5 text-xs text-danger mb-2">
               <ShieldAlert size={13} /> {event.event_type === 'process.exec' ? 'Телеметрия процесса' : 'Перехваченные данные'}

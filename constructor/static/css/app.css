@@ -1,4 +1,3 @@
-/* HoneyForge Chain Constructor — полноэкранная доска + плавающие панели. Дизайн SPI. */
 :root {
   --bg-base: 42 38% 97%;
   --bg-panel: 0 0% 100%;
@@ -41,7 +40,6 @@ body {
 .hidden { display: none !important; }
 code, .mono { font-family: "JetBrains Mono", monospace; }
 
-/* ======== Доска на весь экран ======== */
 .canvas-wrap { position: fixed; inset: 0; overflow: hidden; cursor: grab; background: hsl(var(--bg-base)); }
 .canvas-wrap.panning { cursor: grabbing; }
 .canvas-bg {
@@ -61,7 +59,6 @@ code, .mono { font-family: "JetBrains Mono", monospace; }
 .edge-label-bg { fill: hsl(var(--bg-base)); }
 .node-layer { position: absolute; inset: 0; transform-origin: 0 0; }
 
-/* ======== Узлы ======== */
 .node {
   position: absolute; width: 200px;
   background: hsl(var(--bg-panel)); border: 1px solid hsl(var(--line));
@@ -101,7 +98,6 @@ code, .mono { font-family: "JetBrains Mono", monospace; }
 }
 .port:hover .port-label, .port.hot .port-label { opacity: 1; transform: translateY(-50%) scale(1); }
 
-/* ======== Плавающие доки (бренд / действия) ======== */
 .dock { position: fixed; z-index: 30; display: flex; align-items: center; gap: 8px; }
 .dock-tl { top: 16px; left: 16px; }
 .dock-tr { top: 16px; right: 16px; }
@@ -115,7 +111,6 @@ code, .mono { font-family: "JetBrains Mono", monospace; }
   width: 28px; height: 28px; flex-shrink: 0;
   filter: drop-shadow(0 3px 10px hsl(var(--brand) / .45));
 }
-/* Встроен в панель — темой управляет панель, свой тумблер прячем */
 body.embedded #btnTheme { display: none; }
 .brand-text { display: flex; flex-direction: column; line-height: 1.12; }
 .brand-text strong { font-size: 14px; letter-spacing: .2px; }
@@ -123,7 +118,6 @@ body.embedded #btnTheme { display: none; }
 .save-state { font-size: 12px; color: hsl(var(--text-soft)); margin-right: 2px; }
 .save-state.dirty { color: hsl(var(--warn)); }
 
-/* ======== Пилюли-кнопки ======== */
 .pill {
   font: inherit; font-size: 13px; font-weight: 500; color: hsl(var(--text));
   padding: 9px 15px; border-radius: 100px; cursor: pointer;
@@ -143,7 +137,6 @@ body.embedded #btnTheme { display: none; }
 .pill-danger:hover { background: hsl(var(--err)); color: #fff; border-color: transparent; box-shadow: 0 8px 24px hsl(var(--err) / .4); }
 .pill-wide { width: 100%; justify-content: center; }
 
-/* ======== Выпадающее меню цепочек ======== */
 .dropdown {
   position: absolute; top: 48px; left: 0; min-width: 320px;
   background: hsl(var(--bg-panel)); color: hsl(var(--text));
@@ -168,7 +161,6 @@ body.embedded #btnTheme { display: none; }
 .dropdown .dd-act:hover { background: hsl(var(--bg-sub)); border-color: hsl(var(--line)); color: hsl(var(--text)); }
 .dropdown .dd-act.danger:hover { color: hsl(var(--err)); border-color: hsl(var(--err) / .4); }
 
-/* ======== Выезжающие drawer'ы ======== */
 .drawer {
   position: fixed; top: 72px; bottom: 16px; z-index: 28;
   width: 290px; display: flex; flex-direction: column;
@@ -205,7 +197,6 @@ body.embedded #btnTheme { display: none; }
 .pal-state.run { background: hsl(var(--ok)); box-shadow: 0 0 0 0 hsl(var(--ok) / .6); animation: runpulse 2s ease infinite; }
 .pal-empty { font-size: 12px; color: hsl(var(--text-soft)); line-height: 1.6; text-align: center; padding: 24px 14px; }
 
-/* Язычок-кнопка открытия палитры */
 .drawer-tab {
   position: fixed; z-index: 27; top: 50%; transform: translateY(-50%);
   display: flex; flex-direction: column; align-items: center; gap: 6px;
@@ -219,7 +210,6 @@ body.embedded #btnTheme { display: none; }
 .drawer-tab span { font-size: 10.5px; writing-mode: vertical-rl; letter-spacing: .5px; }
 .drawer-tab.hidden-tab { opacity: 0; pointer-events: none; }
 
-/* ======== Инспектор ======== */
 .inspector-body { padding: 16px; overflow-y: auto; height: 100%; }
 .insp-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
 .insp-type { font-size: 11px; color: hsl(var(--text-soft)); font-family: "JetBrains Mono", monospace; margin-bottom: 16px; }
@@ -246,7 +236,6 @@ body.embedded #btnTheme { display: none; }
 .insp-doc { font-size: 11.5px; color: hsl(var(--text-soft)); line-height: 1.5; background: hsl(var(--bg-sub));
   padding: 10px 12px; border-radius: 10px; margin: 14px 0; }
 
-/* блок реальной ловушки в инспекторе */
 .insp-real { background: hsl(var(--bg-sub)); border: 1px solid hsl(var(--line)); border-radius: 12px;
   padding: 12px; margin-bottom: 14px; }
 .insp-real .ir-row { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px;
@@ -267,7 +256,6 @@ body.embedded #btnTheme { display: none; }
 .insp-materialize .im-hint { font-size: 12px; color: hsl(var(--text-soft)); margin-bottom: 9px; line-height: 1.4; }
 .insp-real .ir-soft { font-size: 12px; color: hsl(var(--text-soft)); line-height: 1.4; }
 
-/* ======== Сворачиваемый островок инструментов ======== */
 .tooldock {
   position: fixed; left: 50%; transform: translateX(-50%); bottom: 18px; z-index: 26;
   display: flex; align-items: center; gap: 6px;
@@ -317,7 +305,6 @@ body.embedded #btnTheme { display: none; }
   pointer-events: none; z-index: 25; transition: opacity .4s; box-shadow: 0 6px 20px hsl(var(--shadow) / .1);
 }
 
-/* ======== Карточка симуляции ======== */
 .sim-panel {
   position: fixed; left: 50%; transform: translateX(-50%); bottom: 72px; z-index: 29;
   width: min(760px, calc(100vw - 120px)); max-height: 300px;
@@ -342,7 +329,6 @@ body.embedded #btnTheme { display: none; }
 .sim-step .st-meta { font-size: 11px; color: hsl(var(--brand)); font-family: "JetBrains Mono", monospace; margin-top: 2px; }
 .sim-step .st-time { font-size: 11px; color: hsl(var(--text-soft)); font-family: "JetBrains Mono", monospace; }
 
-/* ======== Боевой режим: атакующие стрелки ======== */
 .edge.attack { stroke: hsl(var(--err)); stroke-width: 3.2; filter: drop-shadow(0 0 7px hsl(var(--err) / .7)); }
 .edge.attack-flow { stroke: hsl(var(--err)); stroke-width: 3.2; stroke-dasharray: 10 8;
   animation: dashmove .5s linear infinite; filter: drop-shadow(0 0 8px hsl(var(--err) / .7)); }
@@ -354,12 +340,10 @@ body.embedded #btnTheme { display: none; }
 @keyframes attackpulse { 0%,100% { box-shadow: 0 0 0 2px hsl(var(--err) / .6), 0 0 22px hsl(var(--err) / .4); }
   50% { box-shadow: 0 0 0 3px hsl(var(--err) / .8), 0 0 40px hsl(var(--err) / .7); } }
 
-/* узел, где атака дошла до детекта — «скомпрометирован/пойман» */
 .node.compromised { border-color: hsl(var(--err)); }
 .node.compromised .node-ico { animation: icoflash 1.2s ease; }
 @keyframes icoflash { 0%,100% { filter: none; } 50% { filter: drop-shadow(0 0 6px hsl(var(--err))); } }
 
-/* счётчик попаданий атак по узлу */
 .node-hits { position: absolute; top: -9px; left: -9px; min-width: 20px; height: 20px; padding: 0 6px;
   border-radius: 11px; background: hsl(var(--err)); color: #fff; font-size: 11px; font-weight: 700;
   display: flex; align-items: center; justify-content: center; z-index: 4;
@@ -367,7 +351,6 @@ body.embedded #btnTheme { display: none; }
 .node-hits.bump { animation: hitbump .3s ease; }
 @keyframes hitbump { 0% { transform: scale(1); } 40% { transform: scale(1.45); } 100% { transform: scale(1); } }
 
-/* всплывающая метка техники над атакуемым узлом */
 .hit-float { position: absolute; transform: translate(-50%, 0); pointer-events: none; white-space: nowrap;
   font-family: "JetBrains Mono", monospace; font-size: 11px; font-weight: 700; color: hsl(var(--err));
   text-shadow: 0 1px 5px hsl(var(--bg-base)), 0 0 10px hsl(var(--err) / .4); z-index: 20;
@@ -375,17 +358,14 @@ body.embedded #btnTheme { display: none; }
 @keyframes floatup { 0% { opacity: 0; transform: translate(-50%, 2px) scale(.85); }
   18% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -48px) scale(1); } }
 
-/* статус ловушки на узле */
 .node-status { position: absolute; top: 9px; right: 9px; width: 8px; height: 8px; border-radius: 50%; background: hsl(var(--text-soft)); }
 .node-status.running { background: hsl(var(--ok)); box-shadow: 0 0 0 0 hsl(var(--ok) / .6); animation: runpulse 2s ease infinite; }
 @keyframes runpulse { 0% { box-shadow: 0 0 0 0 hsl(var(--ok) / .5); } 70% { box-shadow: 0 0 0 6px hsl(var(--ok) / 0); } 100% { box-shadow: 0 0 0 0 hsl(var(--ok) / 0); } }
 
-/* кнопка «Развернуть» в боевом режиме */
 .pill-primary.live { background: hsl(var(--err)); box-shadow: 0 8px 26px hsl(var(--err) / .45); }
 .pill-primary.live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #fff;
   animation: runpulse 1.4s ease infinite; }
 
-/* ======== KPI-полоса ======== */
 .kpi-dock {
   position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 29;
   display: flex; align-items: stretch; gap: 4px; padding: 6px;
@@ -399,7 +379,6 @@ body.embedded #btnTheme { display: none; }
 .kpi-dot { width: 9px; height: 9px; border-radius: 50%; background: hsl(var(--text-soft)); flex-shrink: 0; }
 .kpi-dot.live { background: hsl(var(--err)); animation: runpulse 1.6s ease infinite; }
 
-/* ======== Тост ======== */
 .toast {
   position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
   background: hsl(var(--graphite)); color: #fff; padding: 11px 18px; border-radius: 12px;
@@ -413,6 +392,5 @@ body.embedded #btnTheme { display: none; }
 @keyframes pop { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @keyframes slideUp { from { opacity: 0; transform: translate(-50%, 20px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
-/* Real trap status and events. */
 .live-status { position: fixed; top: 80px; left: 24px; background: hsl(var(--bg-panel)); padding: 10px; border-radius: 12px; z-index: 20; }
 .fi-top { display: flex; justify-content: space-between; gap: 8px; }

@@ -48,7 +48,6 @@ export function OrganizationPage() {
 
   return (
     <div className="p-6 lg:p-8 max-w-4xl mx-auto space-y-6">
-      {/* Заголовок */}
       <header className="animate-fadeInUp">
         <span className="chip bg-brand/10 text-brand mb-3">
           <Users size={13} /> Управление доступом
@@ -59,13 +58,10 @@ export function OrganizationPage() {
           наблюдателя — только просмотр данных организации, без управления ловушками.
         </p>
       </header>
-
-      {/* Карточка кода приглашения */}
       <section
         className="card p-6 lg:p-7 relative overflow-hidden animate-fadeInUp"
         style={{ animationDelay: '70ms' }}
       >
-        {/* фоновое свечение в фирменном фиолете */}
         <div className="pointer-events-none absolute -top-24 -right-16 h-64 w-64 rounded-full bg-brand/10 blur-3xl" />
 
         <div className="relative flex items-center gap-2.5 mb-5">
@@ -95,7 +91,6 @@ export function OrganizationPage() {
 
         {code.data && (
           <div className="relative space-y-4">
-            {/* поле с кодом + копирование */}
             <div className="flex flex-col sm:flex-row gap-3 sm:items-stretch">
               <div className="flex-1 flex items-center rounded-xl border border-line bg-bg-elevated px-4 py-3.5 font-mono text-lg sm:text-xl tracking-[0.2em] text-fg select-all overflow-x-auto">
                 {code.data.code}
@@ -150,8 +145,6 @@ export function OrganizationPage() {
       </section>
 
       <APIKeys />
-
-      {/* Как это работает */}
       <section className="grid sm:grid-cols-3 gap-4">
         {steps.map((step, i) => (
           <div

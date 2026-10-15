@@ -4,17 +4,20 @@ import (
 	"encoding/json"
 	"os"
 	"reflect"
-	"regexp"
 	"testing"
 )
 
 func TestBuiltinSchemasMatchSpecification(t *testing.T) {
-	document, err := os.ReadFile("../../../../api/03-catalog.md")
+	document, err := os.ReadFile("testdata/tcp-banner-spec.json")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	blocks := regexp.MustCompile("(?s)```json\\s*(.*?)\\s*```").FindAllSubmatch(document, -1)
+	var blocks []json.RawMessage
+	if err := json.Unmarshal(document, &blocks); err != nil {
+		t.Fatal(err)
+	}
+
 	if len(blocks) != 5 {
 		t.Fatalf("expected 5 source schema blocks, got %d", len(blocks))
 	}
@@ -27,7 +30,7 @@ func TestBuiltinSchemasMatchSpecification(t *testing.T) {
 
 	for i, raw := range actual {
 		var want, got any
-		if err := json.Unmarshal(blocks[i][1], &want); err != nil {
+		if err := json.Unmarshal(blocks[i], &want); err != nil {
 			t.Fatal(err)
 		}
 
@@ -43,7 +46,7 @@ func TestBuiltinSchemasMatchSpecification(t *testing.T) {
 	var source struct {
 		Defs map[string]json.RawMessage `json:"$defs"`
 	}
-	if err := json.Unmarshal(blocks[4][1], &source); err != nil {
+	if err := json.Unmarshal(blocks[4], &source); err != nil {
 		t.Fatal(err)
 	}
 

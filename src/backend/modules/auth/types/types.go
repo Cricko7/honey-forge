@@ -57,7 +57,7 @@ type JoinCode struct {
 
 type OrganizationInput struct {
 	Mode     string `json:"mode" binding:"required,oneof=create join" validate:"required,oneof=create join"`
-	Name     string `json:"name,omitempty" binding:"required_if=Mode create,excluded_if=Mode join,omitempty,orgname" validate:"required_if=Mode create,excluded_if=Mode join,omitempty,orgname"`
+	Name     string `json:"name,omitempty" binding:"required_if=Mode create,excluded_if=Mode join,omitempty,orgname,excludes=\x00" validate:"required_if=Mode create,excluded_if=Mode join,omitempty,orgname,excludes=\x00"`
 	JoinCode string `json:"join_code,omitempty" binding:"required_if=Mode join,excluded_if=Mode create,omitempty,joincode" validate:"required_if=Mode join,excluded_if=Mode create,omitempty,joincode"`
 }
 

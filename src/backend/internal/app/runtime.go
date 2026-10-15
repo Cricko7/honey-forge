@@ -49,10 +49,7 @@ type Config struct {
 	Ingester           traps.Ingester
 	EventPublisher     events.BatchPublisher
 	CatalogDefinitions []catalog.Definition
-	// TrustedProxies are addresses/CIDRs of the reverse proxy (e.g. nginx on
-	// loopback). When set, Gin derives ClientIP from X-Forwarded-For so the auth
-	// rate limiter buckets per real client instead of the shared proxy IP. Empty
-	// keeps the safe default of trusting no proxy (direct peer address).
+	// Только доверенные прокси могут задавать ClientIP через X-Forwarded-For.
 	TrustedProxies []string
 }
 
@@ -90,16 +87,6 @@ func Open(ctx context.Context, config Config) (*Runtime, error) {
 		return nil, fmt.Errorf("configure browser policy: %w", err)
 	}
 
-	definitions := config.CatalogDefinitions
-	if definitions == nil {
-		definitions = catalog.BuiltinDefinitions()
-	}
-
-	catalogService, err := catalog.NewService(definitions, cursors)
-	if err != nil {
-		return nil, fmt.Errorf("initialize catalog: %w", err)
-	}
-
 	pool, err := postgres.Open(ctx, config.DatabaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("initialize database: %w", err)
@@ -122,7 +109,21 @@ func Open(ctx context.Context, config Config) (*Runtime, error) {
 		return nil, err
 	}
 
-	if err := catalog.NewRepository(pool).Install(ctx, catalogService); err != nil {
+	repository := catalog.NewRepository(pool)
+	definitions := config.CatalogDefinitions
+	if definitions == nil {
+		definitions, err = repository.BuiltinDefinitions(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("load catalog: %w", err)
+		}
+	}
+
+	catalogService, err := catalog.NewService(definitions, cursors)
+	if err != nil {
+		return nil, fmt.Errorf("initialize catalog: %w", err)
+	}
+
+	if err := repository.Install(ctx, catalogService); err != nil {
 		return nil, fmt.Errorf("install catalog: %w", err)
 	}
 

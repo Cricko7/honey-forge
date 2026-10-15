@@ -1,6 +1,7 @@
 """Constructor on the panel origin, using HoneyForge session and authorization."""
 import asyncio
 import hmac
+import logging
 import os
 from pathlib import Path
 from typing import Literal
@@ -17,6 +18,7 @@ from .custom import registry_types
 from .models import ChainCreate, ChainUpdate
 from .node_registry import registry_payload
 from .runtime import runtime
+from .request_json import check_document
 from .store import organization, store
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / 'static'
@@ -39,6 +41,12 @@ async def validation_error(request, error):
     return JSONResponse({'error': {'code': 'invalid_json' if malformed else 'validation_failed', 'message': 'Invalid constructor request'}}, status_code=400 if malformed else 422)
 
 
+@app.exception_handler(OSError)
+async def storage_error(request, error):
+    logging.getLogger(__name__).error('Constructor storage operation failed', exc_info=error)
+    return JSONResponse({'error': {'code': 'storage_unavailable', 'message': 'Constructor storage is unavailable'}}, status_code=503)
+
+
 @app.middleware('http')
 async def operator_session(request: Request, call_next):
     path = request.scope['path']
@@ -57,6 +65,11 @@ async def operator_session(request: Request, call_next):
                 raise HTTPException(403, 'Доступно только администратору')
             if request.headers.get('origin') != os.environ.get('HONEYFORGE_ORIGIN', 'https://localhost:8443') or not hmac.compare_digest(request.headers.get('x-csrf-token', ''), session['csrf_token']):
                 raise HTTPException(403, 'Invalid CSRF token or origin')
+            body = await request.body()
+            if len(body) > 256 * 1024:
+                raise HTTPException(413, 'Request body is too large')
+            if body:
+                check_document(body)
         return await call_next(request)
     except real_api.RealApiError as error:
         return await backend_error(request, error)

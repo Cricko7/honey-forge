@@ -9,16 +9,16 @@ type Object = map[string]any
 
 type CreateRequest struct {
 	RequestID   string `json:"request_id" binding:"required,uuid" validate:"required,uuid"`
-	Name        string `json:"name" binding:"required,profilename" validate:"required,profilename"`
-	Description string `json:"description" binding:"max=1000" validate:"max=1000"`
+	Name        string `json:"name" binding:"required,profilename,excludes=\x00" validate:"required,profilename,excludes=\x00"`
+	Description string `json:"description" binding:"max=1000,excludes=\x00" validate:"max=1000,excludes=\x00"`
 	TypeID      string `json:"type_id" binding:"required,profiletype" validate:"required,profiletype"`
 	TypeVersion int64  `json:"type_version" binding:"required,min=1,max=2147483647" validate:"required,min=1,max=2147483647"`
 	Config      Object `json:"config" binding:"required" validate:"required"`
 }
 
 type PatchRequest struct {
-	Name              *string  `json:"name" binding:"omitempty,profilename" validate:"omitempty,profilename"`
-	Description       *string  `json:"description" binding:"omitempty,max=1000" validate:"omitempty,max=1000"`
+	Name              *string  `json:"name" binding:"omitempty,profilename,excludes=\x00" validate:"omitempty,profilename,excludes=\x00"`
+	Description       *string  `json:"description" binding:"omitempty,max=1000,excludes=\x00" validate:"omitempty,max=1000,excludes=\x00"`
 	Config            Object   `json:"config"`
 	ClearSecretFields []string `json:"clear_secret_fields" binding:"max=100,unique,dive,profilepointer" validate:"max=100,unique,dive,profilepointer"`
 }

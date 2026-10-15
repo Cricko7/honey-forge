@@ -1,502 +1,448 @@
 # HoneyForge
 
-![main_str](screenshots/honey-forge-main-page.png)
----
+HoneyForge — платформа для создания и развёртывания honeypot-ловушек. Оператор задаёт поведение сервиса, запускает ловушку на выбранном сервере и наблюдает за подключениями, командами и действиями атакующего в общей панели.
 
-`HoneyForge` — Предварительный вариант веб-конструктора по графическому выстраиванию honey-spot ловушек для вашей компьютерной сети.
+![Панель HoneyForge](screenshots/honey-forge-main-page.png)
 
-#### Перед заходом на ресурс, в ОС Windows через powershell (от имени администратора) внесите изменения:
+- [Запуск](#запуск)
+- [Первый сценарий](#первый-сценарий)
+- [Архитектура](#архитектура)
+- [Профили и типы ловушек](#профили-и-типы-ловушек)
+- [API](#api)
+- [База данных](#база-данных)
+- [Разработка и проверки](#разработка-и-проверки)
 
-- конфиг `hosts`:
+## Запуск
 
-```powershell
-Add-Content -Path "$env:windir\System32\drivers\etc\hosts" -Value "147.45.141.37   https://honey-forge-seg-fault.ru"
-```
+Нужны Git, Docker Engine и Docker Compose с поддержкой `include`. На Windows используйте Docker Desktop в режиме Linux-контейнеров. Оркестратор использует Docker Swarm; при первом запуске он сам создаёт локальный Swarm и сети ловушек.
 
-#### Альтернатива на ОС Linux:
-
-- Переходим в конфиг `hosts`:
-
-```
-sudo nano /etc/hosts
-```
-
-- Вносим строку в конце файла `hosts` и сохраняем:
-
-```
-147.45.141.37 https://honey-forge-seg-fault.ru
-```
-
-### Затем, можем перейти по этой ссылке:
-
-[---> КЛИК мышкой <---](https://honey-forge-seg-fault.ru)
-
-> Принимаем все риски при переходе на наш ресурс !!!
-
----
-### Примечание:
-Полный проект, включая конструктор ловушек, запускается одной командой без `.env`, Go/Python на хосте и ручной генерации сертификатов:
+Из корня репозитория:
 
 ```sh
 docker compose up --build -d
+docker compose ps -a
 ```
 
-Откройте `https://localhost:8443`. Конструктор доступен в общей панели по адресу `https://localhost:8443/app/constructor`, использует ту же сессию и запускается вместе с API. Отдельный процесс на порту 8077 не нужен. В PowerShell также можно выполнить `./start.ps1`.
+Панель: **https://localhost:8443**. Конструктор: **https://localhost:8443/app/constructor**. На Windows эту же сборку запускает `./start.ps1`.
 
-Docker сам создаёт и сохраняет локальные
-секреты, настраивает mTLS/pinning и обновляет сертификаты. При первом открытии браузер попросит довериться локальному HTTPS.
+Для стандартного локального запуска не нужны `.env`, установленные на хосте Go/Python или ручная генерация сертификатов. Сервис `tls-init` создаёт секреты и сертификаты в Docker-томах и обновляет сертификаты. Локальный HTTPS использует собственный CA: браузер попросит подтвердить доверие к сертификату.
 
-## Как правильно воспользоваться нашим решением?
-#### Специально для Вас, мы с командой подготовили пару руководств на разные роли:
+`compose.yaml` подключает `docker-compose.real.yml`, поэтому явный эквивалент команды запуска:
 
-[--> Руководство пользователя <--](CHANGELOG.md)
-
-[--> Руководство системного администратора <--](ADMINISTRATOR.md)
-
-
-## Всё остальное по нашей разработке:
-
-[Хостовая телеметрия Tetragon: архитектура, интеграция и Linux-проверки](docs/stealth-telemetry.md).
-Тип `ssh-high-interaction/2` добавляет `process.exec` через сенсор вне sandbox;
-версия 1 сохраняется. Для версии 2 оператор отдельно устанавливает Tetragon
-на каждом Docker-хосте и задаёт `TETRAGON_CONTAINER`. Реальный eBPF-сценарий
-нужно подтвердить на Linux; mock-события не доказывают работу сенсора.
-[Порядок модулей 01–11 и состояние реализации](api/README.md) ·
-[Стиль кода и проверки](CONTRIBUTING.md)
-
-Общий модуль 01 реализует транспортные правила, валидацию, доступ, WSS Envelope, идемпотентность и согласованную фиксацию изменений. Проверяемое соответствие требованиям: [api/01-acceptance.md](api/01-acceptance.md).
-Контракт: [api/01-common.md](api/01-common.md), [OpenAPI](api/openapi.yaml).
-
-Модуль 03 добавляет immutable-каталог типов, GET `/api/trap-types` и точной
-версии, snapshot pagination/ETag и валидацию config/event/action для tcp-banner/1
-и redis-emulator/1.
-Требования и границы подключения: [api/03-catalog.md](api/03-catalog.md),
-[api/03-acceptance.md](api/03-acceptance.md). Auth/organizations и profiles из
-`src/backend/modules` подключены к тому же серверу. Каталог использует настоящую
-cookie-сессию; профили проверяются его точной версией схемы.
-
-## 1. Стек и зависимости
-
-- Go 1.26.1; API, агент, оркестратор и обе приманки находятся в одном модуле
-  `src/backend`. Приманки собраны в `src/backend/internal/decoys`.
-- Gin — HTTP API, `pgx/v5` — доступ к PostgreSQL 17, Goose — SQL-миграции.
-- `validator/v10` и JSON Schema Draft 2020-12 — проверка входных данных и
-  конфигураций; `gorilla/websocket` — WSS, `franz-go` — Kafka.
-- Для API нужны PostgreSQL, Kafka и TLS-сертификат с закрытым ключом;
-  для агента — локальный Redis с AOF/fsync-always и noeviction.
-  Локальные версии инфраструктуры указаны в `compose.yaml`.
-
-## 2. Как проект собирается
-
-Из корня репозитория перейдите в каталог Go-модуля:
-
-```powershell
-Set-Location src/backend
-go mod download
-go build ./...
-go build -o honey-forge-api.exe ./cmd/api
+```sh
+docker compose -f docker-compose.real.yml up --build -d
 ```
 
-На Linux последняя команда может создавать файл без расширения:
-`go build -o honey-forge-api ./cmd/api`. Запускайте бинарный файл с рабочим
-каталогом `src/backend`: приложение ищет миграции в `../../migrations`.
+Вместе запускаются панель nginx/React, Go API, Python-конструктор, PostgreSQL, Kafka, Redis и оркестратор. Сервисы `decoy-*-image` и `ssh-sandbox-image` подготавливают образы и завершаются: состояние `Exited (0)` для них ожидаемо.
 
-## 3. Тесты
+Панель по умолчанию доступна только на `127.0.0.1:8443`. Порты ловушек публикуются отдельно согласно профилям. Для панели и агентского канала используются разные имена: `localhost` и `resources.localhost`.
 
-Из `src/backend` доступны обычные проверки:
+### Логи и остановка
 
-```powershell
+```sh
+docker compose logs --tail=100 api orchestrator constructor web
+docker compose stop
+docker compose start
+```
+
+`stop` сохраняет контейнеры и тома. Управляемые ловушки работают как отдельные Swarm-сервисы: останавливайте их кнопкой «Остановить» в панели до остановки управляющего стека. Остановка Compose сама по себе не удаляет Swarm-ловушки.
+
+### Если запуск не завершился
+
+| Симптом | Что проверить |
+|---|---|
+| Панель не открывается | Состояние `web` и `api`, свободен ли порт 8443, логи `tls-init`. |
+| API не запускается | Готовность PostgreSQL/Kafka и логи `api`; миграции выполняются при старте. |
+| Ловушка создана, но не работает | Логи оркестратора, `docker service ls`, состояние агента и историю команд в панели. |
+| Ошибка запуска listener | Не занят ли порт другой программой или ловушкой на выбранном узле. |
+| Агент offline | Доступность `resources.localhost` из управляющей сети, доверие к CA и Redis. Для другого сервера нужны доступные ему адреса установки. |
+
+### Развёртывание на сервере
+
+Полный стек рассчитан на Linux-хост с Docker. Для внешнего доступа настройте DNS, действующие сертификаты и раздельные имена панели и агентского ресурса. В конфигурации согласуйте `API_PUBLIC_ORIGIN`, `BROWSER_ORIGINS`, `AGENT_WS_URL`, адрес публикации панели и frontend API URL. Пример nginx: [deploy/nginx/honey-forge.conf](deploy/nginx/honey-forge.conf).
+
+`MGMT_BIND_IP` задаёт интерфейс панели, `DECOY_BIND_IP` — интерфейс приманок. Сети управления и приманок разделены. Дополнительные Linux-серверы присоединяются к Swarm как workers и назначаются организации; список доступных узлов виден в разделе «Серверы». Образы ловушек должны присутствовать на выбранном узле.
+
+## Первый сценарий
+
+1. Откройте панель и зарегистрируйте организацию: первый пользователь получает права администратора.
+2. В разделе профилей выберите тип ловушки, задайте имя, свободный порт и конфигурацию.
+3. Создайте ловушку по профилю. При необходимости выберите сервер размещения; без выбора используется узел платформы.
+4. Дождитесь `online` у агента и `running` у runtime. Создание ресурса в API ещё не означает готовность listener.
+5. Подключитесь к адресу сервера на порту ловушки. Для TCP-banner можно использовать `nc SERVER_IP PORT`.
+6. Проверьте раздел «События» и карточку ловушки. Команды остановки и запуска доступны там же.
+
+Для собственного сценария откройте конструктор, добавьте TCP- или HTTP-вход, соедините блоки поведения и нажмите «Развернуть». Доска и работающая ловушка — разные объекты: удаление доски не удаляет созданную ловушку. Подробнее: [README конструктора](constructor/README.md).
+
+## Архитектура
+
+Управляющий backend — модульный монолит на Go: HTTP и WSS, авторизация, каталог, профили, ловушки, команды и события находятся в одном Go-модуле. Отдельные процессы выполняют развёртывание контейнеров и работу агентов. Конструктор на FastAPI использует текущую сессию панели и обращается к тому же API.
+
+```mermaid
+flowchart LR
+    operator[Оператор] -->|HTTPS| web[nginx и React]
+    web -->|REST и WSS /api/stream| api[Go API]
+    web -->|/constructor/| builder[FastAPI-конструктор]
+    builder -->|Сессия оператора| api
+    api --> pg[(PostgreSQL)]
+    api -->|Приём телеметрии| kafka[(Kafka)]
+    kafka -->|Обработка и сохранение| api
+    orchestrator[Оркестратор] -->|Желаемое состояние| pg
+    orchestrator -->|Docker API| swarm[Docker Swarm]
+    swarm -->|Развёртывание| agent[Агент на узле]
+    agent <-->|mTLS и WSS через ресурсный хост nginx| api
+    agent -->|Журнал доставки| redis[(Redis AOF)]
+    attacker[Атакующий] -->|Порт приманки| decoy[Runtime ловушки]
+    decoy -->|Телеметрия| agent
+    agent -->|Конфигурация и управление| decoy
+```
+
+У обычных TCP/Redis/HTTP-ловушек агент и runtime работают в отдельных контейнерах. Доверенный агент имеет доступ к управлению, а контейнер приманки не получает Docker socket или управляющие секреты; обмен идёт через TLS поверх stdin/stdout. Для SSH шлюз создаёт отдельный Linux-контейнер на соединение и записывает терминал и SFTP снаружи этой среды.
+
+### Основные потоки
+
+**Создание:** панель → профиль → `POST /api/traps` → оркестратор → Swarm-сервис → подключение агента → `apply_config` → `start` → listener. Развёртывание асинхронное; состояние и ошибки возвращаются через карточку ловушки и историю команд.
+
+**Телеметрия:** runtime → журнал агента в Redis → WSS → Kafka → PostgreSQL → уведомление панели. Агент получает подтверждение пакета после записи в PostgreSQL. Redis сохраняет неподтверждённые данные для повторной доставки; backend проверяет дубликаты событий и пакетов.
+
+**Изменения панели:** бизнес-изменение, аудит и запись журнала фиксируются в одной транзакции PostgreSQL. `/api/stream` передаёт изменения текущей организации и поддерживает восстановление по курсору. REST остаётся источником подробных данных.
+
+### Компоненты и код
+
+| Компонент | Ответственность | Расположение |
+|---|---|---|
+| Панель | Ловушки, события, профили, организация | `frontend/src` |
+| API | REST/WSS и сборка модулей | `src/backend/cmd/api`, `internal/app` |
+| auth | Пользователи, сессии, API-ключи, права | `src/backend/modules/auth` |
+| catalog / profiles | Версии типов, JSON Schema, конфигурации | `src/backend/modules/catalog`, `modules/profiles` |
+| traps / commands | Состояние ловушки, реквизиты и выполнение команд | `src/backend/modules/traps`, `modules/commands` |
+| events / audit | Телеметрия и история действий операторов | `src/backend/modules/events`, `modules/audit` |
+| agentws / frontendws | Потоки агента и панели | `src/backend/modules/agentws`, `modules/frontendws` |
+| Агент и runtime | Исполнение профиля, буферизация, протокол приманки | `src/backend/cmd/agent`, `internal/agent`, `internal/decoys` |
+| Оркестратор | Согласование состояния API и Docker | `src/backend/cmd/orchestrator`, `internal/orchestrator` |
+| Конструктор | Доски, блоки поведения, компиляция и развёртывание | `constructor/backend`, `constructor/static` |
+
+HTTP-обработчик связывает JSON и вызывает сервис; сервис проверяет бизнес-правила и права; репозиторий выполняет параметризованный SQL через pgx. Общие транспортные правила находятся в `internal/contract`, транзакционные изменения — в `internal/mutation`.
+
+## Профили и типы ловушек
+
+**Тип** задаёт протокол, схему конфигурации, события и допустимые действия. **Профиль** хранит конфигурацию конкретной версии типа. **Ловушка** связывает профиль с развёрнутым экземпляром и его состоянием.
+
+| Тип и версия | Назначение |
+|---|---|
+| `tcp-banner/1` | Один или несколько TCP-listener: приветствие, захват входящих данных, закрытие после баннера. |
+| `redis-emulator/1` | Redis-приманка с настоящим redis-server, наблюдением за входом и командами. |
+| `honeytoken-http/1` | HTTP-раздача файлов, ключей и URL-приманок; события использования honeytoken. |
+| `ssh-high-interaction/1` | SSH-сессия в отдельном Linux-контейнере, запись терминала и SFTP. |
+| `ssh-high-interaction/2` | SSH с дополнительными событиями `process.exec` от Tetragon. Сенсор устанавливается оператором отдельно на Linux-узле. |
+| `custom-tcp/1` | Текстовые ответы и правила, собранные в конструкторе. |
+| `custom-http/1` | HTTP-граф: входы, разбор данных, условия, преобразования и ответы. |
+| `custom-http/2` | HTTP-граф с передачей JSON между отдельно развёрнутыми ловушками. |
+
+Актуальные дескрипторы доступны через `/api/trap-types`; версии неизменяемы. Клиент должен брать `config_schema`, `event_schemas` и `actions` из каталога выбранной версии.
+
+### Конфигурация профиля
+
+У профиля есть `id`, `name`, `description`, `type_id`, `type_version`, `config`, `revision`, `created_at`, `updated_at` и `secret_fields_set`. Версия типа задаёт формат, а `revision` меняется при изменении самого профиля.
+
+Пример тела `POST /api/profiles`:
+
+```json
+{
+  "request_id": "fa0cf214-c459-4248-8f98-fd9ee92739a9",
+  "name": "SSH banner",
+  "description": "TCP-приманка на порту 2222",
+  "type_id": "tcp-banner",
+  "type_version": 1,
+  "config": {
+    "listeners": [
+      {
+        "name": "ssh",
+        "port": 2222,
+        "banner": "SSH-2.0-OpenSSH_9.2p1\r\n",
+        "close_after_banner": false
+      }
+    ],
+    "logging": { "capture_payload": true, "max_payload_bytes": 4096 },
+    "management": { "heartbeat_interval_seconds": 5, "telemetry_flush_interval_ms": 500 }
+  }
+}
+```
+
+Этот профиль отправляет TCP-баннер; для интерактивной SSH-сессии выберите `ssh-high-interaction`.
+
+### Изменение, применение и секреты
+
+- `PATCH` и `DELETE /api/profiles/{id}` требуют точный `If-Match` из последнего ответа, например `"profile:PROFILE_ID:1"`. Изменение устаревшей ревизии отклоняется.
+- Изменение профиля не меняет работающий runtime автоматически. Команда `apply_config` закрепляет снимок указанной ревизии; последующее редактирование профиля не меняет уже поставленную команду.
+- `PATCH config` заменяет несекретную конфигурацию. Пропущенные поля с `writeOnly` сохраняются; для удаления секрета используется `clear_secret_fields` с JSON Pointer. Одновременные назначение и очистка одного секрета запрещены.
+- Секретные значения отсутствуют в публичном `config`; `secret_fields_set` показывает пути установленных секретов. Полный снимок доступен доверенному агенту и внутренней обработке команды.
+- Используемый живой ловушкой профиль удалить нельзя. После удаления последней связанной ловушки профиль автоматически удаляется из активного списка; ревизии и история сохраняются.
+
+Профили читает участник организации; создаёт и меняет администратор. Делегированное право управления ловушками не даёт права редактировать профили.
+
+## API
+
+Локальный адрес: `https://localhost:8443`. Полный HTTP-контракт со схемами, параметрами и ответами: [api/openapi.yaml](api/openapi.yaml). Ниже — основные группы маршрутов.
+
+| Методы и путь | Назначение |
+|---|---|
+| `POST /api/registrations` | Создать организацию с администратором либо присоединиться по коду. |
+| `POST /api/sessions` | Войти и получить cookie-сессию. |
+| `GET`, `DELETE /api/session` | Текущая сессия / выход. |
+| `GET /api/organization` | Организация текущего пользователя. |
+| `GET /api/organization/join-code`, `POST /api/organization/join-code/rotations` | Получить / перевыпустить код приглашения. |
+| `GET /api/organization/members` | Участники организации. |
+| `PATCH /api/organization/members/{id}/trap-permission` | Делегировать управление ловушками. |
+| `GET`, `POST`, `DELETE /api/admin-session` | Проверить, подтвердить паролем или закрыть административный доступ. |
+| `GET`, `POST /api/api-keys`, `DELETE /api/api-keys/{id}` | Список, выпуск и отзыв ключей автоматизации. |
+| `GET /api/trap-types` | Каталог типов. |
+| `GET /api/trap-types/{type_id}/versions/{type_version}` | Дескриптор точной версии. |
+| `GET`, `POST /api/profiles` | Список и создание профилей. |
+| `GET`, `PATCH`, `DELETE /api/profiles/{id}` | Чтение, изменение и удаление профиля. |
+| `GET /api/traps/deployment-nodes` | Узлы, назначенные организации. |
+| `GET`, `POST /api/traps` | Список и создание ловушек. |
+| `GET`, `PATCH`, `DELETE /api/traps/{id}` | Состояние, изменение и удаление ловушки. |
+| `GET`, `POST`, `DELETE /api/traps/{id}/agent-credentials` | Статус, выдача и отзыв реквизитов агента. |
+| `GET`, `POST /api/traps/{id}/commands` | История и постановка команд. |
+| `GET /api/traps/{id}/commands/{command_id}` | Результат конкретной команды. |
+| `GET /api/events`, `GET /api/events/{event_id}` | Список событий и подробные данные. |
+| `GET /api/events/export`, `GET /api/events/recordings/{session_id}` | Экспорт событий и записи SSH-сессий. |
+| `GET /api/audit-entries`, `GET /api/audit-entries/{audit_id}` | История действий операторов. |
+| `GET`, `POST /api/trap-links`, `DELETE /api/trap-links/{source}/{target}` | Направленные связи между ловушками. |
+| `WSS /api/stream` | Изменения для панели; подпротокол `dashboard-stream.v1`. |
+| `WSS /assets/stream` на ресурсном хосте | Команды, heartbeat и телеметрия агента. |
+
+Доски конструктора доступны через `/constructor/api/chains`, типы блоков — через `/constructor/api/registry`; запуск доски — `POST /constructor/api/chains/{chain_id}/deploy`. Эти запросы проходят через nginx в FastAPI и используют сессию панели.
+
+### Доступ и формат запросов
+
+Браузер использует защищённую cookie-сессию. Изменяющие запросы передают разрешённый `Origin` и `X-CSRF-Token`, полученный из сессии. Для автоматизации используется `Authorization: Bearer API_KEY`; ключ действует в рамках организации и прав его владельца. Управление ключами, сессией и административным доступом требует браузерной сессии.
+
+Создающие операции с `request_id` используют UUID для защиты от повторного выполнения. При повторе отправляйте тот же идентификатор и те же данные. У списков с пагинацией используйте `limit` и возвращённый `next_cursor`; доступные фильтры указаны в OpenAPI. Время передаётся в RFC 3339.
+
+API отвергает неизвестные JSON-поля и ограничивает тело запроса 256 KiB. Конфигурация профиля ограничена 128 KiB и проверяется по JSON Schema типа.
+
+Пример ошибки:
+
+```json
+{
+  "error": {
+    "code": "validation_failed",
+    "message": "Request validation failed"
+  },
+  "request_id": "df7770b9-6ce2-40e1-9fd8-16892b16285d"
+}
+```
+
+| Код HTTP | Значение |
+|---|---|
+| `200`, `201`, `204` | Чтение/повтор создания, создание с `Location`, успешное действие без тела. |
+| `400`, `413`, `415`, `422` | Некорректный JSON, превышение размера, неподдерживаемый media type, нарушение правил валидации. |
+| `401`, `403`, `404` | Нет аутентификации, нет разрешения, ресурс отсутствует или не виден текущей организации. |
+| `409`, `412`, `428` | Конфликт состояния, устаревшее предусловие, отсутствующее обязательное предусловие. |
+| `429`, `503` | Лимит запросов, временная недоступность зависимости. |
+
+### Создание ловушки и команды
+
+После создания профиля передайте его `id` в `POST /api/traps`:
+
+```json
+{
+  "request_id": "67980dba-8b30-4607-aad1-938ad9184878",
+  "name": "DMZ SSH banner",
+  "profile_id": "7a4fc2b1-dd15-4051-86d6-6fd71a143091"
+}
+```
+
+Замените `profile_id` на полученный идентификатор. Для выбранного worker добавьте `deployment_node_id` из `/api/traps/deployment-nodes`. В стандартном Compose оркестратор сам выдаёт реквизиты и ставит первоначальные `apply_config` и `start`.
+
+Для ручного применения новой ревизии — `POST /api/traps/{id}/commands`:
+
+```json
+{
+  "request_id": "12f58682-9bb5-4257-b215-f453f570bdb0",
+  "action": "apply_config",
+  "params": { "profile_revision": 2 }
+}
+```
+
+Для `start` и `stop` передайте `params: {}`. У одной ловушки одновременно допускается одна активная команда. Итог смотрите по `status`: `queued`, `running`, `succeeded`, `failed`, `expired`. Состояние связи агента (`online`/`offline`) и состояние runtime (`unknown`/`running`/`stopped`/`error`) различаются.
+
+Изменение и удаление ловушки используют `X-Expected-Revision`. `revision` защищает редактируемые поля, а `state_version` отражает обновления рабочего состояния и не подменяет эту проверку.
+
+## База данных
+
+PostgreSQL хранит пользователей, конфигурации, состояние ловушек, команды, события и аудит. Goose применяет timestamp-миграции из [migrations](migrations) при запуске API.
+
+Ниже — основные таблицы и внешние ключи. Служебные таблицы повторов, аудита и курсоров описаны после схемы. Составные связи по организации сокращены до одной линии; полный DDL находится в миграциях.
+
+```mermaid
+erDiagram
+    organizations ||--o{ users : organization_id
+    users ||--o{ operator_sessions : user_id
+    users ||--o{ operator_api_keys : user_id
+    organizations ||--o{ profiles : organization_id
+    profiles ||--|{ profile_revisions : profile_id
+    profiles ||--o{ traps : profile_id
+    catalog_versions ||--o{ traps : type_id_type_version
+    traps ||--o{ commands : trap_id
+    traps ||--o{ trap_events : trap_id
+    traps ||--o{ trap_links : source_id
+    traps ||--o{ trap_links : target_id
+    organizations ||--o{ deployment_nodes : organization_id
+    organizations ||--o{ http_pipeline_traces : organization_id
+    http_pipeline_traces ||--o{ http_pipeline_deliveries : trace_id
+    traps ||--o{ http_pipeline_deliveries : source_id
+    traps ||--o{ http_pipeline_deliveries : target_id
+
+    organizations {
+        uuid id PK
+        text name
+        text join_code
+        uuid creator_user_id FK
+    }
+    users {
+        uuid id PK
+        uuid organization_id FK
+        text email
+        text role
+        boolean trap_management
+    }
+    operator_sessions {
+        uuid id PK
+        uuid user_id FK
+        bytea token_hash
+        timestamptz expires_at
+    }
+    operator_api_keys {
+        uuid id PK
+        uuid user_id FK
+        bytea token_hash
+    }
+    catalog_versions {
+        text type_id PK
+        integer type_version PK
+        jsonb entry
+    }
+    profiles {
+        uuid id PK
+        uuid organization_id FK
+        text type_id
+        integer type_version
+        integer revision
+        timestamptz deleted_at
+    }
+    profile_revisions {
+        uuid profile_id PK, FK
+        integer revision PK
+        text name
+        json config
+        jsonb secret_fields_set
+    }
+    traps {
+        uuid id PK
+        uuid organization_id FK
+        uuid profile_id FK
+        integer revision
+        integer state_version
+        text runtime_state
+        text connectivity
+        text deployment_node_id
+        timestamptz deleted_at
+    }
+    commands {
+        uuid id PK
+        uuid trap_id FK
+        text action
+        text status
+        jsonb configuration
+        uuid lease_id
+    }
+    trap_events {
+        uuid event_id PK
+        uuid trap_id FK
+        uuid session_id
+        bigint session_sequence
+        jsonb envelope
+    }
+    trap_links {
+        uuid organization_id PK, FK
+        uuid source_id PK, FK
+        uuid target_id PK, FK
+    }
+    deployment_nodes {
+        text id PK
+        uuid organization_id FK
+    }
+    http_pipeline_traces {
+        uuid id PK
+        uuid organization_id FK
+        timestamptz expires_at
+    }
+    http_pipeline_deliveries {
+        uuid id PK
+        uuid trace_id FK
+        uuid source_id FK
+        uuid target_id FK
+        text status
+        timestamptz lease_until
+    }
+```
+
+### Хранение и ограничения
+
+| Таблицы / хранилище | Что хранится |
+|---|---|
+| `profiles`, `profile_revisions` | Идентичность профиля и неизменяемые снимки ревизий с конфигурацией. Текущая ревизия профиля ссылается на снимок. |
+| `catalog_versions`, `schema_versions` | Версии дескрипторов и схем. Обновление и удаление установленных версий запрещают триггеры. |
+| `commands` | Действие, закреплённый снимок конфигурации, lease и результат. Уникальный частичный индекс запрещает две активные команды одной ловушки. |
+| `trap_ingestions`, `trap_event_batches` | Резервации и подтверждения пакетов телеметрии; `trap_events` дополнительно защищён уникальностью последовательности внутри сессии ловушки. |
+| `profile_requests`, `mutation_requests` | Идентификаторы и отпечатки запросов для идемпотентности. |
+| `auth_audit`, `profile_audit`, `mutation_audit` | Аудит; представление `audit_entries` объединяет записи для чтения. |
+| `auth_changes`, `profile_changes`, `mutation_changes`, `organization_changes`, `frontend_catalog_state` | Журнал изменений и границы восстановления потока панели. |
+| `deployment_nodes` | Наблюдаемое состояние назначенных организации Swarm-узлов. Поле `traps.deployment_node_id` хранит выбор узла без FK к этой таблице. |
+| `http_pipeline_traces`, `http_pipeline_deliveries` | Контекст и долговечная очередь доставки между HTTP-ловушками. |
+| Kafka | Журнал входящей телеметрии перед обработкой. |
+| Redis | Журнал агента с AOF и `appendfsync always`, без вытеснения записей. |
+| Том `constructor_data` | JSON-доски конструктора, разделённые по организациям; они хранятся отдельно от PostgreSQL. |
+
+Внешние ключи ловушек, команд и событий учитывают организацию. Удаление ловушки оставляет tombstone для истории и отзывает её реквизиты. Секреты сессий и API-ключей хранятся как хеши; полные конфигурации профилей содержат установленные секреты и не выдаются в публичных ответах.
+
+Данные PostgreSQL, Kafka, Redis и конструктора сохраняются в именованных Docker-томах. В локальном Compose `HISTORY_RETENTION` по умолчанию равен `24h`; фоновая очистка удаляет старую историю, сохраняя действующие настройки, активные команды и незавершённую доставку.
+
+## Разработка и проверки
+
+Go-модуль: `src/backend` (точные версии Go и зависимостей — в [go.mod](src/backend/go.mod)). Основные библиотеки: Gin, pgx/v5, Goose, validator/v10, gorilla/websocket и franz-go. Панель — React/TypeScript/Vite; конструктор — Python/FastAPI. PostgreSQL 17, Kafka и Redis задаются в Compose.
+
+Проверки backend из `src/backend`:
+
+```sh
 go fmt ./...
 go vet ./...
 go test ./...
 go build ./...
 ```
 
-Интеграционные тесты с тегом `integration` используют отдельную PostgreSQL
-базу, в которой разрешено создавать схемы. Тест Kafka запускается при наличии
-`TEST_KAFKA_BROKERS`; без соответствующих переменных внешние проверки
-пропускаются.
+Тесты HTTP-runtime требуют Python 3; при нестандартном расположении задайте `HF_PYTHON` путём к интерпретатору. Для проверки гонок — `go test -race ./...`; на Windows нужны C-компилятор и `CGO_ENABLED=1`.
 
-```powershell
-$env:TEST_DATABASE_URL = 'postgres://user:password@127.0.0.1:5432/honey_forge_test?sslmode=verify-full&sslrootcert=C:/certs/ca.crt'
-$env:TEST_KAFKA_BROKERS = '127.0.0.1:29092'
-$env:TEST_KAFKA_CA_FILE = 'C:\certs\ca.crt'
-$env:TEST_REDIS_URL = "rediss://:$($env:REDIS_PASSWORD)@127.0.0.1:6379/0"
-$env:TEST_REDIS_CA_FILE = 'C:\certs\ca.crt'
-go test -tags=integration ./... -count=1
-go test -race -tags=integration ./... -count=1
+Проверки frontend из `frontend`:
+
+```sh
+npm ci
+npm test
+npm run build
 ```
 
-Для `-race` на Windows нужен C-компилятор и `CGO_ENABLED=1`. Подробные проверки
-по модулям описаны в [backend README](src/backend/README.md).
+Проверки конструктора из корня:
 
-## 4. Конфигурация и переменные окружения
-
-| Переменная | Назначение |
-|---|---|
-| `POSTGRES_PASSWORD` | Обязательный пароль PostgreSQL для Docker Compose. |
-| `REDIS_PASSWORD` | Пароль Redis: минимум 32 hex-символа. Для `compose.infra.yaml` обязателен; полный локальный стек генерирует и сохраняет его автоматически. Healthcheck и агенты проходят аутентификацию. |
-| `AGENT_REDIS_URL_FILE` | Файл с TLS URL Redis и паролем; используется локальным bootstrap и Docker secrets, имеет приоритет над `AGENT_REDIS_URL`. |
-| `MGMT_NETWORK` | Управляющая overlay-сеть, по умолчанию `hf-mgmt`; должна отличаться от `DECOY_NETWORK`. |
-| `MGMT_BIND_IP` | IP панели в Compose; по умолчанию `127.0.0.1`. Для удалённого доступа — адрес из изолированной mgmt-подсети. |
-| `DECOY_BIND_IP` | IP публикации портов обычных приманок; по умолчанию `0.0.0.0`. На сервере укажите интерфейс сегмента приманок. |
-| `DATABASE_URL` | Обязательная строка подключения к PostgreSQL с `sslmode=verify-full`; для своего CA задайте `sslrootcert`. |
-| `CURSOR_KEY` | Обязательный постоянный ключ: 32 байта в Base64; сохраните его между перезапусками. |
-| `BROWSER_ORIGINS` | Обязательные разрешённые HTTPS-origin браузера, через запятую. Для этих origin сервер отдаёт CORS-заголовки (Allow-Origin/Credentials) и отвечает на preflight; отдельный origin фронтенда (`app.example.org`) работает без общего прокси. |
-| `TRUSTED_PROXIES` | Необязательные адреса/CIDR обратного прокси (например `127.0.0.1,::1` для nginx на loopback), через запятую. Заданы — API берёт ClientIP из `X-Forwarded-For`, и лимит входа считается на реального клиента, а не на общий адрес прокси. Пусто — прокси не доверяется. |
-| `TLS_CERT_FILE`, `TLS_KEY_FILE` | Обязательные пути к сертификату и закрытому ключу HTTPS. |
-| `KAFKA_BROKERS` | Обязательные адреса брокеров Kafka, через запятую. |
-| `KAFKA_CA_FILE` | CA брокеров Kafka; пусто — системные доверенные CA. TLS 1.2+ и проверка имени обязательны. |
-| `KAFKA_TELEMETRY_TOPIC` | Тема телеметрии; по умолчанию `honey-forge.telemetry`. |
-| `API_PUBLIC_ORIGIN` | Обязательный HTTPS origin операторского API. |
-| `AGENT_WS_URL` | Обязательный WSS URL вида `wss://resources.example.org/assets/stream`; хост отличается от API и всех `BROWSER_ORIGINS`. |
-| `API_ADDR` | Адрес API; по умолчанию `127.0.0.1:8443`. В приватном контейнере Compose явно задаёт `:8443`. |
-| `GIN_MODE` | Для развёрнутого сервера задайте `release`. |
-| `AGENT_REDIS_URL` | Обязательный TLS URL буфера агента с паролем, например `rediss://:PASSWORD@redis:6379/0`; открытый Redis и `skip_verify=true` запрещены. |
-| `AGENT_CA_FILE` | CA управляющего API; пусто — системные доверенные CA. |
-| `AGENT_REDIS_CA_FILE` | CA Redis; по умолчанию используется `AGENT_CA_FILE`, затем системные CA. Оркестратор передаёт отдельный CA через Docker secret. |
-| `TEST_KAFKA_CA_FILE`, `TEST_REDIS_CA_FILE` | CA тестовых Kafka и Redis; пусто — системные доверенные CA. |
-| `TEST_DATABASE_URL`, `TEST_KAFKA_BROKERS`, `TEST_REDIS_URL` | Для полной интеграционной приёмки. |
-| `TEST_REDIS_SERVER_PATH` | Путь к redis-server для проверки аварийного рестарта отдельного тестового Redis. |
-
-Секреты передаются через окружение и не сохраняются в Git. Все соединения
-телеметрии, включая локальные PostgreSQL/Kafka/Redis, требуют TLS с проверкой
-сертификата. Переход на открытый канал при ошибке TLS запрещён.
-
-## 5. Базы данных
-
-PostgreSQL хранит пользователей, сессии, каталог, профили, ловушки, команды,
-события и журнал изменений. Goose применяет SQL-файлы из корневого
-`migrations/` при запуске API. Kafka служит журналом приёма телеметрии;
-подтверждение агенту выдаётся после фиксации события в PostgreSQL.
-Docker Compose сохраняет данные PostgreSQL и Kafka в именованных томах
-`postgres_data` и `kafka_data`.
-
-## 6. Запуск приложения локально или на сервере
-
-Пример для PowerShell из корня репозитория. Подставьте реальные пути к
-TLS-файлам. Значения `POSTGRES_PASSWORD` и `CURSOR_KEY` сгенерируйте один раз,
-сохраните вне Git и повторно используйте после перезапуска:
-
-```powershell
-$env:POSTGRES_PASSWORD = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
-$env:REDIS_PASSWORD = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32)).ToLowerInvariant()
-$env:CURSOR_KEY = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
-.\gen-certs.ps1
-$tlsCA = (Resolve-Path certs/ca.crt).Path.Replace('\', '/')
-$env:DATABASE_URL = "postgres://honey_forge:$([Uri]::EscapeDataString($env:POSTGRES_PASSWORD))@127.0.0.1:5432/honey_forge?sslmode=verify-full&sslrootcert=$tlsCA"
-$env:BROWSER_ORIGINS = 'https://localhost:3000'
-$env:KAFKA_BROKERS = '127.0.0.1:29092'
-$env:KAFKA_CA_FILE = $tlsCA
-$env:API_PUBLIC_ORIGIN = 'https://localhost:8443'
-$env:AGENT_WS_URL = 'wss://resources.localhost:8443/assets/stream'
-$env:TLS_CERT_FILE = (Resolve-Path certs/resources.crt).Path
-$env:TLS_KEY_FILE = (Resolve-Path certs/resources.key).Path
-$env:API_ADDR = '127.0.0.1:8443'
-$env:GIN_MODE = 'release'
+```sh
+python -m pip install -r constructor/requirements.txt -r constructor/requirements-test.txt
+python -m unittest discover -s constructor/backend -t . -p 'test*.py'
 ```
 
-Для полного локального стека используйте `docker compose -f docker-compose.real.yml up --build`:
-панель открывается на `https://localhost:8443`, ресурс — на
-`https://resources.localhost:8443`. Доверьте `certs/ca.crt`; при необходимости
-добавьте `127.0.0.1 resources.localhost` в hosts. Для проверки curl можно использовать
-`--resolve resources.localhost:8443:127.0.0.1`. Новый сертификат `resources.crt`
-создаётся повторным запуском `gen-certs.ps1`. Оркестратор подключает nginx
-к управляющей сети `hf-mgmt` под нейтральным DNS-именем через `AGENT_PROXY_SERVICE=web`.
-Процессы обычных приманок работают в отдельных контейнерах сети `hf-decoys`,
-без управляющих секретов и исходящих соединений. Телеметрия передаётся по TLS-pipe.
+Интеграционные тесты Go запускаются через `go test -tags=integration ./...`. Используйте отдельную тестовую PostgreSQL-базу с правом создавать схемы: `TEST_DATABASE_URL` требует TLS и доверенный CA. Проверки Kafka/Redis используют `TEST_KAFKA_BROKERS`, `TEST_KAFKA_CA_FILE`, `TEST_REDIS_URL` и `TEST_REDIS_CA_FILE`; без нужных зависимостей часть тестов пропускается.
 
-Если запускаете только Go-процесс без nginx, используйте HTTPS-сертификат
-с SAN для обоих хостов либо запускайте его за настроенным прокси. Пример продолжения:
+Для запуска API вне Docker нужны PostgreSQL, Kafka и TLS. Задайте `DATABASE_URL`, постоянный `CURSOR_KEY` (32 байта в Base64), `BROWSER_ORIGINS`, `API_PUBLIC_ORIGIN`, `AGENT_WS_URL`, `KAFKA_BROKERS`, `TLS_CERT_FILE`, `TLS_KEY_FILE` и CA соответствующих сервисов. Из `src/backend` выполните `go run ./cmd/api`; рабочая директория нужна для пути `../../migrations`. Агентский хост должен отличаться от операторского. Секреты храните вне Git.
 
-```powershell
-docker compose -f compose.infra.yaml up -d postgres kafka
-Set-Location src/backend
-go run ./cmd/api
-```
-
-Сервер слушает HTTPS на `API_ADDR`. На сервере задайте те же переменные,
-соберите бинарный файл из `src/backend` и запускайте его с этой же рабочей
-директорией через менеджер процессов. Нужны доступ к PostgreSQL и Kafka и
-действующие TLS-файлы. Отсутствующие обязательные настройки останавливают запуск.
-
-### Nginx перед API
-
-Ниже — развёртывание на **одном Linux-хосте** (команды установки — для
-Debian/Ubuntu): nginx принимает управляющий HTTPS/WSS на mgmt-IP:443, а Go API слушает
-только `127.0.0.1:8443`. Пример конфигурации:
-[deploy/nginx/honey-forge.conf](deploy/nginx/honey-forge.conf). Агент и его TCP
-ловушки могут находиться на других хостах. Если nginx и API размещены на разных
-машинах, этот пример с `127.0.0.1` не подходит: настройте отдельный защищённый
-upstream и разрешите к нему доступ только с хоста nginx.
-
-1. **Подготовьте DNS и сертификаты.** Направьте A-запись, например
-   `api.example.org`, на хост nginx. Понадобятся действующий публичный
-   сертификат с цепочкой и ключом для этого имени, а также отдельный
-   сертификат Go API с SAN `DNS:localhost`, выданный вашим внутренним CA.
-   Разместите сертификат CA в `/etc/nginx/certs/backend-ca.crt`. Закрытые ключи
-   храните вне репозитория с доступом только у нужных процессов. В шаблоне
-   публичные файлы указаны как `/etc/nginx/certs/public.crt` и `public.key`;
-   можно заменить эти пути на файлы вашего менеджера сертификатов, чтобы
-   продление не требовало ручного копирования. Если у вас есть AAAA-запись,
-   добавьте в оба `server` блока nginx прослушивание IPv6 либо уберите эту
-   запись: шаблон слушает только IPv4.
-
-2. **Настройте и запустите Go API** по разделу выше. В окружении его сервиса
-   задайте, помимо `DATABASE_URL`, `CURSOR_KEY` и `KAFKA_BROKERS`:
-
-   ```text
-   API_ADDR=127.0.0.1:8443
-   TLS_CERT_FILE=/etc/honey-forge/tls/backend.crt
-   TLS_KEY_FILE=/etc/honey-forge/tls/backend.key
-   API_PUBLIC_ORIGIN=https://api.example.org
-   AGENT_WS_URL=wss://resources.example.org/assets/stream
-   BROWSER_ORIGINS=https://app.example.org
-   GIN_MODE=release
-   ```
-
-   Замените все три домена своими. `BROWSER_ORIGINS` — фактический HTTPS origin
-   фронтенда, с которого браузер вызывает API; это не обязательно домен API.
-   `AGENT_WS_URL` и `API_PUBLIC_ORIGIN` обязательны. Хост телеметрии должен
-   отличаться от хостов API и фронтенда; различие только портов не подходит.
-   Запускайте API с рабочим каталогом `src/backend`;
-   `TLS_CERT_FILE` и `TLS_KEY_FILE` должны быть доступны пользователю его
-   процесса. Проверьте локальный HTTPS до установки прокси:
-
-   ```sh
-   curl --fail --cacert /etc/nginx/certs/backend-ca.crt \
-     --resolve localhost:8443:127.0.0.1 https://localhost:8443/healthz
-   ```
-
-   Ожидается `{"status":"ok"}`. Ошибка проверки сертификата означает проблему
-   с SAN, цепочкой CA или сроком действия; не отключайте проверку TLS.
-
-3. **Установите nginx версии 1.19.4 или новее**: шаблон использует
-   `ssl_reject_handshake`. Убедитесь, что основной `nginx.conf` включает
-   `/etc/nginx/conf.d/*.conf`. Затем установите и отредактируйте шаблон:
-
-   ```sh
-   sudo apt-get update
-   sudo apt-get install nginx
-   nginx -v
-   sudo install -D -m 0644 deploy/nginx/honey-forge.conf /etc/nginx/conf.d/honey-forge.conf
-   sudoedit /etc/nginx/conf.d/honey-forge.conf
-   sudo nginx -t
-   sudo systemctl enable --now nginx
-   sudo systemctl reload nginx
-   ```
-
-   Выполняйте `install` из корня репозитория. В конфиге замените
-   `server_name honey-forge-seg-fault.ru` на домен API, `resources.honey-forge-seg-fault.ru` — на
-   отдельный нейтральный домен ресурса. Настройте DNS этого домена на nginx и
-   сертификат с его SAN (`resources.crt`/`resources.key` в шаблоне); проверьте
-   также сертификат API и `backend-ca.crt`. Не размещайте панель HoneyForge
-   на хосте ресурса. Если `nginx -t` сообщает о повторном
-   `default_server` для 443, согласуйте существующие сайты: для этого адреса
-   должен остаться один сервер по умолчанию. Не перезагружайте nginx, пока
-   `nginx -t` не завершится успешно. Если пакет дистрибутива старее 1.19.4,
-   установите поддерживаемую версию nginx перед применением шаблона. При
-   замене действующего конфига сначала сохраните его копию вне `conf.d`, чтобы
-   при необходимости вернуть её и выполнить `nginx -t` и reload.
-
-4. **Проверьте снаружи и ограничьте доступ.** Откройте на хосте nginx порт 443;
-   порт 8443 должен оставаться только на loopback. PostgreSQL и Kafka из
-   `compose.yaml` уже привязаны к `127.0.0.1`. Порт 80 нужен лишь если выбранный
-   способ выдачи или продления публичного сертификата использует HTTP-01.
-
-   ```sh
-   curl -i https://api.example.org/api/session
-   curl -i https://resources.example.org/assets/stream
-   curl -i https://resources.example.org/
-   curl -i https://resources.example.org/api/session
-   curl -i https://api.example.org/assets/stream
-   ```
-
-   Без cookie первый запрос должен вернуть `401`; ресурс — JavaScript с `200`,
-   его корень — HTML Resource Library с `200`; API на хосте ресурса и агентский
-   путь на хосте API — `404`. Неверный Bearer при попытке upgrade возвращает
-   тот же JavaScript без агентских ошибок. Затем подключите тестового агента по выданному
-   `agent_ws_url` и проверьте, что он стал online: HTTP-ответ `200` сам по себе
-   ещё не доказывает успешный WSS Upgrade. Для диагностики используйте
-   `sudo journalctl -u nginx -n 100 --no-pager` и журнал Go API. `502` обычно
-   означает недоступный `127.0.0.1:8443` или неуспешную проверку его TLS.
-
-При обновлении конфигурации или публичного сертификата снова выполните
-`sudo nginx -t` и `sudo systemctl reload nginx`. Настройте автоматическое
-продление публичного сертификата; при смене внутреннего CA согласованно обновите
-сертификат API и `backend-ca.crt`. Прокси пропускает только `/api/` и
-`/assets/stream`; открытые TCP-порты ловушек он не скрывает — их изоляция
-настраивается отдельно на хостах агента.
-
-Поведение WSS-прокси и проверки TLS описано в [документации nginx по WebSocket](https://nginx.org/en/docs/http/websocket.html)
-и [директивах HTTPS upstream](https://nginx.org/en/docs/http/ngx_http_proxy_module.html).
-
-Go-модуль и единственный API entrypoint находятся в `src/backend/`; полный
-контракт — в `api/openapi.yaml`. API подключает auth/organizations, catalog,
-profiles, ловушки, команды и приём событий. Состояние ловушек описано в
-[модуле traps](src/backend/modules/traps/README.md). Отдельный TCP runtime
-агента реализован в `cmd/agent`: [запуск ловушек](src/backend/internal/agent/README.md).
-[Redis Medium](src/backend/internal/decoys/redistrap/README.md) использует тот же
-контракт управления и доставки телеметрии. [Оркестратор Docker Swarm](deploy/decoys/README.md)
-разворачивает изолированный контейнер после создания через API и сам отправляет
-команды применения конфигурации и запуска.
-Frontend WSS `/api/stream` подключён: [replay/live, безопасные DTO и reconnect](src/backend/modules/frontendws/README.md).
-
-## 7. Докеризация
-
-`compose.yaml` запускает полный проект, включая встроенный конструктор. Для разработки Go на хосте и тестов доступен отдельный `compose.infra.yaml` (PostgreSQL, Kafka и Redis):
-
-```powershell
-# Из корня репозитория
-docker compose -f compose.infra.yaml up -d postgres kafka
-docker compose -f compose.infra.yaml ps
-```
-
-Порты PostgreSQL `5432` и Kafka `29092` опубликованы только на `127.0.0.1`.
-В полном запуске API собирается через `Dockerfile.api`, конструктор — через `constructor/Dockerfile`; исходники и Python-зависимости входят в сборку автоматически. В режиме только инфраструктуры Go можно запускать на хосте.
-
-## 8. Ветка Git для продакшена
-
-Основная ветка репозитория — `main` (`origin/main`). Отдельная ветка
-`production` не используется. Workflow `.github/workflows/ci-cd.yml` проверяет
-PR в `main` и push в `main`: форматирование, зависимости, vet, сборку, unit и
-интеграционные тесты с race detector для обоих Go-модулей. PostgreSQL и Kafka
-поднимаются как временные сервисы CI; тесты стартуют после их healthcheck.
-
-После успешных проверок push в `main` запускает деплой API на Linux amd64.
-Запуски `main` выполняются последовательно; новый push не прерывает текущий
-деплой. PR не получает доступ к шагам деплоя.
-
-Перед первым деплоем в GitHub Settings → Secrets and variables → Actions
-задайте:
-
-| Настройка | Тип | Значение |
-|---|---|---|
-| `SSH_HOST` | Secret | Адрес сервера. |
-| `SSH_USER` | Secret | Пользователь для загрузки и установки релиза. |
-| `SSH_PRIVATE_KEY` | Secret | Закрытый SSH-ключ этого пользователя без passphrase. |
-| `SSH_FINGERPRINT` | Secret | SHA256 fingerprint SSH host key, полученный через доверенный доступ к серверу. |
-| `SSH_PORT` | Variable | Необязательный порт SSH; по умолчанию `22`. |
-| `API_BASE_URL` | Variable | Публичный HTTPS origin API, например `https://api.your-domain.ru`, без пути. |
-
-Fingerprint можно узнать на сервере командой
-`ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub -E sha256`; сохраните значение
-`SHA256:...` ключа, который использует SSH-сервер. Проверка host key обязательна
-для загрузки и выполнения команд. Если обязательная настройка отсутствует,
-деплой завершится до подключения к серверу.
-
-На сервере заранее подготовьте PostgreSQL, Kafka, TLS и nginx по разделу 6.
-Настроенный nginx устанавливается отдельно: workflow не заменяет домен и
-сертификаты шаблоном из Git. Пользователь `SSH_USER` должен иметь право записи
-в `/opt/honeyforge` и право без пароля выполнить
-`sudo -n systemctl restart honeyforge`. Создайте systemd unit `honeyforge.service`
-со следующими путями и окружением из раздела 4, сохранённым вне Git:
-
-```ini
-[Service]
-WorkingDirectory=/opt/honeyforge/src/backend
-ExecStart=/opt/honeyforge/src/backend/honey-forge-api
-EnvironmentFile=/etc/honey-forge/api.env
-Restart=on-failure
-```
-
-Пользователя сервиса, права на environment-файл и TLS-файлы задайте при настройке
-хоста. API должен слушать `127.0.0.1:8443`, сертификат иметь SAN `DNS:localhost`,
-а CA быть доступен пользователю SSH в `/etc/nginx/certs/backend-ca.crt`.
-
-Workflow загружает бинарник и миграции в уникальный каталог
-`/opt/honeyforge/incoming/<run_id>-<attempt>`, устанавливает миграции в
-`/opt/honeyforge/migrations` и атомарно заменяет исполняемый файл API перед
-перезапуском. Goose применяет миграции при старте приложения. Затем проверяется
-локальный `/healthz` с проверкой TLS. Публичная проверка с GitHub runner ожидает
-`401` для `/api/session`, `404` для `/assets/stream` на операторском origin и
-`200` для страницы/JavaScript на отдельном ресурсе. Задайте GitHub variable
-`TELEMETRY_ORIGIN` в GitHub при смене домена. По умолчанию workflow использует
-`https://resources.honey-forge-seg-fault.ru`. В серверном
-`/etc/honey-forge/production.env` задайте
-`API_PUBLIC_ORIGIN=https://honey-forge-seg-fault.ru` и
-`AGENT_WS_URL=wss://resources.honey-forge-seg-fault.ru/assets/stream`.
-Создайте DNS-запись поддомена на IP сервера и установите сертификат для этого
-имени в `resources.crt`/`resources.key`, указанные в конфигурации nginx.
-Передайте последние две настройки в контейнер
-API; оркестратор тоже использует новый `AGENT_WS_URL`. Обновите установленный
-nginx до развёртывания: workflow не заменяет вручную настроенный конфиг сервера.
-Деплой не обновляет отдельные приложения агентов.
-
-При неуспешном запуске workflow сообщает ошибку; автоматического отката БД и
-бинарника нет. Диагностика на сервере: `journalctl -u honeyforge`. Каталоги
-`incoming` сохраняются после деплоя; удаляйте старые релизы при обслуживании хоста.
-
-## Подключение feature
-
-- `app.Open` возвращает `Runtime`: Router, Mutations, Schemas, Cursors, Browser, Catalog.
-  Каталог устанавливается после миграций. Опубликованные версии нельзя изменить
-  или исключить при перезапуске; новую версию добавляют отдельным Definition.
-  Реальный auth repository/service и адаптер `contract.Principal` подключаются
-  при запуске; `ProfileTypeLookup` использует тот же Runtime.Catalog.
-- `app.RegisterOperator` получает реальный `Authenticate` модуля 02 и выполняет
-  authentication → Origin/CSRF → role → ownership hooks → RESTBody → handler.
-  Ownership hook вызывает проверку сервиса до binding; условия повторно
-  проверяются внутри общей транзакции перед побочным эффектом.
-- `contract.BindJSON` использует Gin `ShouldBindJSON`. Он ограничивает тело
-  256 KiB, проверяет media type, UTF-8, дубли ключей на любой глубине, единственный
-  JSON-документ, точные ключи/типы и затем declarative `validate` tags.
-- DTO используют общие `ID`, `Name`, `Description`, `TypeID`, `Action`,
-  `EventType`, `Revision`, `TypeVersion`, `Timestamp`, `Bytes`.
-  `Name` нормализует внешние пробелы. Обязательные непустые значения имеют
-  `validate:"required"`; обязательное значение с допустимым zero value,
-  например Description, — `validate:"present"`. Обязательное `T|null` задаётся
-  `Nullable[T]` с `validate:"present"`. Это различает null и отсутствие поля.
-- Общие ответы: `CreatedOrReplayed` (201 + Location / 200), `NoContent`,
-  `ProfileResponse` (ETag), `CatalogResponse` (private cache + ETag + 304), `Fail`.
-  Location указывает на реально созданный GET-ресурс feature.
-- `RequestQuery` отвергает malformed encoding, неизвестные/повторные ключи.
-  `ParseListQuery` задаёт limit 1..100/default 50; временные фильтры принимаются
-  только явно. `ParseTimeRange` использует включённый from/исключённый to.
-- CursorCodec использует постоянный 32-байтовый ключ и связывает позицию с
-  организацией, коллекцией, каноническими фильтрами и границей первой страницы.
-  Feature применяет эту границу к своему SQL и задаёт фиксированную сортировку.
-- `SchemaStore` хранит immutable Draft 2020-12 версии в PostgreSQL.
-  `configschema.Compile` разрешает только локальные `$ref`/`$defs` и запрещает
-  загрузку внешних ресурсов. `Schema.Validate` возвращает безопасные поля ошибок.
-  Catalogue DTO и конкретные config/data/params schemas принадлежат 03.
-- `Schema.MergeConfig` сохраняет пропущенные writeOnly-поля, проверяет
-  `clear_secret_fields`, размер полного эффективного config (128 KiB) и схему.
-  Одновременное назначение и очистка одного секрета даёт **422 validation_failed**.
-  `PublicConfig` вырезает только writeOnly-поля и возвращает `secret_fields_set`;
-  захваченные атакующие пароли не маскируются без writeOnly в их схеме.
-- `Mutations.Create` принимает серверную организацию/маршрут, request_id и
-  нормализованный JSON. Ключи и fingerprint сохраняются в PostgreSQL. Для Command
-  передаётся TrapID как область ключа. При replay feature читает текущий ресурс
-  по Result.ResourceID и возвращает 200, без повторного выполнения изменения.
-- `Mutations.Write/Create/Delete` выполняют callback feature через один pgx.Tx
-  вместе с обязательными audit и change records. Metadata — ограниченная
-  типизированная структура без свободного payload, config, cookies и tokens.
-  Ошибка любой записи откатывает всё; Delete сохраняет tombstone ключа.
-- `ExpectedProfileRevision` / `ExpectedTrapRevision` разбирают заголовки.
-  `Mutations.UpdateRevision` атомарно читает, сравнивает и увеличивает revision,
-  затем выполняет изменение и фиксацию. Lifecycle/ownership SQL feature выполняется
-  в том же callback/Tx. Delete проверяет expected revision/lifecycle там же.
-- `Mutations.AgentWrite` принимает только закреплённую agent identity своей
-  ловушки и атомарно фиксирует наблюдения/события и notifications. Heartbeat
-  и команды используют state_version feature и не вызывают увеличение revision.
-- `Mutations.Snapshot` читает REST snapshot и границу журнала в одной
-  repeatable-read транзакции. `Changes` читает replay строго внутри организации
-  и заданной границы. Порядок sequence соответствует порядку commit.
-- `stream.Upgrade` после авторизации создаёт WSS с общими HTTP-ошибками и
-  X-Request-ID. Для frontend передаётся Runtime.Browser как Origin policy.
-  Compression выключена; frame и полное сообщение ограничены 256 KiB;
-  binary закрывается с 1003, превышение — с 1009.
-  Socket.Read принимает только клиентские Envelope с reply_to absent/null;
-  Reply коррелирует запрос, Notify выдаёт явный reply_to=null.
-  Контекст отменяет чтение/запись. Конкретные payload/доставка принадлежат 08/09.
-- `stream.NewAgentEndpoint` задаёт неизменяемые HTTPS-origin/path установки
-  агента. Profile config не используется для формирования этого endpoint;
-  управляющий origin должен быть отдельным от операторского.
-
-## Honeytokens
-
-`honeytoken-http/1` раздаёт ключи, файлы и URL-приманки через отдельный порт
-ловушки. Управляется обычными профилями и командами; срабатывания
-`honeytoken.triggered` сохраняются в истории и поступают в ленту оператора.
-[Конфигурация, раздача и демо](api/12-honeytokens.md).
+Подробности: [бэкенд](src/backend/README.md), [frontend](frontend/README.md), [конструктор](constructor/README.md), [развёртывание ловушек](deploy/decoys/README.md), [агент](src/backend/internal/agent/README.md).
