@@ -13,6 +13,50 @@ async function client(base) {
   return import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 }
 
+test('support sends only form fields using the authenticated CSRF session', async () => {
+  const { api } = await client('https://operator.example')
+  const originalFetch = globalThis.fetch
+  const originalWindow = globalThis.window
+  const requests = []
+
+  globalThis.window = { location: { origin: 'https://operator.example' } }
+  globalThis.fetch = async (url, init) => {
+    requests.push({ url, ...init })
+
+    if (url.endsWith('/api/session')) {
+      return new Response(JSON.stringify({ csrf_token: 'csrf' }))
+    }
+
+    return new Response(null, { status: 204 })
+  }
+
+  try {
+    await api.getSession()
+
+    const message = { email: 'user@example.com', subject: 'Помощь', message: 'Описание' }
+    await api.sendSupportMessage(message)
+
+    const sent = requests.at(-1)
+    assert.equal(sent.url, 'https://operator.example/api/support/messages')
+    assert.equal(sent.method, 'POST')
+    assert.equal(sent.headers['X-CSRF-Token'], 'csrf')
+    assert.equal(sent.credentials, 'include')
+    assert.deepEqual(JSON.parse(sent.body), message)
+
+    globalThis.fetch = async () => new Response(JSON.stringify({
+      error: { code: 'support_unavailable', message: 'Unavailable' },
+    }), { status: 503 })
+
+    await assert.rejects(api.sendSupportMessage(message), (error) => error.code === 'support_unavailable')
+
+    const demo = await client('')
+    await assert.rejects(demo.api.sendSupportMessage(message), (error) => error.code === 'demo_unavailable')
+  } finally {
+    globalThis.fetch = originalFetch
+    globalThis.window = originalWindow
+  }
+})
+
 test('admin panel reauthentication sends only the account password and uses the browser CSRF session', async () => {
   const { api } = await client('https://operator.example')
   const originalFetch = globalThis.fetch

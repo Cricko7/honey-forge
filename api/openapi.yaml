@@ -3571,6 +3571,65 @@ paths:
           $ref: "#/components/responses/Unavailable"
       security: []
       summary: registerOperator
+  /api/support/messages:
+    post:
+      operationId: sendSupportMessage
+      summary: Send a message to HoneyForge support
+      description: >-
+        Available to every authenticated role. Sends only the supplied fields to
+        romanjigg@gmail.com; email becomes Reply-To. No diagnostics or account
+        details are attached. 204 means the SMTP server accepted the message,
+        not that final inbox delivery is guaranteed. No automatic retries.
+        An unconfigured or failed SMTP connection returns support_unavailable.
+        The JSON body is limited to 256 KiB.
+      parameters:
+      - $ref: "#/components/parameters/OriginOrBearer"
+      - $ref: "#/components/parameters/CSRFOrBearer"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [email, subject, message]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  maxLength: 254
+                subject:
+                  type: string
+                  minLength: 1
+                  maxLength: 160
+                  description: Must contain non-whitespace text; CR, LF and NUL are rejected.
+                message:
+                  type: string
+                  minLength: 1
+                  maxLength: 5000
+                  description: Must contain non-whitespace text.
+      responses:
+        "204":
+          description: Message accepted by the configured SMTP server.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/TooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+        "429":
+          $ref: "#/components/responses/APIKeyRateLimited"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+      security:
+      - sessionCookie: []
+      - apiKeyBearer: []
   /api/session:
     delete:
       operationId: deleteSession

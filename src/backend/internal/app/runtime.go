@@ -14,6 +14,7 @@ import (
 	"honey-forge/internal/contract"
 	"honey-forge/internal/mutation"
 	"honey-forge/internal/postgres"
+	"honey-forge/internal/support"
 	"honey-forge/internal/traplinks"
 	"honey-forge/modules/agentws"
 	"honey-forge/modules/audit"
@@ -33,6 +34,7 @@ import (
 )
 
 type Config struct {
+	SupportSender      support.Sender
 	AgentClientCAFile  string
 	DatabaseURL        string
 	CursorKey          []byte
@@ -181,6 +183,7 @@ func Open(ctx context.Context, config Config) (*Runtime, error) {
 	agentHandler.ClientCAFile = config.AgentClientCAFile
 	trapService := traps.NewService(trapRepository, catalogService, config.AgentWSURL, agentHandler.Revoke).WithAutoDeploy(config.AutoDeployTraps)
 	session := authhttp.NewHandler(authService, logger).RequireSession()
+	support.NewHandler(support.NewService(config.SupportSender), logger).Register(router, session)
 	traplinks.NewHandler(links, logger).Register(router, session)
 	audit.NewHandler(audit.NewService(audit.NewRepository(pool)), cursors, logger).RegisterRoutes(router, session)
 	traps.NewHandler(trapService, cursors, logger).RegisterRoutes(router, session)

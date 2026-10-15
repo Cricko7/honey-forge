@@ -18,8 +18,8 @@ const result = await build({
     export const support = () => renderToStaticMarkup(h(SupportPage))
     export const updates = () => renderToStaticMarkup(h(UpdatesPage))
   `, resolveDir: root },
-  bundle: true, write: false, format: 'esm', platform: 'browser',
-  alias: { '@': `${root}/src` }, define: { 'process.env.NODE_ENV': '"production"' },
+  bundle: true, write: false, format: 'esm', platform: 'browser', loader: { '.css': 'empty' },
+  alias: { '@': `${root}/src` }, define: { 'process.env.NODE_ENV': '"production"', 'import.meta.env.VITE_API_BASE': '""' },
 })
 const view = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 
@@ -56,13 +56,17 @@ test('sidebar restores only its boolean preference and tolerates unavailable sto
   }
 })
 
-test('support offers explicit fixed contacts without attaching diagnostics or credentials', () => {
+test('support provides a bounded email form and a safe Telegram link', () => {
   const html = view.support()
-  assert.match(html, /href="mailto:romanjigg@gmail\.com"/)
+  assert.match(html, /<form/)
+  for (const name of ['email', 'subject', 'message']) assert.match(html, new RegExp(`name="${name}"`))
+  assert.match(html, /type="email"/)
+  assert.match(html, /maxLength="5000"/)
+  assert.match(html, /Отправить обращение/)
   assert.match(html, /href="https:\/\/t\.me\/giraffick"[^>]*target="_blank"[^>]*rel="noopener noreferrer"/)
   assert.match(html, /@giraffick/)
   assert.match(html, /Не отправляйте.*пароли.*токены.*API-ключи/)
-  assert.doesNotMatch(html, /<form|<iframe|<script|mailto:[^"]*\?|https:\/\/t\.me\/giraffick\?/)
+  assert.doesNotMatch(html, /<iframe|<script|mailto:|https:\/\/t\.me\/giraffick\?/)
 })
 
 test('updates present dated product changes rather than operator activity', () => {

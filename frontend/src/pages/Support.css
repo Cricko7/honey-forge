@@ -1,0 +1,240 @@
+.page-content.support-page {
+  max-width: 1140px;
+  padding-top: 48px;
+  padding-bottom: 48px;
+}
+.support-heading {
+  margin-bottom: 32px;
+}
+.support-heading h1 {
+  font-size: 30px;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+.support-heading p {
+  color: rgb(var(--muted));
+  font-size: 14px;
+}
+.support-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+  grid-template-rows: auto 1fr auto;
+  gap: 18px;
+  align-items: start;
+}
+.support-panel {
+  min-width: 0;
+  border: 1px solid rgb(var(--line));
+  border-radius: 16px;
+  background: rgb(var(--bg-panel));
+  padding: 28px;
+}
+.support-panel h2 {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.support-compose {
+  grid-row: span 2;
+}
+.support-section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 16px;
+  margin-bottom: 26px;
+}
+.support-section-heading > svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+  color: rgb(var(--muted));
+}
+.support-section-heading p,
+.support-telegram p {
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: rgb(var(--muted));
+}
+.support-fields {
+  display: grid;
+  gap: 22px;
+  min-width: 0;
+}
+.support-fields label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 9px;
+}
+.support-fields .input {
+  min-height: 46px;
+  border-radius: 9px;
+  background: rgb(var(--bg-base) / 0.45);
+  font-size: 13px;
+}
+.support-fields .input::placeholder {
+  color: rgb(var(--muted));
+  opacity: 1;
+}
+.support-fields textarea {
+  display: block;
+  min-height: 146px;
+  line-height: 1.7;
+}
+.support-field-hint,
+.support-counter {
+  margin-top: 7px;
+  color: rgb(var(--muted));
+  font-size: 12px;
+}
+.support-counter {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.support-submit-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 18px;
+  border-top: 1px solid rgb(var(--line));
+  padding-top: 24px;
+  margin-top: 22px;
+}
+.support-submit-row p {
+  color: rgb(var(--muted));
+  font-size: 11px;
+  line-height: 1.7;
+}
+.support-submit-row p span {
+  font-size: 12px;
+  color: rgb(var(--fg));
+  overflow-wrap: anywhere;
+}
+.support-submit-row button {
+  min-height: 46px;
+}
+.support-telegram {
+  display: flex;
+  flex-direction: column;
+  min-height: 265px;
+  background: rgb(var(--bg-elevated));
+}
+.support-channel {
+  color: rgb(var(--muted));
+  font-size: 12px;
+}
+.support-telegram .support-section-heading {
+  margin-bottom: 25px;
+}
+.support-telegram-link {
+  margin-top: 26px;
+  padding-top: 18px;
+  border-top: 1px solid rgb(var(--line));
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 15px;
+  font-weight: 500;
+  min-height: 44px;
+  transition: color 160ms ease;
+}
+.support-telegram-link:hover {
+  color: rgb(var(--brand));
+}
+.support-guide ul {
+  display: grid;
+  gap: 15px;
+  margin-top: 21px;
+  font-size: 13px;
+  color: rgb(var(--muted));
+}
+.support-guide li {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.support-guide svg {
+  flex-shrink: 0;
+}
+.support-privacy {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 15px;
+  padding: 21px 28px;
+  background: transparent;
+}
+.support-privacy > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: rgb(var(--muted));
+}
+.support-privacy h2 {
+  font-size: 13px;
+  letter-spacing: 0;
+}
+.support-privacy p {
+  color: rgb(var(--muted));
+  font-size: 12px;
+  line-height: 1.8;
+  margin-top: 5px;
+  max-width: 92ch;
+}
+.support-error {
+  margin-top: 18px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: rgb(var(--danger));
+}
+.support-success {
+  min-height: 410px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 20px;
+}
+.support-success-icon {
+  color: rgb(var(--ok));
+}
+.support-success h3 {
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.support-success p {
+  font-size: 14px;
+  color: rgb(var(--muted));
+  line-height: 1.8;
+}
+@media (max-width: 767px) {
+  .support-page {
+    padding-top: 28px;
+  }
+  .support-heading h1 {
+    font-size: 26px;
+  }
+  .support-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+    gap: 14px;
+  }
+  .support-compose {
+    grid-row: auto;
+  }
+  .support-panel {
+    padding: 22px;
+  }
+  .support-telegram {
+    min-height: auto;
+  }
+  .support-submit-row button {
+    width: 100%;
+  }
+  .support-privacy {
+    padding: 20px;
+  }
+}

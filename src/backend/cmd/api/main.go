@@ -17,6 +17,7 @@ import (
 	"honey-forge/internal/app"
 	"honey-forge/internal/platform/tlsconfig"
 	"honey-forge/internal/postgres"
+	"honey-forge/internal/support"
 	"honey-forge/modules/events"
 )
 
@@ -30,6 +31,16 @@ func main() {
 }
 
 func run() error {
+	mailSender, err := support.SMTPFromEnvironment(os.Getenv)
+	if err != nil {
+		return fmt.Errorf("configure support SMTP: %w", err)
+	}
+
+	var supportSender support.Sender
+	if mailSender != nil {
+		supportSender = mailSender
+	}
+
 	retention, err := historyRetention()
 	if err != nil {
 		return err
@@ -117,6 +128,7 @@ func run() error {
 	defer publisher.Close()
 
 	runtime, err := app.Open(startup, app.Config{
+		SupportSender:     supportSender,
 		DatabaseURL:       databaseURL,
 		CursorKey:         keyBytes,
 		BrowserOrigins:    origins,

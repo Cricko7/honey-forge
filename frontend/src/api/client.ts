@@ -41,6 +41,11 @@ let mockSignedOut = false
 const real = createHTTPClient(API_BASE, () => csrfToken)
 
 export const api = {
+  async sendSupportMessage(message: { email: string; subject: string; message: string }): Promise<void> {
+    if (USE_MOCK) throw new ApiError(503, 'demo_unavailable', 'Отправка писем доступна с подключённым сервером')
+    await real('/api/support/messages', { method: 'POST', body: JSON.stringify(message) })
+  },
+
   async getAdminAccess(signal?: AbortSignal): Promise<AdminAccessView> {
     if (USE_MOCK) return { expires_at: null }
     return real('/api/admin-session', { cache: 'no-store', signal })
