@@ -43,7 +43,7 @@ ENV NM_ROLE=ssh-high-interaction
 # fetched when a trap starts. Keep the upstream licence alongside the engine.
 FROM ghcr.io/astral-sh/uv:0.9.3 AS conpot-uv
 FROM python:3.14-slim AS conpot-build
-RUN apt-get update && apt-get install -y --no-install-recommends git gcc libffi-dev libssl-dev \
+RUN apt-get update && apt-get install -y --no-install-recommends git gcc libc6-dev libffi-dev libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=conpot-uv /uv /usr/local/bin/uv
 WORKDIR /opt/conpot
