@@ -15,6 +15,8 @@ def spec(kind, name, fields, outputs=('out',), doc=''):
 
 
 HTTP_TYPES = [
+    spec('redis', 'Redis внутри HTTP', [field('commands', 'Команды Redis (JSON / шаблон)', 'textarea', '[["PING"]]'), field('key', 'Переменная результата', 'text', 'redis')], ('out', 'error'), 'Создаёт отдельный настоящий Redis внутри этой HTTP-ловушки. Передайте массив команд, например [["SET","name","${json.name}"],["GET","name"]]. Данные общие для обращений к этому блоку, до остановки ловушки. Результаты — vars.redis; порт Redis наружу не открывается.'),
+    spec('honeytoken', 'Honeytokens внутри HTTP', [field('tokens', 'Приманки (JSON)', 'textarea', '[{"id":"report","kind":"url","path":"/report","value":"Report ready"}]'), field('path', 'Путь / шаблон', 'text', '${path}'), field('key', 'Переменная результата', 'text', 'token')], ('out', 'error'), 'Использует готовую Honeytoken-ловушку внутри HTTP-сценария. Виды: url, file, key. Передаёт метод и заголовки исходного запроса. Результат: vars.token, vars.token_status и vars.token_headers. Для key нужен Authorization: Bearer с ключом-приманкой. Срабатывание сохраняется как событие honeytoken.triggered внутри http.custom.'),
     spec('input', 'HTTP-вход', [field('name', 'Имя сервиса', 'text', 'web'), field('port', 'Порт', 'number', 32080, min=1, max=65535), field('method', 'Метод', 'select', 'ANY', options=['ANY', 'GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']), field('path', 'Путь (или *)', 'text', '*')], doc='Создаёт HTTP-вход. Вход in принимает данные другого блока внутри этой доски.'),
     spec('parse', 'Разобрать запрос', [field('format', 'Формат', 'select', 'json', options=['json', 'form', 'text', 'auto'])], ('out', 'error')),
     spec('extract', 'Извлечь поле', [field('source', 'Источник', 'text', 'json.user'), field('key', 'Переменная', 'text', 'user'), field('required', 'Поле обязательно', 'toggle', True)], ('out', 'error')),
@@ -78,6 +80,10 @@ def compile_http(chain):
             json_fields.append('value')
         if node.type in ('http/call', 'http/event', 'http/send'):
             json_fields.append('payload')
+        if node.type == 'http/redis':
+            json_fields.append('commands')
+        if node.type == 'http/honeytoken':
+            json_fields.append('tokens')
         if node.type == 'http/response':
             json_fields.append('headers')
             if config['format'] == 'json':
@@ -91,8 +97,13 @@ def compile_http(chain):
                 raise HTTPException(422, f'{node.id}: неверный JSON в {key}') from error
             if key == 'headers' and (not isinstance(parsed, dict) or any(not isinstance(v, str) or '\r' in v or '\n' in v or not re.fullmatch(r'[!#$%&\x27*+.^_`|~0-9a-zA-Z-]+', k) or k.lower() in ('content-length', 'transfer-encoding', 'connection') for k, v in parsed.items())):
                 raise HTTPException(422, f'{node.id}: неверные заголовки')
+            if key == 'tokens':
+                from .http_embedded import validate_tokens
+                validate_tokens(parsed)
         blocks.append({'id': node.id, 'kind': node.type[5:], 'config': config, 'outputs': {}})
     by_id = {b['id']: b for b in blocks}
+    if sum(b['kind'] == 'redis' for b in blocks) > 4:
+        raise HTTPException(422, 'Максимум 4 встроенных Redis на доске')
     for edge in chain.edges:
         if edge.source not in nodes and edge.target not in nodes:
             continue

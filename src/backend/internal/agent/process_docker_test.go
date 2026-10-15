@@ -1,11 +1,33 @@
 package agent
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
 	"honey-forge/modules/profiles"
 )
+
+func TestHTTPEmbeddedRedisPrivateSocketDirectory(t *testing.T) {
+	p := Process{WorkerImage: "hf/http:local", WorkerNetwork: "nm-decoys", TrapID: "11111111-1111-4111-8111-111111111111"}
+	snapshot := profiles.Snapshot{TypeID: "custom-http", TypeVersion: 3, ProfileRevision: 1}
+	raw := `{"services":[{"name":"web","port":32080,"entry":"web"}],"blocks":[{"id":"web","kind":"input","config":{"name":"web","port":32080,"method":"ANY","path":"*"},"outputs":{"out":"reply"}},{"id":"reply","kind":"response","config":{"status":200,"format":"json","body":"{}","headers":"{}"},"outputs":{}}],"limits":{"max_steps":512,"timeout_ms":10000,"max_body_bytes":65536},"management":{"heartbeat_interval_seconds":10,"telemetry_flush_interval_ms":500}}`
+	if err := json.Unmarshal([]byte(raw), &snapshot.Config); err != nil {
+		t.Fatal(err)
+	}
+
+	args, err := p.workerArgs(t.Context(), snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	joined := strings.Join(args, " ")
+	for _, want := range []string{"--tmpfs /run/redis:rw,nosuid,nodev,noexec,size=1m,mode=0700,uid=65532,gid=65532", "--memory 256m --memory-swap 256m"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("missing %q", want)
+		}
+	}
+}
 
 func TestWorkerContainerHasNoManagementAccess(t *testing.T) {
 	p := Process{WorkerImage: "hf/tcp:local", WorkerNetwork: "nm-decoys", TrapID: "11111111-1111-4111-8111-111111111111"}

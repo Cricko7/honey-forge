@@ -38,11 +38,12 @@ class Server(PipelineServerMixin):
         self.snapshot = bootstrap['snapshot']
         self.config = self.snapshot['config']
         limits = self.config['limits']
-        self.engine = Engine(self.config['blocks'], **limits, forward=self.forward_pipeline)
+        self.engine = Engine(self.config['blocks'], **limits, forward=self.forward_pipeline, embedded=self.call_embedded)
         self.blocks = self.engine.blocks
         self.host = bootstrap['host']
         self.pending = {}
         self.pipeline_pending = {}
+        self.embedded_pending = {}
         self.pipeline_tasks = set()
         self.pipeline_seen = {}
         self.stop = asyncio.Event()
@@ -66,7 +67,28 @@ class Server(PipelineServerMixin):
         finally:
             self.pending.pop(key, None)
 
+    async def call_embedded(self, node_id, payload):
+        key = str(uuid.uuid4())
+        future = asyncio.get_running_loop().create_future()
+        self.embedded_pending[key] = future
+        try:
+            send({'type': 'embedded_call', 'embedded': {'id': key, 'node_id': node_id, 'payload': payload}})
+            async with asyncio.timeout(6):
+                reply = await future
+            if not reply.get('ok'):
+                raise FlowError('embedded trap unavailable or request rejected')
+            return reply['result']
+        except TimeoutError as error:
+            raise FlowError('embedded trap timeout') from error
+        finally:
+            self.embedded_pending.pop(key, None)
+
     def ack(self, message):
+        if 'embedded_id' in message:
+            future = self.embedded_pending.get(message['embedded_id'])
+            if future and not future.done():
+                future.set_result(message)
+            return
         if message.get('type') == 'pipeline_receive':
             now = datetime.datetime.now(datetime.timezone.utc)
             self.pipeline_seen = {key: expiry for key, expiry in self.pipeline_seen.items() if expiry > now}

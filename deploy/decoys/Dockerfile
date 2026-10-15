@@ -28,7 +28,7 @@ ENV NM_ROLE=redis-emulator
 FROM runtime AS honeytokens
 ENV NM_ROLE=honeytoken-http
 
-FROM runtime AS http
+FROM redis AS http
 RUN apk add --no-cache python3
 ENV NM_ROLE=custom-http PYTHONDONTWRITEBYTECODE=1
 

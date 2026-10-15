@@ -30,6 +30,15 @@ export function ConstructorGuide({ open, onClose }: { open: boolean; onClose: ()
       className="max-h-[70vh] overflow-y-auto space-y-3 text-sm leading-relaxed outline-none pr-1">
       <p className="text-muted">Доска задаёт поведение ловушки: что она принимает, какие данные проверяет и как отвечает. Начните с короткой рабочей цепочки, затем добавляйте условия и связи.</p>
       <details className="rounded-xl border border-line p-4 space-y-3">
+        <summary className="cursor-pointer font-semibold">Redis и Honeytokens внутри HTTP-ловушки</summary>
+        <p>На новой доске соедините HTTP-вход → Разобрать запрос → Redis внутри HTTP → HTTP-ответ. Укажите команды <code>{'"${json}"'}</code>, переменную <code>redis</code>, а в JSON-теле ответа — <code>{'"${vars.redis}"'}</code>.</p>
+        <p>Отправьте JSON <code>{'[["SET","name","Alice"],["GET","name"]]'}</code>: получите <code>{'["OK","Alice"]'}</code>. Следующий запрос к этому блоку видит сохранённые данные. Каждый Redis-блок имеет своё хранилище, которое очищается при остановке. Максимум четыре Redis-блока на доске.</p>
+        <p>Для приманок соедините HTTP-вход с «Honeytokens внутри HTTP» и ответом. Задайте приманки в JSON и путь <code>{'${path}'}</code>. Входящий метод и заголовок Authorization передаются готовой ловушке. Результат доступен в <code>vars.token</code>, HTTP-статус — в <code>vars.token_status</code>, заголовки — в <code>vars.token_headers</code>. Успешное использование приманки отмечается событием <code>honeytoken.triggered</code>.</p>
+        <p>Пример JSON-ответа с результатом проверки: <code>{'{"status":"${vars.token_status}","body":"${vars.token}"}'}</code>. Внешний HTTP-статус задаётся вашим блоком ответа; для отказа подключите условие по <code>vars.token_status</code> к ответу 401. Ошибки адаптера подключайте выходом <code>error</code> к ответу 503.</p>
+        <p>Встроенные блоки запускаются вместе с HTTP-ловушкой и доступны через её HTTP-вход. Отдельные порты Redis не открываются. Для ранее развёрнутой доски старого HTTP-типа создайте новую доску.</p>
+      </details>
+
+      <details className="rounded-xl border border-line p-4 space-y-3">
         <summary className="cursor-pointer font-semibold">Как отметить важную телеметрию</summary>
         <p>Добавьте HTTP-блок <strong>«Отправить событие»</strong> в нужную ветку схемы. Например, соедините выход «да» блока «Условие» с этим блоком: событие появится только при выполнении условия.</p>
         <p>В настройках блока выберите <strong>«Важность телеметрии»</strong>: обычное — белый, средняя — жёлтый, высокая — красный, критическая — багровый. Этот цвет используется в журнале и уведомлениях. Укажите имя события и нужные данные, затем разверните изменённую схему.</p>

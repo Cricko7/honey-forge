@@ -87,6 +87,10 @@ class RuntimeManager:
                             raise HTTPException(422, 'Блоки ловушек используют одинаковый TCP-порт')
                         ports.add(listener['port'])
                 if '__http__' in configs:
+                    embedded = any(b['kind'] in ('redis', 'honeytoken') for b in configs['__http__']['blocks'])
+                    existing_id = chain.bindings.get('__http__', {}).get('trap_id')
+                    if embedded and (catalog['custom-http']['type_version'] < 3 or existing_id and real_api._request('GET', '/api/traps/' + existing_id)['type_version'] < 3):
+                        raise HTTPException(422, 'Встроенные ловушки требуют нового HTTP-типа. Создайте новую доску после обновления сервера.')
                     validate_destinations(configs['__http__'],chain.bindings.get('__http__',{}).get('trap_id'))
                 for node in nodes:
                     tid = trap_id(chain, node)

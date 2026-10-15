@@ -41,6 +41,13 @@ func (p *Process) workerArgs(ctx context.Context, snapshot profiles.Snapshot) ([
 		return nil, fmt.Errorf("worker ports: %w", err)
 	}
 
+	embeddedHTTP := snapshot.TypeID == "custom-http" && snapshot.TypeVersion == 3
+	memory := "128m"
+	if embeddedHTTP {
+		// Four bounded Redis stores plus the Go/Python runtime share this worker.
+		memory = "256m"
+	}
+
 	args := []string{"run", "--rm", "--interactive", "--init", "--pull=never", "--name", p.workerName(),
 		"--log-driver", "local", "--log-opt", "max-size=10m", "--log-opt", "max-file=3",
 		"--label", "com.nodemetrics.worker=" + p.TrapID,
@@ -55,9 +62,9 @@ func (p *Process) workerArgs(ctx context.Context, snapshot profiles.Snapshot) ([
 		"--security-opt", "no-new-privileges", "--user", "0:0",
 		"--sysctl", "net.ipv4.ip_unprivileged_port_start=0",
 		"--sysctl", "net.ipv6.conf.all.disable_ipv6=1",
-		"--memory", "128m", "--memory-swap", "128m", "--pids-limit", "128",
+		"--memory", memory, "--memory-swap", memory, "--pids-limit", "128",
 		"--env", "NM_STDIO=1"}
-	if snapshot.TypeID == "redis-emulator" {
+	if snapshot.TypeID == "redis-emulator" || embeddedHTTP {
 		args = append(args, "--tmpfs", "/run/redis:rw,nosuid,nodev,noexec,size=1m,mode=0700,uid=65532,gid=65532")
 	}
 

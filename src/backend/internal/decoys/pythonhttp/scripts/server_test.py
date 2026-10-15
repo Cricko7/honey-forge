@@ -1,4 +1,6 @@
 import http.client
+import base64
+import zlib
 import json
 from pathlib import Path
 import queue
@@ -23,6 +25,7 @@ class ServerTests(unittest.TestCase):
         self.completed = queue.Queue()
         root = Path(__file__).parent
         code = '\n'.join((root / name).read_text(encoding='utf-8') for name in ('engine.py','pipeline_server.py','server.py'))
+        code = "import base64,zlib;exec(zlib.decompress(base64.b64decode(%r)))" % base64.b64encode(zlib.compress(code.encode())).decode()
         self.process = subprocess.Popen([sys.executable, '-I', '-u', '-c', code], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         self.addCleanup(self.cleanup)
         self.thread = threading.Thread(target=self.control, daemon=True)

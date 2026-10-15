@@ -3,8 +3,11 @@ package pythonhttp
 
 import (
 	"bufio"
+	"bytes"
+	"compress/zlib"
 	"context"
 	_ "embed"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,10 +17,8 @@ import (
 	"sync"
 	"time"
 
-	"honey-forge/internal/configschema"
 	"honey-forge/internal/platform/pipeline"
 	"honey-forge/internal/platform/traffic"
-	"honey-forge/modules/catalog"
 	"honey-forge/modules/events"
 	"honey-forge/modules/profiles"
 )
@@ -32,66 +33,14 @@ var server string
 var pipelineServer string
 
 type Runtime struct {
-	writeMu sync.Mutex // serializes acknowledgements and incoming pipeline deliveries
-	cmd     *exec.Cmd
-	input   io.WriteCloser
-	done    chan struct{}
-	once    sync.Once
-	mu      sync.Mutex // protects the terminal error
-	err     error
-}
-
-func Ports(ctx context.Context, snapshot profiles.Snapshot) ([]int, error) {
-	if snapshot.TypeID != "custom-http" || (snapshot.TypeVersion != 1 && snapshot.TypeVersion != 2) || snapshot.ProfileRevision < 1 {
-		return nil, fmt.Errorf("unsupported HTTP snapshot")
-	}
-	raw, err := json.Marshal(snapshot.Config)
-	if err != nil {
-		return nil, fmt.Errorf("encode HTTP config: %w", err)
-	}
-	definitions := catalog.BuiltinDefinitions()
-	if snapshot.TypeVersion == 1 {
-		definitions = append(definitions, catalog.LegacyHTTPPipelineDefinition())
-	}
-
-	var validationErr error
-	for _, definition := range definitions {
-		if definition.Entry.TypeID != "custom-http" || int32(definition.Entry.TypeVersion) != snapshot.TypeVersion {
-			continue
-		}
-		schema, err := configschema.Compile(definition.Entry.ConfigSchema)
-		if err != nil {
-			return nil, fmt.Errorf("compile HTTP schema: %w", err)
-		}
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		if err := schema.Validate(raw, ""); err != nil {
-			validationErr = err
-			continue
-		}
-		if err := catalog.CheckCustomHTTPConfig(raw); err != nil {
-			return nil, err
-		}
-		var config struct {
-			Services []struct {
-				Port int `json:"port"`
-			} `json:"services"`
-		}
-		if err := json.Unmarshal(raw, &config); err != nil {
-			return nil, fmt.Errorf("decode HTTP services: %w", err)
-		}
-		ports := make([]int, 0, len(config.Services))
-		for _, service := range config.Services {
-			ports = append(ports, service.Port)
-		}
-		return ports, nil
-	}
-	if validationErr != nil {
-		return nil, fmt.Errorf("validate HTTP config: %w", validationErr)
-	}
-
-	return nil, fmt.Errorf("HTTP descriptor missing")
+	writeMu  sync.Mutex // serializes acknowledgements and incoming pipeline deliveries
+	cmd      *exec.Cmd
+	input    io.WriteCloser
+	done     chan struct{}
+	once     sync.Once
+	mu       sync.Mutex // protects the terminal error
+	err      error
+	embedded *embeddedTraps
 }
 
 func Start(ctx context.Context, snapshot profiles.Snapshot, host string, sink func(context.Context, events.AgentEvent) error) (*Runtime, error) {
@@ -101,6 +50,12 @@ func Start(ctx context.Context, snapshot profiles.Snapshot, host string, sink fu
 	if sink == nil {
 		return nil, fmt.Errorf("telemetry sink is required")
 	}
+
+	embedded, err := newEmbeddedTraps(ctx, snapshot)
+	if err != nil {
+		return nil, err
+	}
+
 	if host == "" {
 		host = "0.0.0.0"
 	}
@@ -108,7 +63,19 @@ func Start(ctx context.Context, snapshot profiles.Snapshot, host string, sink fu
 	if executable == "" {
 		executable = "python3"
 	}
-	cmd := exec.Command(executable, "-I", "-u", "-c", engine+"\n"+pipelineServer+"\n"+server)
+	// Keep the embedded program below Windows' command-line length limit.
+	var program bytes.Buffer
+	compressed := zlib.NewWriter(&program)
+	if _, err := compressed.Write([]byte(engine + "\n" + pipelineServer + "\n" + server)); err != nil {
+		return nil, fmt.Errorf("compress Python runtime: %w", err)
+	}
+
+	if err := compressed.Close(); err != nil {
+		return nil, fmt.Errorf("finish Python runtime: %w", err)
+	}
+
+	bootstrap := "import base64,zlib;exec(zlib.decompress(base64.b64decode('" + base64.StdEncoding.EncodeToString(program.Bytes()) + "')))"
+	cmd := exec.Command(executable, "-I", "-u", "-c", bootstrap)
 	cmd.Stderr = os.Stderr
 	input, err := cmd.StdinPipe()
 	if err != nil {
@@ -121,7 +88,7 @@ func Start(ctx context.Context, snapshot profiles.Snapshot, host string, sink fu
 	if err := cmd.Start(); err != nil {
 		return nil, errors.Join(fmt.Errorf("start Python HTTP: %w", err), input.Close(), output.Close())
 	}
-	r := &Runtime{cmd: cmd, input: input, done: make(chan struct{})}
+	r := &Runtime{cmd: cmd, input: input, done: make(chan struct{}), embedded: embedded}
 	ready := make(chan struct{}, 1)
 	go func() {
 		err := r.read(ctx, output, sink, ready)
@@ -132,6 +99,7 @@ func Start(ctx context.Context, snapshot profiles.Snapshot, host string, sink fu
 		r.mu.Lock()
 		r.err = errors.Join(err, waitErr)
 		r.mu.Unlock()
+		r.embedded.stop()
 		close(r.done)
 	}()
 	if err := json.NewEncoder(input).Encode(map[string]any{"snapshot": snapshot, "host": host}); err != nil {
@@ -167,10 +135,11 @@ func (r *Runtime) read(ctx context.Context, output io.Reader, sink func(context.
 	initialized := false
 	for scanner.Scan() {
 		var message struct {
-			Type    string            `json:"type"`
-			Event   events.AgentEvent `json:"event"`
-			Frame   traffic.Frame     `json:"frame"`
-			Request pipeline.Request  `json:"request"`
+			Type     string            `json:"type"`
+			Event    events.AgentEvent `json:"event"`
+			Frame    traffic.Frame     `json:"frame"`
+			Request  pipeline.Request  `json:"request"`
+			Embedded embeddedCall      `json:"embedded"`
 		}
 		if err := json.Unmarshal(scanner.Bytes(), &message); err != nil {
 			return fmt.Errorf("decode Python message: %w", err)
@@ -201,6 +170,15 @@ func (r *Runtime) read(ctx context.Context, output io.Reader, sink func(context.
 				return err
 			}
 			traffic.Mirror(ctx, message.Frame)
+		case "embedded_call":
+			if !initialized {
+				return fmt.Errorf("embedded call before readiness")
+			}
+
+			if err := r.dispatchEmbedded(ctx, message.Embedded); err != nil {
+				return err
+			}
+
 		case "pipeline_send":
 			if !initialized {
 				return fmt.Errorf("pipeline send before readiness")

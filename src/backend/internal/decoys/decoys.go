@@ -68,6 +68,7 @@ var builtins = []definition{
 	tcpDefinition("custom-tcp"),
 	httpDefinition(1),
 	httpDefinition(2),
+	httpDefinition(3),
 }
 
 func httpDefinition(version int32) definition {

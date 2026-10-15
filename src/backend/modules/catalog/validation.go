@@ -75,7 +75,7 @@ func (s *Service) CheckConfig(ctx context.Context, id string, version contract.T
 		return checkTCPConfig(config)
 	}
 
-	if id == "custom-http" && (version == 1 || version == 2) {
+	if id == "custom-http" && (version >= 1 && version <= 3) {
 		return CheckCustomHTTPConfig(config)
 	}
 
@@ -104,7 +104,7 @@ func (s *Service) CheckEvent(ctx context.Context, id string, version contract.Ty
 	if (id == "tcp-banner" || id == "custom-tcp") && version == 1 && event == "tcp.payload_received" {
 		return checkTCPPayload(data)
 	}
-	if id == "custom-http" && (version == 1 || version == 2) && event == "http.custom" {
+	if id == "custom-http" && (version >= 1 && version <= 3) && event == "http.custom" {
 		return checkCustomHTTPEvent(data)
 	}
 
@@ -181,5 +181,5 @@ func (s *Service) CheckActionResult(ctx context.Context, id string, version cont
 }
 
 func hasRuntimeRevision(id string, version contract.TypeVersion) bool {
-	return version == 1 && (id == "tcp-banner" || id == "custom-tcp" || id == "custom-http" || id == "redis-emulator" || id == "honeytoken-http" || id == "ssh-high-interaction") || (id == "ssh-high-interaction" || id == "custom-http") && version == 2
+	return version == 1 && (id == "tcp-banner" || id == "custom-tcp" || id == "custom-http" || id == "redis-emulator" || id == "honeytoken-http" || id == "ssh-high-interaction") || (id == "ssh-high-interaction" && version == 2 || id == "custom-http" && version >= 2 && version <= 3)
 }

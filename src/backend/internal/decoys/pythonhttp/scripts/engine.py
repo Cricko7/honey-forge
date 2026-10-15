@@ -64,13 +64,14 @@ def safe_headers(value):
 
 
 class Engine:
-    def __init__(self, blocks, max_steps=512, timeout_ms=10000, max_body_bytes=65536, forward=None):
+    def __init__(self, blocks, max_steps=512, timeout_ms=10000, max_body_bytes=65536, forward=None, embedded=None):
         self.blocks = {b['id']: b for b in blocks}
         self.max_steps = max_steps
         self.timeout = timeout_ms / 1000
         self.max_body = max_body_bytes
         self.sessions = {}  # accessed only on the server's asyncio loop
         self.forward = forward
+        self.embedded = embedded
 
     async def execute(self, entry, request, emit):
         data = {'json': None, 'vars': {}, 'body': '', 'headers': {}, 'query': {}, 'cookies': {}, **copy.deepcopy(request)}
@@ -181,6 +182,25 @@ class Engine:
             elif op == 'delete':
                 state.pop(key, None)
             data['vars'][key] = copy.deepcopy(state.get(key))
+        elif kind in ('redis', 'honeytoken'):
+            if self.embedded is None:
+                raise FlowError('embedded channel unavailable')
+            if kind == 'redis':
+                commands = value('commands')
+                if not isinstance(commands, list) or not 1 <= len(commands) <= 32 or any(not isinstance(cmd, list) or not 1 <= len(cmd) <= 64 or any(not isinstance(arg, str) for arg in cmd) for cmd in commands):
+                    raise FlowError('expected 1-32 arrays of Redis string arguments')
+                payload = {'commands': commands}
+            else:
+                payload = {'method': data.get('method', 'GET'), 'path': text(template(c['path'], data)), 'headers': data['headers'], 'source_ip': data['_source_ip'], 'source_port': data['_source_port']}
+            if len(text(payload).encode()) > 8192:
+                raise FlowError('embedded request limit exceeded')
+            reply = await self.embedded(node_id, payload)
+            data['vars'][c['key']] = reply['body']
+            data['vars'][c['key'] + '_status'] = reply['status']
+            data['vars'][c['key'] + '_headers'] = reply['headers']
+            await emit('http.custom', {'node_id': node_id, 'name': kind + '.executed', 'severity': 'medium', 'payload': {'status': reply['status']}})
+            for event in reply.get('events', []):
+                await emit('http.custom', {'node_id': node_id, 'name': event['name'], 'severity': 'high', 'payload': event['payload']})
         elif kind == 'call':
             payload = value('payload')
             child = copy.deepcopy(data)

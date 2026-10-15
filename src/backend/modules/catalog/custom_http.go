@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strings"
 
+	"honey-forge/internal/configschema"
 	"honey-forge/internal/contract"
 )
 
@@ -24,33 +25,54 @@ func CheckCustomHTTPConfig(raw json.RawMessage) error {
 			Outputs map[string]string          `json:"outputs"`
 		} `json:"blocks"`
 	}
+
 	invalid := contract.NewError("config_invalid")
 	if json.Unmarshal(raw, &config) != nil {
 		return invalid
 	}
+
 	blocks := make(map[string]int, len(config.Blocks))
+	redisCount := 0
 	for i, block := range config.Blocks {
+		if block.Kind == "redis" {
+			redisCount++
+			if redisCount > 4 {
+				return invalid
+			}
+		}
+
+		if block.Kind == "honeytoken" {
+			var tokens string
+			if json.Unmarshal(block.Config["tokens"], &tokens) != nil || checkEmbeddedTokens(tokens) != nil {
+				return invalid
+			}
+		}
+
 		if _, exists := blocks[block.ID]; exists {
 			return invalid
 		}
 		blocks[block.ID] = i
-		for _, field := range []string{"value", "payload", "headers", "body"} {
+		for _, field := range []string{"value", "payload", "headers", "body", "commands"} {
 			item, exists := block.Config[field]
 			if !exists {
 				continue
 			}
+
 			if field == "value" && (block.Kind == "condition" || block.Kind == "switch") {
 				continue
 			}
+
 			if field == "body" {
 				var format string
 				if json.Unmarshal(block.Config["format"], &format) != nil {
 					return invalid
 				}
+
 				if format != "json" {
 					continue
 				}
 			}
+
 			var value string
 			if json.Unmarshal(item, &value) != nil || !json.Valid([]byte(value)) {
 				return invalid
@@ -63,6 +85,7 @@ func CheckCustomHTTPConfig(raw json.RawMessage) error {
 		if !exists || names[service.Name] || ports[service.Port] || entries[service.Entry] {
 			return invalid
 		}
+
 		block := config.Blocks[index]
 		var name string
 		var port int
@@ -71,18 +94,22 @@ func CheckCustomHTTPConfig(raw json.RawMessage) error {
 		}
 		names[name], ports[port], entries[service.Entry] = true, true, true
 	}
+
 	for _, block := range config.Blocks {
 		if block.Kind == "input" && !entries[block.ID] {
 			return invalid
 		}
+
 		for _, target := range block.Outputs {
 			if _, exists := blocks[target]; !exists {
 				return invalid
 			}
 		}
+
 		if block.Kind == "fork" && block.Outputs["branch1"] == "" && block.Outputs["branch2"] == "" && block.Outputs["branch3"] == "" {
 			return invalid
 		}
+
 		if block.Kind == "call" {
 			var target string
 			if json.Unmarshal(block.Config["target"], &target) != nil {
@@ -93,6 +120,7 @@ func CheckCustomHTTPConfig(raw json.RawMessage) error {
 				return invalid
 			}
 		}
+
 		if block.Kind == "send" {
 			var path string
 			if json.Unmarshal(block.Config["path"], &path) != nil {
@@ -104,16 +132,49 @@ func CheckCustomHTTPConfig(raw json.RawMessage) error {
 			}
 		}
 	}
+
 	return nil
+}
+
+func checkEmbeddedTokens(tokens string) error {
+	var descriptor struct {
+		ConfigSchema json.RawMessage `json:"config_schema"`
+	}
+
+	if err := json.Unmarshal(honeytokenHTTPJSON, &descriptor); err != nil {
+		return err
+	}
+
+	schema, err := configschema.Compile(descriptor.ConfigSchema)
+	if err != nil {
+		return err
+	}
+
+	raw, err := json.Marshal(map[string]any{
+		"services":   []any{map[string]any{"name": "embedded", "port": 1}},
+		"tokens":     json.RawMessage(tokens),
+		"management": map[string]any{"heartbeat_interval_seconds": 10, "telemetry_flush_interval_ms": 500},
+	})
+	if err != nil {
+		return err
+	}
+
+	if err := schema.Validate(raw, "/config"); err != nil {
+		return err
+	}
+
+	return checkHoneytokenConfig(raw)
 }
 
 func checkCustomHTTPEvent(raw json.RawMessage) error {
 	var data struct {
 		Payload json.RawMessage `json:"payload"`
 	}
+
 	var compact bytes.Buffer
 	if json.Unmarshal(raw, &data) != nil || json.Compact(&compact, data.Payload) != nil || compact.Len() > 4096 {
 		return contract.NewError("telemetry_invalid")
 	}
+
 	return nil
 }

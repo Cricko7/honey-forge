@@ -38,7 +38,7 @@ func TestSupportedTypesAreStableAndDetached(t *testing.T) {
 	var ids []string
 	for _, entry := range types {
 		ids = append(ids, entry.TypeID)
-		if (entry.TypeVersion != 1 && !((entry.TypeID == "ssh-high-interaction" || entry.TypeID == "custom-http") && entry.TypeVersion == 2)) || !reflect.DeepEqual(entry.Actions, []string{"start", "stop", "apply_config"}) {
+		if (entry.TypeVersion != 1 && !((entry.TypeID == "ssh-high-interaction" || entry.TypeID == "custom-http") && (entry.TypeVersion == 2 || entry.TypeID == "custom-http" && entry.TypeVersion == 3))) || !reflect.DeepEqual(entry.Actions, []string{"start", "stop", "apply_config"}) {
 			t.Fatalf("changed agent capabilities: %+v", entry)
 		}
 
@@ -47,7 +47,7 @@ func TestSupportedTypesAreStableAndDetached(t *testing.T) {
 		}
 	}
 
-	if !reflect.DeepEqual(ids, []string{"tcp-banner", "redis-emulator", "honeytoken-http", "ssh-high-interaction", "ssh-high-interaction", "custom-tcp", "custom-http", "custom-http"}) {
+	if !reflect.DeepEqual(ids, []string{"tcp-banner", "redis-emulator", "honeytoken-http", "ssh-high-interaction", "ssh-high-interaction", "custom-tcp", "custom-http", "custom-http", "custom-http"}) {
 		t.Fatal("capability ordering changed", ids)
 	}
 
@@ -63,10 +63,10 @@ func TestForType(t *testing.T) {
 		want  int
 		error bool
 	}{
-		{name: "", want: 8},
+		{name: "", want: 9},
 		{name: "tcp", want: 2},
 		{name: "custom-tcp", want: 1},
-		{name: "custom-http", want: 2},
+		{name: "custom-http", want: 3},
 		{name: "tcp-banner", want: 1},
 		{name: "redis-emulator", want: 1},
 		{name: "honeytoken-http", want: 1},
