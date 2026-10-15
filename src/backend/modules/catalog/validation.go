@@ -63,6 +63,9 @@ func (s *Service) CheckConfig(ctx context.Context, id string, version contract.T
 	if err := contract.CheckConfig(config); err != nil {
 		return err
 	}
+	if err := contract.CheckStoredJSON(config, "/config"); err != nil {
+		return validationError(err, "config_invalid")
+	}
 
 	if err := e.config.Validate(config, "/config"); err != nil {
 		return validationError(err, "config_invalid")

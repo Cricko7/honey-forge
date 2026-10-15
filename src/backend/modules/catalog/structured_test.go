@@ -27,11 +27,13 @@ func TestStructuredEvents(t *testing.T) {
 		valid             bool
 	}{
 		{"original credentials", "service.auth_attempt", `{"service":"ssh","username":" Root ","password":" <script>secret</script> ","outcome":"rejected","truncated":false}`, true},
+		{"credentials preserve null bytes", "service.auth_attempt", `{"service":"ssh","username":"Root","password":"pass\u0000word","outcome":"rejected","truncated":false}`, true},
 		{"null credentials", "service.auth_attempt", `{"service":"ssh","username":null,"password":"","outcome":"unknown","truncated":false}`, true},
 		{"missing password", "service.auth_attempt", `{"service":"ssh","username":"root","outcome":"rejected","truncated":false}`, false},
 		{"byte boundary", "service.auth_attempt", `{"service":"ssh","username":null,"password":"` + strings.Repeat("я", 512) + `","outcome":"rejected","truncated":false}`, true},
 		{"too many bytes", "service.auth_attempt", `{"service":"ssh","username":null,"password":"` + strings.Repeat("я", 513) + `","outcome":"rejected","truncated":true}`, false},
 		{"original command", "service.action", `{"service":"ssh","action_kind":"command","input":" <script>alert(1)</script> ","outcome":"accepted","truncated":false}`, true},
+		{"input preserves null bytes", "service.action", `{"service":"ssh","action_kind":"request","input":"GET /\u0000body","outcome":"accepted","truncated":false}`, true},
 		{"empty input", "service.action", `{"service":"ssh","action_kind":"request","input":"","outcome":"unknown","truncated":false}`, true},
 		{"input byte limit", "service.action", `{"service":"ssh","action_kind":"command","input":"` + strings.Repeat("я", 2049) + `","outcome":"accepted","truncated":true}`, false},
 	} {
@@ -50,5 +52,15 @@ func TestStructuredEvents(t *testing.T) {
 
 	if err := tcp.CheckEvent(t.Context(), "tcp-banner", 1, "service.auth_attempt", json.RawMessage(`{}`)); err == nil {
 		t.Fatal("TCP must not accept auth events")
+	}
+}
+
+func TestConfigRejectsNullBytes(t *testing.T) {
+	s := testService(t)
+	for _, config := range []string{
+		strings.Replace(validConfig, "SSH-2.0-demo", `SSH\u0000demo`, 1),
+		strings.Replace(validConfig, `"banner"`, `"bad\u0000key"`, 1),
+	} {
+		wantCode(t, s.CheckConfig(t.Context(), "tcp-banner", 1, json.RawMessage(config)), "config_invalid")
 	}
 }

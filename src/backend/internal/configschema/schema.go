@@ -99,12 +99,7 @@ func checkLocal(v any) error {
 }
 
 func (s *Schema) Validate(raw json.RawMessage, path string) error {
-	if err := contract.CheckStoredJSON(raw, path); err != nil {
-		var validation *contract.Error
-		if errors.As(err, &validation) {
-			return validation
-		}
-
+	if err := contract.CheckJSON(raw); err != nil {
 		return contract.NewError("invalid_json")
 	}
 

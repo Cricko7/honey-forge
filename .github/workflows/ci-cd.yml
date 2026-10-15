@@ -69,7 +69,8 @@ jobs:
       - name: Constructor tests and Docker build
         run: |
           python -m pip install -r constructor/requirements.txt -r constructor/requirements-test.txt
-          python -m unittest constructor.backend.test_integration constructor.backend.test_http_builder deploy.nginx.test_constructor deploy.test_release_cleanup
+          python -m unittest discover -s constructor/backend -t .
+          python -m unittest deploy.nginx.test_constructor deploy.test_release_cleanup
           python -m unittest discover -s src/backend/internal/decoys/pythonhttp/scripts -p '*_test.py'
           docker compose config --quiet
           docker build -f constructor/Dockerfile -t honeyforge/constructor:test .
