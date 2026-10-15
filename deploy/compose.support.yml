@@ -1,0 +1,10 @@
+# Values are supplied by /etc/honey-forge/production.env on the deployment host.
+services:
+  api:
+    environment:
+      SUPPORT_SMTP_HOST: ${SUPPORT_SMTP_HOST:-}
+      SUPPORT_SMTP_PORT: ${SUPPORT_SMTP_PORT:-}
+      SUPPORT_SMTP_SECURITY: ${SUPPORT_SMTP_SECURITY:-}
+      SUPPORT_SMTP_USERNAME: ${SUPPORT_SMTP_USERNAME:-}
+      SUPPORT_SMTP_PASSWORD: ${SUPPORT_SMTP_PASSWORD:-}
+      SUPPORT_SMTP_FROM: ${SUPPORT_SMTP_FROM:-}

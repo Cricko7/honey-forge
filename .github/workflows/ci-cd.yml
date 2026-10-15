@@ -70,7 +70,7 @@ jobs:
         run: |
           python -m pip install -r constructor/requirements.txt -r constructor/requirements-test.txt
           python -m unittest discover -s constructor/backend -t .
-          python -m unittest deploy.nginx.test_constructor deploy.test_release_cleanup
+          python -m unittest deploy.nginx.test_constructor deploy.test_release_cleanup deploy.test_support_deployment
           python -m unittest discover -s src/backend/internal/decoys/pythonhttp/scripts -p '*_test.py'
           docker compose config --quiet
           docker build -f constructor/Dockerfile -t honeyforge/constructor:test .
@@ -182,6 +182,7 @@ jobs:
           printf 'API_IMAGE=%s\nORCHESTRATOR_IMAGE=%s\n' "${images[0]}" "${images[1]}" > release/release.env
           printf 'CONSTRUCTOR_IMAGE=%s\n' "${images[2]}" >> release/release.env
           cp deploy/compose.constructor.yml release/compose.constructor.yml
+          cp deploy/compose.support.yml release/compose.support.yml
           cp deploy/nginx/constructor.location.conf release/constructor.location.conf
           cp deploy/nginx/install_constructor.py release/install_constructor.py
           for entry in 'tcp:tcp-decoy:DECOY_TCP_IMAGE' 'redis:redis-decoy:DECOY_REDIS_IMAGE' 'honeytokens:honeytoken-decoy:DECOY_HONEYTOKEN_IMAGE' 'http:http-decoy:DECOY_HTTP_IMAGE'; do
@@ -246,6 +247,7 @@ jobs:
             if grep -q 'REPLACE_WITH_' "$CONFIG"; then echo 'Configure production.env first'; exit 1; fi
             test -f "$INCOMING/release.env"
             test -f "$INCOMING/compose.constructor.yml"
+            test -f "$INCOMING/compose.support.yml"
             test -f "$INCOMING/constructor.location.conf"
             test -f "$INCOMING/install_constructor.py"
             test -f "$INCOMING/images.tar.gz"
@@ -272,6 +274,11 @@ jobs:
               local constructor_override="${release_env%/*}/compose.constructor.yml"
               if [ -f "$constructor_override" ]; then
                 manifests+=(-f "$constructor_override")
+              fi
+
+              local support_override="${release_env%/*}/compose.support.yml"
+              if [ -f "$support_override" ]; then
+                manifests+=(-f "$support_override")
               fi
 
               docker compose --project-name honeyforge --env-file "$CONFIG" --env-file "$release_env" "${manifests[@]}" "$@"
@@ -462,7 +469,7 @@ jobs:
             tls=(--cacert /etc/honey-forge/certs/public-ca.crt)
             DOMAIN=$(echo "$PUBLIC_ORIGIN" | sed -E 's|https?://||; s|/.*||')
             echo "Testing $PUBLIC_ORIGIN via $API_HOST"
-            for entry in '/api/session:401' '/assets/stream:404' '/api/stream:401' '/:200' '/app/profiles:200'; do
+            for entry in '/api/session:401' '/assets/stream:404' '/api/stream:401' '/:200' '/app/profiles:200' '/app/support:200'; do
               path="${entry%:*}"
               expected="${entry##*:}"
               code=$(curl "${tls[@]}" --silent --show-error --max-time 20 --retry 3 \
@@ -471,6 +478,13 @@ jobs:
               echo "$path: $code"
               test "$code" = "$expected"
             done
+            code=$(curl "${tls[@]}" --silent --show-error --max-time 20 \
+              --resolve "$DOMAIN:443:$API_HOST" \
+              -H "Origin: $PUBLIC_ORIGIN" -H 'Content-Type: application/json' \
+              --data '{}' --output /dev/null --write-out '%{http_code}' \
+              "$PUBLIC_ORIGIN/api/support/messages")
+            echo "/api/support/messages (unauthenticated): $code"
+            test "$code" = 401
             curl "${tls[@]}" --resolve "$DOMAIN:443:$API_HOST" --fail --silent --show-error --max-time 20 "$PUBLIC_ORIGIN/" | grep -q '<div id="root">'
             RESOURCE_AUTHORITY=${TELEMETRY_ORIGIN#https://}
             RESOURCE_HOST=${RESOURCE_AUTHORITY%%:*}
