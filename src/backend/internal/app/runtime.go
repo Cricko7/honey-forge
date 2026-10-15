@@ -34,6 +34,7 @@ import (
 )
 
 type Config struct {
+	SourceLookup       func(string) *events.Enrichment
 	SupportSender      support.Sender
 	AgentClientCAFile  string
 	DatabaseURL        string
@@ -148,7 +149,7 @@ func Open(ctx context.Context, config Config) (*Runtime, error) {
 	}
 
 	trapRepository := traps.NewRepository(pool)
-	eventRepository := events.NewRepository(pool, trapRepository, catalogService)
+	eventRepository := events.NewRepository(pool, trapRepository, catalogService).WithSourceLookup(config.SourceLookup)
 	commandRepository := commandrepo.New(pool, trapRepository)
 	ingester := config.Ingester
 	if ingester == nil {

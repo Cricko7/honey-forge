@@ -1,5 +1,18 @@
 # Сборка и запуск Go API HoneyForge в Docker (Go на хост ставить не нужно).
 # Контекст сборки — корень репозитория: нужны src/backend и migrations.
+# Local Geo/ASN data: no visitor IP is sent to an external service.
+FROM alpine:3.20 AS geoip
+ARG GEOIP_DB_MONTH=2026-10
+RUN apk add --no-cache ca-certificates curl
+RUN mkdir -p /geoip && \
+    for kind in country asn; do \
+      curl --fail --location --proto '=https' --tlsv1.2 --retry 3 --max-time 120 \
+        --output /tmp/database.mmdb.gz \
+        "https://download.db-ip.com/free/dbip-${kind}-lite-${GEOIP_DB_MONTH}.mmdb.gz" && \
+      gzip -dc /tmp/database.mmdb.gz > "/geoip/${kind}.mmdb" && \
+      rm /tmp/database.mmdb.gz || exit 1; \
+    done
+
 # ------- stage 1: сборка -------
 FROM golang:1.27.2-alpine AS build
 WORKDIR /src
@@ -17,5 +30,8 @@ RUN apk add --no-cache ca-certificates wget
 WORKDIR /app/src/backend
 COPY --from=build /out/honey-forge-api ./honey-forge-api
 COPY migrations /app/migrations
+COPY --from=geoip /geoip /app/geoip
+ENV GEOIP_COUNTRY_DB=/app/geoip/country.mmdb \
+    GEOIP_ASN_DB=/app/geoip/asn.mmdb
 EXPOSE 8443
 ENTRYPOINT ["./honey-forge-api"]

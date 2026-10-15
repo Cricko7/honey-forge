@@ -30,6 +30,7 @@ func TestEventEnvelope(t *testing.T) {
 		{"sequence overflow", strings.Replace(valid, `"session_sequence":1`, `"session_sequence":9007199254740992`, 1), false},
 		{"null data", strings.Replace(valid, `{"listener_name":"ssh"}`, `null`, 1), false},
 		{"unknown field", strings.TrimSuffix(valid, "}") + `,"token":"secret"}`, false},
+		{"agent cannot supply enrichment", strings.TrimSuffix(valid, "}") + `,"source_enrichment":{"country_code":"US","asn":15169}}`, false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			event, err := parseEvent(json.RawMessage(tt.body), now)

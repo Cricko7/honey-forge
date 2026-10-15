@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 async function renderEvents({ failed = false, empty = false, severity = 'low' } = {}) {
   const root = fileURLToPath(new URL('../../', import.meta.url))
   const event = { event_id: 'event-1', event_type: 'service.auth_attempt', severity, occurred_at: '2026-10-15T08:00:00Z',
-    source: { ip: '192.0.2.1', port: 5000 }, destination: { protocol: 'redis', port: 6379 }, type_id: 'redis-emulator', type_version: 1 }
+    source: { ip: '192.0.2.1', port: 5000 }, source_enrichment: { country_code: 'US', asn: 15169 }, destination: { protocol: 'redis', port: 6379 }, type_id: 'redis-emulator', type_version: 1 }
   const result = await build({
     stdin: { contents: `
       import { createElement as h } from 'react'
@@ -33,6 +33,8 @@ async function renderEvents({ failed = false, empty = false, severity = 'low' } 
 
 test('journal preserves all filters, export formats and event detail controls in named groups', async () => {
   const html = await renderEvents()
+  assert.match(html, /AS15169/)
+  assert.match(html, /Соединенные Штаты|Соединённые Штаты/)
   assert.match(html, /aria-label="Фильтры событий"/)
   assert.match(html, /aria-label="Экспорт событий"/)
   for (const text of ['Тип ловушки', 'Ловушка', 'Тип события', 'С (включительно)', 'До (не включительно)', 'Скачать CSV', 'Скачать STIX', 'Открыть событие service.auth_attempt', '192.0.2.1', 'redis:6379']) {

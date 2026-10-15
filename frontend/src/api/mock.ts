@@ -259,9 +259,8 @@ function startLive() {
     const ev = genEvent(trap, now())
     events.unshift(ev)
     if (events.length > 2000) events.pop()
-    const { data, source_enrichment, ...summary } = ev
+    const { data, ...summary } = ev
     void data
-    void source_enrichment
     emit({ kind: 'event.created', event: summary as EventSummary })
   }, 3500)
 }

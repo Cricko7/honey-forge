@@ -36,13 +36,21 @@ func readEvent(row pgx.Row) (Event, error) {
 	}
 
 	data := event.Data
-	if err := json.Unmarshal(raw, &event.AgentEvent); err != nil {
+	var metadata struct {
+		AgentEvent
+		SourceEnrichment *Enrichment `json:"source_enrichment"`
+	}
+	if err := json.Unmarshal(raw, &metadata); err != nil {
 		return event, fmt.Errorf("decode event: %w", err)
 	}
 
+	event.AgentEvent = metadata.AgentEvent
 	event.Data = data
 	event.ReceivedAt = event.ReceivedAt.UTC()
-	event.SourceEnrichment = &Enrichment{}
+	event.SourceEnrichment = metadata.SourceEnrichment
+	if event.SourceEnrichment == nil {
+		event.SourceEnrichment = &Enrichment{}
+	}
 
 	return event, nil
 }

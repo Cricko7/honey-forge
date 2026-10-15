@@ -3,7 +3,8 @@ import { ShieldAlert } from 'lucide-react'
 import { Modal } from './Modal'
 import { EmptyState, EventTypeBadge, Spinner } from './ui'
 import { useEvent } from '@/api/hooks'
-import { formatDateTime, flag, decodeBase64 } from '@/lib/utils'
+import { formatDateTime, decodeBase64 } from '@/lib/utils'
+import { SourceGeo } from './SourceGeo'
 import { RecordingView } from './RecordingView'
 import { actionErrorMessage } from '@/lib/alerts'
 import { ProcessExecutionDetails } from './ProcessExecutionDetails'
@@ -32,13 +33,11 @@ export function EventDetailModal({ id, onClose }: { id: string | null; onClose: 
           <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 border-y border-line py-4 text-sm">
             <Field label="Источник">
               <span className="font-mono">
-                {flag(event.source_enrichment.country_code)} {event.source.ip}:{event.source.port}
+                {event.source.ip}:{event.source.port}
               </span>
             </Field>
             <Field label="Страна / ASN">
-              <span className="font-mono">
-                {event.source_enrichment.country_code ?? '—'} · AS{event.source_enrichment.asn ?? '—'}
-              </span>
+              <SourceGeo enrichment={event.source_enrichment} />
             </Field>
             <Field label="Назначение">
               <span className="font-mono">

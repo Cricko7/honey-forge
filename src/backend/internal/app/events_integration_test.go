@@ -124,7 +124,7 @@ func TestEventAtomicConflicts(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, ok := metadata["data"]; ok || len(metadata) != 13 {
+	if _, ok := metadata["data"]; ok || len(metadata) != 14 {
 		t.Fatalf("unsafe/incomplete summary: %s", raw)
 	}
 

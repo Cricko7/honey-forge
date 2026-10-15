@@ -1,4 +1,5 @@
 import { eventSeverity } from '@/lib/event-severity'
+import { SourceGeo } from '@/components/SourceGeo'
 import { Select } from '@/components/Select'
 import { DateTimePicker } from '@/components/DateTimePicker'
 import { useState } from 'react'
@@ -140,6 +141,7 @@ export function EventsPage() {
                   </td>
                   <td className="px-3 py-3 font-mono text-xs">
                     {e.source.ip}:{e.source.port}
+                    <SourceGeo enrichment={e.source_enrichment} />
                   </td>
                   <td className="px-3 py-3 font-mono text-xs text-muted">
                     {e.destination.protocol}:{e.destination.port}

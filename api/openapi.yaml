@@ -1574,8 +1574,29 @@ components:
       - generation
       - active
       - issued_at
+    SourceEnrichment:
+      type: object
+      additionalProperties: false
+      description: >-
+        Server-owned country and ASN snapshot from local DB-IP Lite databases at
+        ingestion. Never supplied by agents. Private/reserved IPs, missing
+        records, disabled databases and historical events without enrichment
+        return null fields. Country is an IP estimate, not a person's location.
+      properties:
+        country_code:
+          anyOf:
+          - type: string
+            pattern: '^[A-Z]{2}$'
+          - type: 'null'
+        asn:
+          anyOf:
+          - type: integer
+            minimum: 1
+            maximum: 4294967295
+          - type: 'null'
+      required: [country_code, asn]
     EventSummary:
-      description: Summary for REST lists and event.created. Does not contain data or source_enrichment.
+      description: Summary for REST lists and event.created, including server-owned source_enrichment. Captured data is excluded. Older replay notifications may omit source_enrichment.
       type: object
       additionalProperties: false
       properties:
@@ -1583,6 +1604,8 @@ components:
           type: string
           enum: [low, medium, high, critical]
           description: Display importance. Custom HTTP events use the configured event block severity; authentication, service commands and honeytoken triggers are high; other telemetry is low. Older replay notifications may omit this field.
+        source_enrichment:
+          $ref: '#/components/schemas/SourceEnrichment'
         event_id:
           $ref: '#/components/schemas/ID'
         event_type:
@@ -1718,23 +1741,7 @@ components:
           then:
             $ref: '#/components/schemas/ProcessExecData'
         source_enrichment:
-          type: object
-          additionalProperties: false
-          properties:
-            country_code:
-              anyOf:
-              - type: string
-                pattern: '^[A-Z]{2}$'
-              - type: 'null'
-            asn:
-              anyOf:
-              - type: integer
-                minimum: 1
-                maximum: 4294967295
-              - type: 'null'
-          required:
-          - country_code
-          - asn
+          $ref: '#/components/schemas/SourceEnrichment'
       required:
       - event_id
       - event_type

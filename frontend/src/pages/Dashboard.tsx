@@ -1,4 +1,5 @@
 import { eventSeverity } from '@/lib/event-severity'
+import { SourceGeo } from '@/components/SourceGeo'
 import { Link } from 'react-router-dom'
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
 import { SectionTitle, EventTypeBadge, Spinner, EmptyState } from '@/components/ui'
@@ -88,7 +89,7 @@ export function DashboardPage() {
           </tr></thead>
           <tbody className="divide-y divide-line/60">{events.slice(0, 8).map(event => <tr key={event.event_id} className="hover:bg-bg-hover/50">
             <td className="px-5 py-3 whitespace-nowrap tabular-nums text-muted">{formatDateTime(event.occurred_at)}</td>
-            <td className="px-5 py-3 font-mono text-xs">{event.source.ip}</td>
+            <td className="px-5 py-3 font-mono text-xs">{event.source.ip}<SourceGeo enrichment={event.source_enrichment} /></td>
             <td className="px-5 py-3"><EventTypeBadge type={event.event_type} severity={eventSeverity(event)} /></td>
             <td className="px-5 py-3 text-right"><Link to={`/app/events?event=${encodeURIComponent(event.event_id)}`} className="text-brand hover:underline" aria-label={`Открыть событие ${event.event_type} от ${event.source.ip}`}>Открыть</Link></td>
           </tr>)}</tbody>

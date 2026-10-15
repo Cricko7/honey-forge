@@ -31,6 +31,22 @@ func main() {
 }
 
 func run() error {
+	ipDatabases, err := events.OpenIPDatabases(os.Getenv("GEOIP_COUNTRY_DB"), os.Getenv("GEOIP_ASN_DB"))
+	if err != nil {
+		return fmt.Errorf("configure source enrichment: %w", err)
+	}
+	defer func() {
+		if err := ipDatabases.Close(); err != nil {
+			slog.Error("close IP databases", "error", err)
+		}
+	}()
+	lookupSource := func(ip string) *events.Enrichment {
+		result, err := ipDatabases.Lookup(ip)
+		if err != nil {
+			slog.Warn("source enrichment unavailable", "error", err)
+		}
+		return result
+	}
 	mailSender, err := support.SMTPFromEnvironment(os.Getenv)
 	if err != nil {
 		return fmt.Errorf("configure support SMTP: %w", err)
@@ -128,6 +144,7 @@ func run() error {
 	defer publisher.Close()
 
 	runtime, err := app.Open(startup, app.Config{
+		SourceLookup:      lookupSource,
 		SupportSender:     supportSender,
 		DatabaseURL:       databaseURL,
 		CursorKey:         keyBytes,

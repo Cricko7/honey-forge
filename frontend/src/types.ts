@@ -118,7 +118,13 @@ export interface EventDestination {
   port: number
 }
 
+export interface SourceEnrichment {
+  country_code: string | null
+  asn: number | null
+}
+
 export interface EventSummary {
+  source_enrichment?: SourceEnrichment
   severity?: 'low' | 'medium' | 'high' | 'critical'
   event_id: UUID
   event_type: string
@@ -136,10 +142,7 @@ export interface EventSummary {
 
 export interface Event extends EventSummary {
   data: Record<string, unknown>
-  source_enrichment: {
-    country_code: string | null
-    asn: number | null
-  }
+  source_enrichment: SourceEnrichment
 }
 
 export interface SessionRecording {

@@ -21,7 +21,7 @@ test('alert detail links render errors safely instead of an endless loading stat
           if (id === 'loading') return { isLoading: true }
           if (id === 'success' || id === 'unknown-outcome' || id === 'redis-response') return { data: { event_type: 'tcp.connection_opened', occurred_at: '2026-10-13T00:00:00Z',
             source: { ip: '192.0.2.1', port: 123 }, destination: { protocol: 'tcp', port: 22 }, session_sequence: 1,
-            source_enrichment: { country_code: null, asn: null }, data: id === 'redis-response' ? { service: 'redis', action_kind: 'request', input: 'Redis response: -WRONGPASS invalid credentials', outcome: 'rejected' } : id === 'unknown-outcome' ? { outcome: 'unknown' } : {}, type_id: 'tcp-banner' } }
+            source_enrichment: id === 'success' ? { country_code: 'US', asn: 15169 } : { country_code: null, asn: null }, data: id === 'redis-response' ? { service: 'redis', action_kind: 'request', input: 'Redis response: -WRONGPASS invalid credentials', outcome: 'rejected' } : id === 'unknown-outcome' ? { outcome: 'unknown' } : {}, type_id: 'tcp-banner' } }
           return { isLoading: false, error: { status: Number(id), message: 'SECRET' }, refetch() {} }
         }
       ` }))
@@ -29,6 +29,10 @@ test('alert detail links render errors safely instead of an endless loading stat
   })
   const { render } = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
   assert.match(render('success'), /192\.0\.2\.1/)
+  assert.match(render('success'), /AS15169/)
+  assert.match(render('success'), /Соединенные Штаты|Соединённые Штаты/)
+  assert.match(render('unknown-outcome'), /ASN не определён/)
+  assert.doesNotMatch(render('unknown-outcome'), /AS—/)
   assert.match(render('unknown-outcome'), /Результат не определён/)
   assert.doesNotMatch(render('unknown-outcome'), /unknown/)
   assert.match(render('redis-response'), /Ответ Redis/)

@@ -1,4 +1,5 @@
 import { eventSeverity } from '@/lib/event-severity'
+import { SourceGeo } from '@/components/SourceGeo'
 import { useState } from 'react'
 import { EventDetailModal } from '@/components/EventDetailModal'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -251,6 +252,7 @@ export function TrapDetailPage() {
                   </td>
                   <td className="px-5 py-2.5 font-mono text-xs">
                     {e.source.ip}:{e.source.port}
+                    <SourceGeo enrichment={e.source_enrichment} />
                   </td>
                   <td className="px-5 py-2.5 font-mono text-xs text-muted">
                     {e.destination.protocol}:{e.destination.port}

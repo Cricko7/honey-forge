@@ -8,6 +8,7 @@ async function renderDashboard({ failed = false, loading = false } = {}) {
   const event = (id, type) => ({
     event_id: id, event_type: type, occurred_at: new Date().toISOString(),
     source: { ip: '192.0.2.1', port: 1234 },
+    source_enrichment: { country_code: 'DE', asn: 51167 },
   })
   const result = await build({
     stdin: {
@@ -51,6 +52,8 @@ async function renderDashboard({ failed = false, loading = false } = {}) {
 
 test('dashboard identifies sampled data and exposes recent event details without claiming totals', async () => {
   const html = await renderDashboard()
+  assert.match(html, /AS51167/)
+  assert.match(html, /Германия/)
   assert.match(html, /Выборка: последние 100 событий/)
   assert.doesNotMatch(html, /за всё время|перехвачено|LIVE|Активные ловушки/)
   assert.match(html, /На связи/)

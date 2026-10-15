@@ -20,13 +20,20 @@ import (
 )
 
 type Repository struct {
-	pool    *pgxpool.Pool
-	traps   *traps.Repository
-	catalog *catalog.Service
+	pool         *pgxpool.Pool
+	traps        *traps.Repository
+	catalog      *catalog.Service
+	lookupSource func(string) *Enrichment
 }
 
 func NewRepository(pool *pgxpool.Pool, traps *traps.Repository, cat *catalog.Service) *Repository {
-	return &Repository{pool, traps, cat}
+	return &Repository{pool: pool, traps: traps, catalog: cat}
+}
+
+// WithSourceLookup configures local enrichment before the repository is shared.
+func (r *Repository) WithSourceLookup(lookup func(string) *Enrichment) *Repository {
+	r.lookupSource = lookup
+	return r
 }
 
 func (r *Repository) Ingest(ctx context.Context, identity agentws.Identity, connection, batchID string, events []AgentEvent) (agentws.TelemetryAck, error) {
@@ -133,7 +140,10 @@ func (r *Repository) Ingest(ctx context.Context, identity agentws.Identity, conn
 				return err
 			}
 
-			metadata := event
+			metadata := Event{AgentEvent: event, TrapID: trap.ID, ReceivedAt: stored, SourceEnrichment: &Enrichment{}}
+			if r.lookupSource != nil {
+				metadata.SourceEnrichment = r.lookupSource(event.Source.IP)
+			}
 			metadata.Data = nil
 			envelope, err := json.Marshal(metadata)
 			if err != nil {
@@ -165,7 +175,8 @@ func (r *Repository) Ingest(ctx context.Context, identity agentws.Identity, conn
 				return fmt.Errorf("advance event journal: %w", err)
 			}
 
-			summary, err := json.Marshal((Event{AgentEvent: event, TrapID: trap.ID, ReceivedAt: stored}).Summary())
+			metadata.Data = event.Data
+			summary, err := json.Marshal(metadata.Summary())
 			if err != nil {
 				return fmt.Errorf("encode event summary: %w", err)
 			}
