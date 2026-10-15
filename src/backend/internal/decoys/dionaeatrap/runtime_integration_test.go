@@ -45,7 +45,7 @@ func TestRealDionaeaProtocols(t *testing.T) {
 		{"mysql", "", "0a"}, // Server greeting precedes client authentication.
 		{"mqtt", "c000", "d000"},
 		{"http", hex.EncodeToString([]byte("GET / HTTP/1.0\r\nHost: localhost\r\n\r\n")), hex.EncodeToString([]byte("HTTP/1."))},
-		{"memcache", hex.EncodeToString([]byte("version\r\n")), hex.EncodeToString([]byte("VERSION"))},
+		{"memcache", hex.EncodeToString([]byte("get missing-key\r\n")), hex.EncodeToString([]byte("END\r\n"))},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			listener, err := net.Listen("tcp4", "127.0.0.1:0")
