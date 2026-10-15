@@ -260,6 +260,26 @@ services:
     entrypoint: ["/bin/true"]
     restart: "no"
 
+  decoy-conpot-image:
+    logging: *bounded-logging
+    build:
+      context: .
+      dockerfile: deploy/decoys/Dockerfile
+      target: conpot
+    image: ${DECOY_CONPOT_IMAGE:-honeyforge/conpot-decoy:local}
+    entrypoint: ["/bin/true"]
+    restart: "no"
+
+  decoy-dionaea-image:
+    logging: *bounded-logging
+    build:
+      context: .
+      dockerfile: deploy/decoys/Dockerfile
+      target: dionaea
+    image: ${DECOY_DIONAEA_IMAGE:-honeyforge/dionaea-decoy:local}
+    entrypoint: ["/bin/true"]
+    restart: "no"
+
   orchestrator:
     logging: *bounded-logging
     build:
@@ -283,6 +303,8 @@ services:
       DECOY_HONEYTOKEN_IMAGE: ${DECOY_HONEYTOKEN_IMAGE:-honeyforge/honeytoken-decoy:local}
       DECOY_HTTP_IMAGE: ${DECOY_HTTP_IMAGE:-honeyforge/http-decoy:local}
       DECOY_SSH_IMAGE: ${DECOY_SSH_IMAGE:-honeyforge/ssh-decoy:local}
+      DECOY_CONPOT_IMAGE: ${DECOY_CONPOT_IMAGE:-honeyforge/conpot-decoy:local}
+      DECOY_DIONAEA_IMAGE: ${DECOY_DIONAEA_IMAGE:-honeyforge/dionaea-decoy:local}
       SSH_SANDBOX_IMAGE: ${SSH_SANDBOX_IMAGE:-honeyforge/ssh-sandbox:local}
       TETRAGON_CONTAINER: ${TETRAGON_CONTAINER:-}
     volumes:
@@ -306,6 +328,10 @@ services:
       decoy-http-image:
         condition: service_completed_successfully
       decoy-ssh-image:
+        condition: service_completed_successfully
+      decoy-conpot-image:
+        condition: service_completed_successfully
+      decoy-dionaea-image:
         condition: service_completed_successfully
       ssh-sandbox-image:
         condition: service_completed_successfully

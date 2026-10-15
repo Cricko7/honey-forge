@@ -63,6 +63,17 @@ jobs:
           docker build -f deploy/decoys/Dockerfile.sandbox -t "$NM_SANDBOX_IMAGE" .
           cd src/backend
           go test -race -tags=integration ./internal/decoys/sshtrap -run TestDockerRealLinuxShellSFTPAndIsolation -count=1 -timeout=120s
+      - name: Conpot and Dionaea worker isolation acceptance
+        env:
+          TEST_CONPOT_DOCKER: "1"
+          TEST_DIONAEA_DOCKER: "1"
+          DECOY_CONPOT_IMAGE: honeyforge/conpot-decoy:test
+          DECOY_DIONAEA_IMAGE: honeyforge/dionaea-decoy:test
+        run: |
+          docker build -f deploy/decoys/Dockerfile --target conpot -t "$DECOY_CONPOT_IMAGE" .
+          docker build -f deploy/decoys/Dockerfile --target dionaea -t "$DECOY_DIONAEA_IMAGE" .
+          cd src/backend
+          go test -race -tags=integration ./internal/agent -run 'Test(Conpot|Dionaea)DockerIsolation' -count=1 -timeout=240s
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -70,8 +81,10 @@ jobs:
         run: |
           python -m pip install -r constructor/requirements.txt -r constructor/requirements-test.txt
           python -m unittest discover -s constructor/backend -t .
-          python -m unittest deploy.nginx.test_constructor deploy.test_release_cleanup deploy.test_support_deployment deploy.test_http_deployment deploy.test_sync_images
+          python -m unittest deploy.nginx.test_constructor deploy.test_release_cleanup deploy.test_support_deployment deploy.test_http_deployment deploy.test_native_deployment deploy.test_sync_images
           python -m unittest discover -s src/backend/internal/decoys/pythonhttp/scripts -p '*_test.py'
+          python -B src/backend/internal/decoys/conpottrap/scripts/telemetry_test.py
+          python -B src/backend/internal/decoys/dionaeatrap/scripts/observer_test.py
           docker compose config --quiet
           docker build -f constructor/Dockerfile -t honeyforge/constructor:test .
       - uses: actions/setup-node@v4
@@ -184,10 +197,11 @@ jobs:
           cp deploy/compose.constructor.yml release/compose.constructor.yml
           cp deploy/compose.support.yml release/compose.support.yml
           cp deploy/compose.http.yml release/compose.http.yml
+          cp deploy/compose.native.yml release/compose.native.yml
           cp deploy/sync-images.sh release/sync-images.sh
           cp deploy/nginx/constructor.location.conf release/constructor.location.conf
           cp deploy/nginx/install_constructor.py release/install_constructor.py
-          for entry in 'tcp:tcp-decoy:DECOY_TCP_IMAGE' 'redis:redis-decoy:DECOY_REDIS_IMAGE' 'honeytokens:honeytoken-decoy:DECOY_HONEYTOKEN_IMAGE' 'http:http-decoy:DECOY_HTTP_IMAGE'; do
+          for entry in 'tcp:tcp-decoy:DECOY_TCP_IMAGE' 'redis:redis-decoy:DECOY_REDIS_IMAGE' 'honeytokens:honeytoken-decoy:DECOY_HONEYTOKEN_IMAGE' 'http:http-decoy:DECOY_HTTP_IMAGE' 'conpot:conpot-decoy:DECOY_CONPOT_IMAGE' 'dionaea:dionaea-decoy:DECOY_DIONAEA_IMAGE'; do
             IFS=: read -r target image key <<< "$entry"
             docker build -f deploy/decoys/Dockerfile --target "$target" -t "honeyforge/$image:$tag" .
             images+=("honeyforge/$image:$tag")
@@ -251,6 +265,7 @@ jobs:
             test -f "$INCOMING/compose.constructor.yml"
             test -f "$INCOMING/compose.support.yml"
             test -f "$INCOMING/compose.http.yml"
+            test -f "$INCOMING/compose.native.yml"
             test -f "$INCOMING/sync-images.sh"
             test -f "$INCOMING/constructor.location.conf"
             test -f "$INCOMING/install_constructor.py"
@@ -288,6 +303,11 @@ jobs:
               local http_override="${release_env%/*}/compose.http.yml"
               if [ -f "$http_override" ]; then
                 manifests+=(-f "$http_override")
+              fi
+
+              local native_override="${release_env%/*}/compose.native.yml"
+              if [ -f "$native_override" ]; then
+                manifests+=(-f "$native_override")
               fi
 
               docker compose --project-name honeyforge --env-file "$CONFIG" --env-file "$release_env" "${manifests[@]}" "$@"

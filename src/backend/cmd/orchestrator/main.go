@@ -53,6 +53,8 @@ func run() error {
 		HoneytokenImage:   os.Getenv("DECOY_HONEYTOKEN_IMAGE"),
 		HTTPImage:         os.Getenv("DECOY_HTTP_IMAGE"),
 		SSHImage:          os.Getenv("DECOY_SSH_IMAGE"),
+		ConpotImage:       os.Getenv("DECOY_CONPOT_IMAGE"),
+		DionaeaImage:      os.Getenv("DECOY_DIONAEA_IMAGE"),
 		SandboxImage:      os.Getenv("SSH_SANDBOX_IMAGE"),
 		TetragonContainer: os.Getenv("TETRAGON_CONTAINER"),
 	}

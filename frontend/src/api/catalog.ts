@@ -105,6 +105,30 @@ export const CATALOG: CatalogEntry[] = [
 ]
 
 // The mock catalog advertises the schema; it does not simulate an eBPF sensor.
+CATALOG.push({
+  type_id: 'conpot', type_version: 1, title: 'Conpot ICS/SCADA',
+  description: 'Промышленные приманки: Modbus TCP, Siemens S7, SNMP, BACnet/IP и EtherNet/IP. Один протокол на ловушку.',
+  interaction_level: 'low', available_for_new_profiles: true,
+  config_schema: { type: 'object', required: ['services', 'session', 'management'], properties: {
+    services: { type: 'array' }, session: { type: 'object' }, management: { type: 'object' },
+  } },
+  event_schemas: ['service.connection_opened', 'service.action', 'service.connection_closed'].map(event_type => ({ event_type, title: event_type, data_schema: {} })),
+  actions: ['start', 'stop', 'apply_config'].map(action => ({ action: action as 'start' | 'stop' | 'apply_config', title: action, params_schema: {}, result_schema: {} })),
+  ui: { field_order: ['/services', '/session', '/management'], widgets: {} },
+})
+
+CATALOG.push({
+  type_id: 'dionaea', type_version: 1, title: 'Dionaea',
+  description: 'SMB, MSSQL, MySQL, MQTT, HTTP и Memcached. Один протокол на ловушку.',
+  interaction_level: 'low', available_for_new_profiles: true,
+  config_schema: { type: 'object', required: ['services', 'session', 'management'], properties: {
+    services: { type: 'array' }, session: { type: 'object' }, management: { type: 'object' },
+  } },
+  event_schemas: ['service.connection_opened', 'service.action', 'service.auth_attempt', 'service.connection_closed'].map(event_type => ({ event_type, title: event_type, data_schema: {} })),
+  actions: ['start', 'stop', 'apply_config'].map(action => ({ action: action as 'start' | 'stop' | 'apply_config', title: action, params_schema: {}, result_schema: {} })),
+  ui: { field_order: ['/services', '/session', '/management'], widgets: {} },
+})
+
 const ssh = CATALOG.find((entry) => entry.type_id === 'ssh-high-interaction')!
 CATALOG.push({
   ...ssh,

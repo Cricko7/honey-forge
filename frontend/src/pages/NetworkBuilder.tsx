@@ -322,8 +322,8 @@ export function NetworkBuilderPage() {
         deploymentNodeId={deploymentNodeId}
         onDeploymentNodeChange={setDeploymentNodeId}
         creating={createProfile.isPending || createTrap.isPending}
-        onCreate={async (name, entry, port) => {
-          const config = defaultConfig(entry.type_id, port)
+        onCreate={async (name, entry, port, protocol) => {
+          const config = defaultConfig(entry.type_id, port, protocol)
           const profile = await createProfile.mutateAsync({
             name,
             type_id: entry.type_id,

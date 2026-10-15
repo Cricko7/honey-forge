@@ -1,6 +1,7 @@
 import { useId } from 'react'
 import { parseProfileConfig } from '@/lib/profile-config'
 import { profileConfigIssues, profileEndpoint, updateEndpoint } from '@/lib/profile-editor'
+import { serviceProtocols } from '@/lib/service-protocols'
 
 export function ProfileConfigEditor({ typeId, value, onChange }: {
   typeId: string; value: string; onChange: (value: string) => void
@@ -11,12 +12,22 @@ export function ProfileConfigEditor({ typeId, value, onChange }: {
   try { config = parseProfileConfig(value) } catch (error) { parseError = (error as Error).message }
   const endpoint = profileEndpoint(config, typeId)
   const issues = profileConfigIssues(config, typeId)
-  const basic = ['tcp-banner', 'redis-emulator', 'ssh-high-interaction', 'honeytoken-http'].includes(typeId)
+  const basic = ['tcp-banner', 'redis-emulator', 'ssh-high-interaction', 'honeytoken-http', 'conpot', 'dionaea'].includes(typeId)
   const update = (changes: Record<string, unknown>) => onChange(JSON.stringify(updateEndpoint(config, typeId, changes), null, 2))
 
   return <div className="space-y-4">
     {!parseError && basic && endpoint && <fieldset className="space-y-3">
       <legend className="text-sm font-semibold mb-3">Основные настройки</legend>
+      {serviceProtocols(typeId).length > 0 && <label className="label" htmlFor={`${id}-protocol`}>{typeId === 'conpot' ? 'Промышленный протокол' : 'Протокол сервиса'}
+        <select id={`${id}-protocol`} className="input mt-1" value={String(endpoint.protocol ?? serviceProtocols(typeId)[0]?.id)}
+          onChange={event => {
+            const protocol = serviceProtocols(typeId).find(item => item.id === event.target.value)
+            if (protocol) update({ protocol: protocol.id, port: protocol.port })
+          }}>
+          {serviceProtocols(typeId).map(protocol => <option key={protocol.id} value={protocol.id}>{protocol.label} · {protocol.transport}</option>)}
+        </select>
+        <span className="text-xs text-muted">Порт подставляется по протоколу; его можно изменить ниже.</span>
+      </label>}
       <label className="label" htmlFor={`${id}-port`}>Порт приманки
         <input id={`${id}-port`} className="input mt-1" type="number" min={1} max={65535} required
           value={typeof endpoint.port === 'number' ? endpoint.port || '' : ''}

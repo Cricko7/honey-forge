@@ -33,3 +33,16 @@ test('unknown and block-based configurations are left to their own schema valida
   assert.deepEqual(profileConfigIssues({ blocks: [] }, 'custom-http'), {})
   assert.deepEqual(profileConfigIssues({}, 'future-type'), {})
 })
+
+test('Conpot defaults and editing keep the selected industrial protocol', () => {
+  const config = initialProfileConfig('conpot')
+  assert.equal(config.services[0].protocol, 'modbus')
+  assert.equal(config.services[0].port, 502)
+  assert.equal(config.session.max_connections, 16)
+  const next = updateEndpoint(config, 'conpot', { protocol: 'bacnet', port: 47808 })
+  assert.equal(next.services[0].protocol, 'bacnet')
+  assert.equal(next.services[0].port, 47808)
+  assert.equal(config.services[0].protocol, 'modbus')
+  assert.deepEqual(profileConfigIssues(next, 'conpot'), {})
+  assert.match(profileConfigIssues(updateEndpoint(next, 'conpot', { port: 0 }), 'conpot').port, /65535/)
+})

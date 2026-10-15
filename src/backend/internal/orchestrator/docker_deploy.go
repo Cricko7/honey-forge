@@ -20,6 +20,10 @@ func (d DockerCLI) Deploy(ctx context.Context, target Target, token string, gene
 		image = d.TCPImage
 	case target.Snapshot.TypeID == "redis-emulator" && target.Snapshot.TypeVersion == 1:
 		image = d.RedisImage
+	case target.Snapshot.TypeID == "dionaea" && target.Snapshot.TypeVersion == 1:
+		image = d.DionaeaImage
+	case target.Snapshot.TypeID == "conpot" && target.Snapshot.TypeVersion == 1:
+		image = d.ConpotImage
 	case target.Snapshot.TypeID == "honeytoken-http" && target.Snapshot.TypeVersion == 1:
 		image = d.HoneytokenImage
 	case target.Snapshot.TypeID == "custom-http" && (target.Snapshot.TypeVersion >= 1 && target.Snapshot.TypeVersion <= 3):

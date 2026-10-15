@@ -27,6 +27,8 @@ type DockerCLI struct {
 	HoneytokenImage   string
 	HTTPImage         string
 	SSHImage          string
+	ConpotImage       string
+	DionaeaImage      string
 	SandboxImage      string
 	TetragonContainer string
 }

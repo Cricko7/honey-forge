@@ -7,6 +7,8 @@ import { LoadError, Spinner } from '@/components/ui'
 import { ApiError } from '@/api/client'
 import type { CatalogEntry, DeploymentNode } from '@/types'
 import { levelLabel } from '@/lib/ui-labels'
+import { serviceProtocols } from '@/lib/service-protocols'
+import { initialProfileConfig, updateEndpoint } from '@/lib/profile-editor'
 
 function randomFreePort(used: Set<number> | Map<number, unknown>): number {
   for (let i = 0; i < 100; i++) {
@@ -16,9 +18,12 @@ function randomFreePort(used: Set<number> | Map<number, unknown>): number {
   return 1025
 }
 
-export function defaultConfig(typeId: string, port: number): Record<string, unknown> {
+export function defaultConfig(typeId: string, port: number, protocol?: string): Record<string, unknown> {
   const management = { heartbeat_interval_seconds: 10, telemetry_flush_interval_ms: 500 }
   switch (typeId) {
+    case 'conpot':
+    case 'dionaea':
+      return updateEndpoint(initialProfileConfig(typeId), typeId, { port, protocol: protocol ?? serviceProtocols(typeId)[0].id })
     case 'redis-emulator':
       return { services: [{ name: 'redis', port, password: 'S3cretTrap!' }], management }
     case 'honeytoken-http':
@@ -68,13 +73,14 @@ export function AddTrapModal({
   deploymentNodeId: string
   onDeploymentNodeChange: (id: string) => void
   usedPorts: Map<number, string>
-  onCreate: (name: string, entry: CatalogEntry, port: number) => Promise<void>
+  onCreate: (name: string, entry: CatalogEntry, port: number, protocol?: string) => Promise<void>
   creating: boolean
 }) {
   const [name, setName] = useState('')
   const [typeKey, setTypeKey] = useState('')
   const [port, setPort] = useState<number>(0)
   const [error, setError] = useState<string | null>(null)
+  const [protocol, setProtocol] = useState('modbus')
 
   const selected = useMemo(
     () => catalog.find((e) => `${e.type_id}/${e.type_version}` === typeKey),
@@ -93,6 +99,11 @@ export function AddTrapModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
+  useEffect(() => {
+    const first = serviceProtocols(selected?.type_id ?? '')[0]
+    if (first) setProtocol(first.id)
+  }, [selected?.type_id])
+
   const portValid = Number.isInteger(port) && port >= 1 && port <= 65535
   const conflictTrap = portValid ? usedPorts.get(port) : undefined
   const hasConflict = !!conflictTrap
@@ -106,7 +117,7 @@ export function AddTrapModal({
     if (!canSubmit) return
     if (!name.trim()) { setError('Укажите имя ловушки.'); return }
     try {
-      await onCreate(name.trim(), selected, port)
+      await onCreate(name.trim(), selected, port, serviceProtocols(selected.type_id).length ? protocol : undefined)
       setName('')
       setTypeKey('')
     } catch (err) {
@@ -146,6 +157,15 @@ export function AddTrapModal({
           {!nodeReady && <p role="alert" className="text-xs text-danger mt-2">Выбранный сервер недоступен. Дождитесь подключения или выберите другой.</p>}
         </div>
 
+        {selected && serviceProtocols(selected.type_id).length > 0 && <label className="label" htmlFor="trap-service-protocol">{selected.type_id === 'conpot' ? 'Промышленный протокол' : 'Протокол сервиса'}
+          <select id="trap-service-protocol" className="input mt-1" value={protocol} onChange={event => {
+            setProtocol(event.target.value)
+            const option = serviceProtocols(selected.type_id).find(item => item.id === event.target.value)
+            if (option) setPort(option.port)
+          }}>
+            {serviceProtocols(selected.type_id).map(item => <option key={item.id} value={item.id}>{item.label} · {item.transport}</option>)}
+          </select>
+        </label>}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="label" htmlFor="trap-name">Имя ловушки</label>

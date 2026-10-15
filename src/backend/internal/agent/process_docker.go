@@ -36,15 +36,15 @@ func (p *Process) workerArgs(ctx context.Context, snapshot profiles.Snapshot) ([
 		return nil, fmt.Errorf("NM_BIND_IP must be an IP address")
 	}
 
-	ports, err := decoys.Ports(ctx, snapshot)
+	bindings, err := decoys.Bindings(ctx, snapshot)
 	if err != nil {
 		return nil, fmt.Errorf("worker ports: %w", err)
 	}
 
 	embeddedHTTP := snapshot.TypeID == "custom-http" && snapshot.TypeVersion == 3
 	memory := "128m"
-	if embeddedHTTP {
-		// Four bounded Redis stores plus the Go/Python runtime share this worker.
+	if embeddedHTTP || snapshot.TypeID == "conpot" || snapshot.TypeID == "dionaea" {
+		// Embedded protocol engines need room alongside the Go worker.
 		memory = "256m"
 	}
 
@@ -67,9 +67,15 @@ func (p *Process) workerArgs(ctx context.Context, snapshot profiles.Snapshot) ([
 	if snapshot.TypeID == "redis-emulator" || embeddedHTTP {
 		args = append(args, "--tmpfs", "/run/redis:rw,nosuid,nodev,noexec,size=1m,mode=0700,uid=65532,gid=65532")
 	}
+	if snapshot.TypeID == "dionaea" {
+		args = append(args, "--tmpfs", "/run/dionaea:rw,nosuid,nodev,noexec,size=8m,mode=0700,uid=65532,gid=65532")
+	}
+	if snapshot.TypeID == "conpot" {
+		args = append(args, "--tmpfs", "/run/conpot:rw,nosuid,nodev,noexec,size=4m,mode=0700,uid=65532,gid=65532")
+	}
 
-	for _, port := range ports {
-		args = append(args, "--publish", net.JoinHostPort(ip, strconv.Itoa(port))+":"+strconv.Itoa(port)+"/tcp")
+	for _, binding := range bindings {
+		args = append(args, "--publish", net.JoinHostPort(ip, strconv.Itoa(binding.Port))+":"+strconv.Itoa(binding.Port)+"/"+binding.Transport)
 	}
 
 	return append(args, p.WorkerImage, "--worker"), nil

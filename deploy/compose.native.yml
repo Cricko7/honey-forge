@@ -1,0 +1,6 @@
+# Supply native engine images even when the server manifest predates them.
+services:
+  orchestrator:
+    environment:
+      DECOY_CONPOT_IMAGE: ${DECOY_CONPOT_IMAGE:?Release must define DECOY_CONPOT_IMAGE}
+      DECOY_DIONAEA_IMAGE: ${DECOY_DIONAEA_IMAGE:?Release must define DECOY_DIONAEA_IMAGE}

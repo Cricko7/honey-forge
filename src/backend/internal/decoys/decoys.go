@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 
+	"honey-forge/internal/decoys/conpottrap"
+	"honey-forge/internal/decoys/dionaeatrap"
 	"honey-forge/internal/decoys/honeytrap"
 	"honey-forge/internal/decoys/pythonhttp"
 	"honey-forge/internal/decoys/redistrap"
@@ -69,6 +71,32 @@ var builtins = []definition{
 	httpDefinition(1),
 	httpDefinition(2),
 	httpDefinition(3),
+	{
+		typeID: "conpot", version: 1,
+		start: func(ctx context.Context, snapshot profiles.Snapshot, host string, sink func(context.Context, events.AgentEvent) error) (Runtime, error) {
+			return conpottrap.Start(ctx, snapshot, host, sink)
+		},
+		ports: func(ctx context.Context, snapshot profiles.Snapshot) ([]int, error) {
+			c, err := conpottrap.ParseConfig(ctx, snapshot)
+			if err != nil {
+				return nil, err
+			}
+			return []int{c.Services[0].Port}, nil
+		},
+	},
+	{
+		typeID: "dionaea", version: 1,
+		start: func(ctx context.Context, snapshot profiles.Snapshot, host string, sink func(context.Context, events.AgentEvent) error) (Runtime, error) {
+			return dionaeatrap.Start(ctx, snapshot, host, sink)
+		},
+		ports: func(ctx context.Context, snapshot profiles.Snapshot) ([]int, error) {
+			c, err := dionaeatrap.ParseConfig(ctx, snapshot)
+			if err != nil {
+				return nil, err
+			}
+			return []int{c.Services[0].Port}, nil
+		},
+	},
 }
 
 func httpDefinition(version int32) definition {

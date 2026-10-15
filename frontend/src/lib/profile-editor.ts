@@ -1,6 +1,10 @@
 export function initialProfileConfig(typeId: string): Record<string, unknown> {
   const management = { heartbeat_interval_seconds: 5, telemetry_flush_interval_ms: 500 }
   switch (typeId) {
+    case 'dionaea':
+      return { services: [{ name: 'files', port: 445, protocol: 'smb' }], session: { max_connections: 16, max_seconds: 300 }, management }
+    case 'conpot':
+      return { services: [{ name: 'plc', port: 502, protocol: 'modbus' }], session: { max_connections: 16, max_seconds: 300 }, management }
     case 'custom-http':
       return { services: [], blocks: [], limits: { max_steps: 512, timeout_ms: 10000, max_body_bytes: 65536 }, management }
     case 'ssh-high-interaction':
@@ -36,7 +40,7 @@ export function updateEndpoint(config: Record<string, unknown>, typeId: string, 
 }
 
 export function profileConfigIssues(config: Record<string, unknown>, typeId: string): Record<string, string> {
-  if (!['tcp-banner', 'ssh-high-interaction', 'redis-emulator', 'honeytoken-http'].includes(typeId)) return {}
+  if (!['tcp-banner', 'ssh-high-interaction', 'redis-emulator', 'honeytoken-http', 'conpot', 'dionaea'].includes(typeId)) return {}
   const port = profileEndpoint(config, typeId)?.port
   return typeof port === 'number' && Number.isInteger(port) && port >= 1 && port <= 65535
     ? {} : { port: 'Укажите целый номер порта от 1 до 65535.' }

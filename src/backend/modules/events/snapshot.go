@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	"honey-forge/internal/contract"
+	"honey-forge/modules/catalog"
 	"honey-forge/modules/profiles"
 )
 
@@ -23,8 +24,9 @@ func checkServiceSnapshot(event AgentEvent, snapshot profiles.Snapshot) error {
 
 	var config struct {
 		Services []struct {
-			Name string `json:"name"`
-			Port int    `json:"port"`
+			Name     string `json:"name"`
+			Port     int    `json:"port"`
+			Protocol string `json:"protocol"`
 		} `json:"services"`
 	}
 	if json.Unmarshal(raw, &config) != nil {
@@ -32,6 +34,13 @@ func checkServiceSnapshot(event AgentEvent, snapshot profiles.Snapshot) error {
 	}
 
 	for _, service := range config.Services {
+		if snapshot.TypeID == "conpot" {
+			transport := catalog.ConpotTransport(service.Protocol)
+			if transport != "" && service.Name == data.Service && service.Port == event.Destination.Port && transport == event.Destination.Protocol {
+				return nil
+			}
+			continue
+		}
 		if service.Name == data.Service && (service.Port == 0 || event.Destination.Protocol == "tcp" && event.Destination.Port == service.Port) {
 			return nil
 		}

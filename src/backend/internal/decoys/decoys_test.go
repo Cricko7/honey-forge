@@ -16,6 +16,9 @@ func TestSelect(t *testing.T) {
 	}{
 		{name: "TCP", typeID: "tcp-banner", version: 1},
 		{name: "Redis", typeID: "redis-emulator", version: 1},
+		{name: "Dionaea", typeID: "dionaea", version: 1},
+		{name: "Dionaea", typeID: "dionaea", version: 1},
+		{name: "Conpot", typeID: "conpot", version: 1},
 		{name: "Honeytokens", typeID: "honeytoken-http", version: 1},
 		{name: "Custom HTTP", typeID: "custom-http", version: 1},
 		{name: "Custom HTTP pipeline", typeID: "custom-http", version: 2},
@@ -47,7 +50,7 @@ func TestSupportedTypesAreStableAndDetached(t *testing.T) {
 		}
 	}
 
-	if !reflect.DeepEqual(ids, []string{"tcp-banner", "redis-emulator", "honeytoken-http", "ssh-high-interaction", "ssh-high-interaction", "custom-tcp", "custom-http", "custom-http", "custom-http"}) {
+	if !reflect.DeepEqual(ids, []string{"tcp-banner", "redis-emulator", "honeytoken-http", "ssh-high-interaction", "ssh-high-interaction", "custom-tcp", "custom-http", "custom-http", "custom-http", "conpot", "dionaea"}) {
 		t.Fatal("capability ordering changed", ids)
 	}
 
@@ -63,7 +66,10 @@ func TestForType(t *testing.T) {
 		want  int
 		error bool
 	}{
-		{name: "", want: 9},
+		{name: "", want: 11},
+		{name: "conpot", want: 1},
+		{name: "dionaea", want: 1},
+		{name: "dionaea", want: 1},
 		{name: "tcp", want: 2},
 		{name: "custom-tcp", want: 1},
 		{name: "custom-http", want: 3},

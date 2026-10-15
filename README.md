@@ -132,6 +132,8 @@ HTTP-обработчик связывает JSON и вызывает серви
 |---|---|
 | `tcp-banner/1` | Один или несколько TCP-listener: приветствие, захват входящих данных, закрытие после баннера. |
 | `redis-emulator/1` | Redis-приманка с настоящим redis-server, наблюдением за входом и командами. |
+| `conpot/1` | ICS/SCADA: Modbus TCP, Siemens S7, SNMP, BACnet/IP и EtherNet/IP. Выбор протокола и порта в панели; [настройки и изоляция](api/conpot.md). |
+| `dionaea/1` | SMB, MSSQL, MySQL, MQTT, HTTP и Memcached; выбор протокола и порта, изолированная pipe-телеметрия. [Настройки и проверки](api/dionaea.md). |
 | `honeytoken-http/1` | HTTP-раздача файлов, ключей и URL-приманок; события использования honeytoken. |
 | `ssh-high-interaction/1` | SSH-сессия в отдельном Linux-контейнере, запись терминала и SFTP. |
 | `ssh-high-interaction/2` | SSH с дополнительными событиями `process.exec` от Tetragon. Сенсор устанавливается оператором отдельно на Linux-узле. |

@@ -32,10 +32,16 @@ var sshHighInteractionJSON []byte
 //go:embed schemas/ssh-high-interaction-2.json
 var sshHostTelemetryJSON []byte
 
+//go:embed schemas/conpot-1.json
+var conpotJSON []byte
+
+//go:embed schemas/dionaea-1.json
+var dionaeaJSON []byte
+
 // BuiltinDefinitions returns fresh copies of the installed trap descriptors.
 func BuiltinDefinitions() []Definition {
 	var definitions []Definition
-	for _, raw := range [][]byte{tcpBannerJSON, redisEmulatorJSON, honeytokenHTTPJSON, sshHighInteractionJSON, sshHostTelemetryJSON, customTCPJSON, customHTTPJSON, customHTTPPipelineJSON, customHTTPEmbeddedJSON} {
+	for _, raw := range [][]byte{tcpBannerJSON, redisEmulatorJSON, honeytokenHTTPJSON, sshHighInteractionJSON, sshHostTelemetryJSON, customTCPJSON, customHTTPJSON, customHTTPPipelineJSON, customHTTPEmbeddedJSON, conpotJSON, dionaeaJSON} {
 		var entry CatalogEntry
 		if err := json.Unmarshal(raw, &entry); err != nil {
 			panic("invalid embedded trap descriptor: " + err.Error())
@@ -43,8 +49,8 @@ func BuiltinDefinitions() []Definition {
 
 		definitions = append(definitions, Definition{
 			Entry:                  entry,
-			SupportsAuthentication: entry.TypeID == "redis-emulator",
-			SupportsServiceActions: entry.TypeID == "redis-emulator",
+			SupportsAuthentication: entry.TypeID == "redis-emulator" || entry.TypeID == "dionaea",
+			SupportsServiceActions: entry.TypeID == "redis-emulator" || entry.TypeID == "dionaea",
 		})
 	}
 
