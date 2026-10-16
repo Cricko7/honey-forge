@@ -51,3 +51,6 @@ incoming/
 # Constructor runtime data
 constructor/data/
 __pycache__/
+
+# Private jury credentials
+/docs/jury-access.private.md
