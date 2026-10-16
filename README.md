@@ -146,18 +146,18 @@ docker compose up -d
 
 ## Доступ к стенду для защиты
 
-Это подключение к уже развёрнутому серверу, отдельно от локального запуска. Для адреса **https://honey-forge-seg-fault.ru** добавьте соответствие домена IP-адресу стенда `147.45.141.37`, если оно ещё не настроено через DNS или hosts.
+Это подключение к уже развёрнутому серверу, отдельно от локального запуска. Для адреса **https://honey-forge-seg-fault.ru** настройте соответствие имён панели и агентского ресурса IP-адресу стенда **`103.74.94.55`** через hosts. В этой установке используются имена `honey-forge-seg-fault.ru` и `resources.honey-forge-seg-fault.ru`.
 
 ### Настройка хоста на ПК: Windows
 
 Откройте **PowerShell от имени администратора** и выполните:
 
 ```powershell
-Add-Content -Path "$env:windir\System32\drivers\etc\hosts" -Value "`r`n147.45.141.37   honey-forge-seg-fault.ru" -Encoding ascii
+Add-Content -Path "$env:windir\System32\drivers\etc\hosts" -Value "`r`n103.74.94.55   honey-forge-seg-fault.ru resources.honey-forge-seg-fault.ru" -Encoding ascii
 ipconfig /flushdns
 ```
 
-Команду добавления выполните один раз. Если в hosts уже есть это имя с другим IP, отредактируйте существующую строку вместо добавления второй.
+Перед выполнением удалите прежние сопоставления обоих имён, включая строки со старым IP или `127.0.0.1`. Команду добавления выполните один раз, чтобы не создавать дубли.
 
 ### Настройка хоста на ПК: Linux
 
@@ -167,10 +167,10 @@ ipconfig /flushdns
 sudo nano /etc/hosts
 ```
 
-Добавьте в конце файла строку:
+Замените прежние сопоставления обоих имён следующей строкой (без дублей):
 
 ```text
-147.45.141.37   honey-forge-seg-fault.ru
+103.74.94.55   honey-forge-seg-fault.ru resources.honey-forge-seg-fault.ru
 ```
 
 Сохраните файл: `Ctrl+O`, `Enter`, затем выйдите: `Ctrl+X`.
@@ -190,9 +190,11 @@ sudo nano /etc/hosts
 
 ### Вход с готовой учётной записью
 
-Откройте [форму входа](https://honey-forge-seg-fault.ru/login), введите логин (email) и пароль из [таблицы доступа для жюри](docs/jury-access.private.md), затем нажмите «Войти». Вы попадёте в организацию, к которой относится учётная запись; доступные действия зависят от её роли.
+**Жюри и экспертам: [скачать Excel-файл «Мадригал — данные по платформе HoneyForge»](https://github.com/Cricko7/honey-forge/raw/refs/heads/main/docs/jury/platform-access.xlsx).** В файле находятся данные для доступа к платформе.
 
-Таблица подготовлена из Excel-файла команды Seg Fault и передаётся участникам отдельно от репозитория. Файл `docs/jury-access.private.md` содержит пароли и исключён из Git: для локального просмотра положите полученную таблицу по этому пути.
+Откройте [форму входа](https://honey-forge-seg-fault.ru/login), введите логин (email) и пароль из [Excel-файла доступа для жюри](docs/jury/platform-access.xlsx), затем нажмите «Войти». Вы попадёте в организацию, к которой относится учётная запись; доступные действия зависят от её роли.
+
+Исходный Excel-файл команды Seg_Fault находится в `docs/jury/platform-access.xlsx`.
 
 ### Регистрация новой организации
 
@@ -217,13 +219,13 @@ sudo nano /etc/hosts
 Скачайте [honeyforge-jury-check.py](honeyforge-jury-check.py) на свой ПК. Нужен Python 3.7 или новее; дополнительные библиотеки устанавливать не требуется. Откройте терминал в каталоге со скачанным файлом и выполните:
 
 ```sh
-python3 honeyforge-jury-check.py 147.45.141.37
+python3 honeyforge-jury-check.py 103.74.94.55
 ```
 
 Или, если Python доступен как `python`:
 
 ```sh
-python honeyforge-jury-check.py 147.45.141.37
+python honeyforge-jury-check.py 103.74.94.55
 ```
 
 Перед проверкой должны быть развёрнуты и запущены три схемы — Portal, Documents и Gateway — с выбранными получателями для передачи запросов между ними. На сервере должны быть доступны их HTTP-слушатели: порты `32301`, `32302`, `32311`, `32312`, `32321` и `32322`.
