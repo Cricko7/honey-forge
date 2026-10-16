@@ -136,6 +136,8 @@ docker compose up -d
 
 ### Развёртывание на сервере
 
+Актуальная серверная установка, конфигурация, перенос данных и переключение CI/CD описаны в [production runbook](docs/operations/production.md). Шаблоны: [production.env](deploy/production.env.example), [hosts](deploy/hosts.example), [серверная команда hf-compose](deploy/hf-compose).
+
 Полный стек рассчитан на Linux-хост с Docker. Для внешнего доступа настройте DNS, действующие сертификаты и раздельные имена панели и агентского ресурса. В конфигурации согласуйте `API_PUBLIC_ORIGIN`, `BROWSER_ORIGINS`, `AGENT_WS_URL`, адрес публикации панели и frontend API URL. Пример nginx: [deploy/nginx/honey-forge.conf](deploy/nginx/honey-forge.conf).
 
 `MGMT_BIND_IP` задаёт интерфейс панели, `DECOY_BIND_IP` — интерфейс приманок. Сети управления и приманок разделены. Дополнительные Linux-серверы присоединяются к Swarm как workers и назначаются организации; список доступных узлов виден в разделе «Серверы». Образы ловушек должны присутствовать на выбранном узле.

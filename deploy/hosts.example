@@ -1,0 +1,5 @@
+# Operator workstation hosts file (Windows: run editor as Administrator).
+# Remove previous mappings of these names before adding this line.
+103.74.94.55 honey-forge-seg-fault.ru resources.honey-forge-seg-fault.ru
+# These synthetic names have no public DNS requirement. Hosts mappings do not
+# establish certificate trust and are not inherited by Docker containers.

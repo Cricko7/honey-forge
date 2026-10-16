@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Server helper: private configuration stays outside the repository.
+set -euo pipefail
+root=${HF_ROOT:-/opt/honeyforge}
+config=${HF_CONFIG:-/etc/honey-forge/production.env}
+release=${HF_RELEASE_DIR:-$root/current}
+for file in "$config" "$root/compose.production.yml" "$release/release.env"; do
+  if [[ ! -s "$file" ]]; then
+    printf 'Missing configuration: %s\n' "$file" >&2
+    exit 1
+  fi
+done
+manifests=(-f "$root/compose.production.yml")
+for override in ssh constructor support http native; do
+  file="$release/compose.$override.yml"
+  if [[ ! -s "$file" ]]; then
+    printf 'Missing release override: %s\n' "$file" >&2
+    exit 1
+  fi
+  manifests+=(-f "$file")
+done
+exec docker compose --project-name honeyforge \
+  --env-file "$config" --env-file "$release/release.env" \
+  "${manifests[@]}" "$@"

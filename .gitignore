@@ -54,3 +54,6 @@ __pycache__/
 
 # Private jury credentials
 /docs/jury-access.private.md
+
+# Server-private production configuration (examples remain tracked)
+production.env

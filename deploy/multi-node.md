@@ -1,5 +1,7 @@
 # Docker-деплой на несколько узлов Swarm
 
+Текущий manager и перенос платформы: [production runbook](../docs/operations/production.md). На 16 октября 2026 установка состоит из одного manager; добавление workers — отдельная операция. `docker swarm join-token worker` выполняется на manager, а полученная команда join — на worker. Токен не публикуйте.
+
 CI/CD загружает архив образов на manager, затем запускает `sync-images.sh`.
 До обновления приложения скрипт доставляет тот же архив на остальные узлы
 через существующую overlay-сеть `hf-mgmt` и проверяет SHA-256 архива и ID
