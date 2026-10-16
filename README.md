@@ -5,6 +5,7 @@ HoneyForge — платформа для создания и развёртыв�
 ![Панель HoneyForge](screenshots/honey-forge-main-page.png)
 
 - [Запуск](#запуск)
+- [Доступ к стенду для защиты](#доступ-к-стенду-для-защиты)
 - [Первый сценарий](#первый-сценарий)
 - [Архитектура](#архитектура)
 - [Профили и типы ловушек](#профили-и-типы-ловушек)
@@ -14,26 +15,90 @@ HoneyForge — платформа для создания и развёртыв�
 
 ## Запуск
 
-Нужны Git, Docker Engine и Docker Compose с поддержкой `include`. На Windows используйте Docker Desktop в режиме Linux-контейнеров. Оркестратор использует Docker Swarm; при первом запуске он сам создаёт локальный Swarm и сети ловушек.
+### Подготовка
 
-Из корня репозитория:
+Нужны Git, работающий Docker Engine для Linux-контейнеров и Docker Compose с поддержкой `include` (2.20.0 или новее). На Windows запустите Docker Desktop с Linux-контейнерами; на Linux текущий пользователь должен иметь доступ к Docker. Нужен интернет для загрузки образов, зависимостей, исходников Conpot/Dionaea и GeoIP-баз при первой сборке. Первая сборка может занять продолжительное время; подготовьте её до защиты.
+
+Проверьте Docker до запуска:
 
 ```sh
+docker version
+docker compose version
+```
+
+В `docker version` должны присутствовать и Client, и Server. Оркестратор использует Docker Swarm: при первом запуске сам включает одноузловой Swarm и создаёт сети ловушек. Для локального запуска вручную выполнять `docker swarm init` не нужно.
+
+### Сборка и запуск
+
+Команды одинаковы для PowerShell и Linux-терминала:
+
+```sh
+git clone https://github.com/Cricko7/honey-forge.git
+cd honey-forge
+docker compose config --quiet
 docker compose up --build -d
 docker compose ps -a
 ```
 
-Панель: **https://localhost:8443**. Конструктор: **https://localhost:8443/app/constructor**. На Windows эту же сборку запускает `./start.ps1`.
+Если репозиторий уже скачан, перейдите в его корень — каталог с `compose.yaml` — и выполняйте команды начиная с `docker compose config --quiet`. Успешная проверка конфигурации ничего не выводит. В PowerShell альтернативой команде запуска служит `./start.ps1`; если политика Windows блокирует скрипт, используйте команду Docker выше.
 
-Для стандартного локального запуска не нужны `.env`, установленные на хосте Go/Python или ручная генерация сертификатов. Сервис `tls-init` создаёт секреты и сертификаты в Docker-томах и обновляет сертификаты. Локальный HTTPS использует собственный CA: браузер попросит подтвердить доверие к сертификату.
+Для стандартного локального запуска **не копируйте `.env.real.example` в `.env`**: заполнители в примере не являются рабочими секретами. `.env`, Go, Node.js и Python на хосте не нужны. `tls-init` создаёт секреты и сертификаты в именованных Docker-томах и обновляет серверные сертификаты. Существующий `.env` и переменные терминала переопределяют настройки Compose; неверные значения могут помешать запуску. Не меняйте пароли PostgreSQL/Redis после создания томов без отдельной процедуры смены пароля.
 
-`compose.yaml` подключает `docker-compose.real.yml`, поэтому явный эквивалент команды запуска:
+`compose.yaml` подключает `docker-compose.real.yml`. Если старая версия Compose не понимает `include`, обновите Compose или используйте явный файл во **всех** командах:
 
 ```sh
 docker compose -f docker-compose.real.yml up --build -d
+docker compose -f docker-compose.real.yml ps -a
 ```
 
-Вместе запускаются панель nginx/React, Go API, Python-конструктор, PostgreSQL, Kafka, Redis и оркестратор. Сервисы `decoy-*-image` и `ssh-sandbox-image` подготавливают образы и завершаются: состояние `Exited (0)` для них ожидаемо.
+Вместе запускаются nginx/React, Go API, Python-конструктор, PostgreSQL 17, Kafka и Redis, а также оркестратор. Готовность проверяйте по состояниям:
+
+| Сервис | Ожидаемое состояние |
+|---|---|
+| `tls-init`, `postgres`, `kafka`, `redis` | `Up`, healthcheck — `healthy`. |
+| `api`, `web`, `constructor`, `orchestrator` | `Up`, без постоянных перезапусков. |
+| `decoy-*-image`, `ssh-sandbox-image` | `Exited (0)` — подготовка образов завершена успешно. |
+
+Панель: **https://localhost:8443**. Конструктор после входа: **https://localhost:8443/app/constructor**. Открывайте именно `localhost`, поскольку на это имя настроены сертификат, Origin и frontend API URL.
+
+### Проверка HTTPS и API
+
+Локальный HTTPS использует собственный CA. Скопируйте публичный сертификат CA из работающего стека в каталог `certs` (он исключён из Git) и проверьте API.
+
+В Windows PowerShell используйте `curl.exe`, чтобы не вызвать одноимённый псевдоним:
+
+```powershell
+New-Item -ItemType Directory -Path ./certs -Force | Out-Null
+docker compose cp web:/etc/nginx/certs/ca.crt ./certs/local-ca.crt
+curl.exe --ssl-revoke-best-effort --cacert ./certs/local-ca.crt https://localhost:8443/healthz
+curl.exe --ssl-revoke-best-effort --cacert ./certs/local-ca.crt -i https://localhost:8443/api/session
+```
+
+В Linux:
+
+```sh
+mkdir -p ./certs
+docker compose cp web:/etc/nginx/certs/ca.crt ./certs/local-ca.crt
+curl --cacert ./certs/local-ca.crt https://localhost:8443/healthz
+curl --cacert ./certs/local-ca.crt -i https://localhost:8443/api/session
+```
+
+Ожидаются `200` и JSON `{"status":"ok"}` от `/healthz`, затем **`401`** и JSON-ошибка `unauthenticated` от `/api/session` без входа. `401` здесь подтверждает работу защищённого API. Флаг `--ssl-revoke-best-effort` нужен Windows curl с Schannel: локальный CA не публикует сведения об отзыве, при этом проверка цепочки CA и имени сервера сохраняется. `/healthz` проверяет доступность API; реальное развёртывание и доставку событий проверяйте по [первому сценарию](#первый-сценарий).
+
+Для браузера импортируйте этот CA в доверенные корневые сертификаты своей системы/браузера и заново откройте панель. На Windows импорт в хранилище текущего пользователя можно выполнить без администратора:
+
+```powershell
+Import-Certificate -FilePath ./certs/local-ca.crt -CertStoreLocation Cert:\CurrentUser\Root
+```
+
+На Debian/Ubuntu для системного хранилища:
+
+```sh
+sudo cp ./certs/local-ca.crt /usr/local/share/ca-certificates/honeyforge-local.crt
+sudo update-ca-certificates
+```
+
+Если браузер использует собственное хранилище, импортируйте CA в его настройках сертификатов. Сертификат локального стека относится только к этой установке; он не заменяет CA удалённого стенда.
 
 Панель по умолчанию доступна только на `127.0.0.1:8443`. Порты ловушек публикуются отдельно согласно профилям. Для панели и агентского канала используются разные имена: `localhost` и `resources.localhost`.
 
@@ -42,16 +107,21 @@ docker compose -f docker-compose.real.yml up --build -d
 ```sh
 docker compose logs --tail=100 api orchestrator constructor web
 docker compose stop
-docker compose start
+docker compose up -d
 ```
 
-`stop` сохраняет контейнеры и тома. Управляемые ловушки работают как отдельные Swarm-сервисы: останавливайте их кнопкой «Остановить» в панели до остановки управляющего стека. Остановка Compose сама по себе не удаляет Swarm-ловушки.
+Выполняйте команды из корня репозитория. `stop` сохраняет контейнеры и тома; `up -d` запускает стек повторно без пересборки. Управляемые ловушки работают как отдельные Swarm-сервисы: останавливайте их кнопкой «Остановить» в панели до остановки управляющего стека. Остановка Compose сама по себе не удаляет Swarm-ловушки. Не используйте `docker compose down -v` для обычной остановки: эта команда удаляет тома с данными и сертификатами.
 
 ### Если запуск не завершился
 
 | Симптом | Что проверить |
 |---|---|
 | Панель не открывается | Состояние `web` и `api`, свободен ли порт 8443, логи `tls-init`. |
+| `Cannot connect to the Docker daemon` / ошибка named pipe | Запущен ли Docker Desktop/Engine; работает ли `docker version` с секцией Server. |
+| `include` не поддерживается | Версию Compose; используйте `-f docker-compose.real.yml` или обновите Compose. |
+| Сборка падает при скачивании | Доступ к реестрам Docker, GitHub, пакетным репозиториям и DB-IP; после восстановления сети повторите запуск. |
+| `tls-init` не становится healthy | `docker compose logs --tail=100 tls-init`; нет ли заполнителей/конфликтующих паролей в `.env`. |
+| Браузер не доверяет сертификату | Импорт CA нужной установки; для командной проверки используйте `--cacert`. Hosts не исправляет доверие к TLS. |
 | API не запускается | Готовность PostgreSQL/Kafka и логи `api`; миграции выполняются при старте. |
 | Ловушка создана, но не работает | Логи оркестратора, `docker service ls`, состояние агента и историю команд в панели. |
 | Ошибка запуска listener | Не занят ли порт другой программой или ловушкой на выбранном узле. |
@@ -63,16 +133,64 @@ docker compose start
 
 `MGMT_BIND_IP` задаёт интерфейс панели, `DECOY_BIND_IP` — интерфейс приманок. Сети управления и приманок разделены. Дополнительные Linux-серверы присоединяются к Swarm как workers и назначаются организации; список доступных узлов виден в разделе «Серверы». Образы ловушек должны присутствовать на выбранном узле.
 
+Основной Compose настроен на локальный `localhost:8443`; одна замена `MGMT_BIND_IP` не превращает его в установку на публичном домене. Пример nginx выше требует адаптации к серверу и сам по себе не раздаёт панель. Конфигурации production и доставка релизов находятся в `deploy/` и `.github/workflows/`.
+
+## Доступ к стенду для защиты
+
+Это подключение к уже развёрнутому серверу, отдельно от локального запуска. Для адреса **https://honey-forge-seg-fault.ru** добавьте соответствие домена IP-адресу стенда `147.45.141.37`, если оно ещё не настроено через DNS или hosts.
+
+### Windows
+
+Откройте **PowerShell от имени администратора** и выполните:
+
+```powershell
+Add-Content -Path "$env:windir\System32\drivers\etc\hosts" -Value "`r`n147.45.141.37   honey-forge-seg-fault.ru" -Encoding ascii
+ipconfig /flushdns
+```
+
+Команду добавления выполните один раз. Если в hosts уже есть это имя с другим IP, отредактируйте существующую строку вместо добавления второй.
+
+### Linux
+
+Откройте hosts с правами администратора:
+
+```sh
+sudo nano /etc/hosts
+```
+
+Добавьте в конце файла строку:
+
+```text
+147.45.141.37   honey-forge-seg-fault.ru
+```
+
+Сохраните файл: `Ctrl+O`, `Enter`, затем выйдите: `Ctrl+X`.
+
+В hosts указываются **IP и имя без `https://`, пути и порта**. После сохранения откройте [панель стенда](https://honey-forge-seg-fault.ru). Если появится ошибка доверия к сертификату, получите CA стенда у команды и импортируйте его в доверенные сертификаты; запись в hosts не устанавливает CA. Не используйте локальный CA от другого Compose-стека.
+
+При проверке 16 октября 2026 года сервер по указанному IP ответил `200`, но стандартная проверка TLS в Windows завершилась ошибкой недоверенного корня. Для доступа с чистого компьютера требуется доверенный сертификат сервера либо установка CA стенда. После защиты ненужную запись можно удалить из hosts с теми же правами администратора.
+
 ## Первый сценарий
 
 1. Откройте панель и зарегистрируйте организацию: первый пользователь получает права администратора.
 2. В разделе профилей выберите тип ловушки, задайте имя, свободный порт и конфигурацию.
 3. Создайте ловушку по профилю. При необходимости выберите сервер размещения; без выбора используется узел платформы.
 4. Дождитесь `online` у агента и `running` у runtime. Создание ресурса в API ещё не означает готовность listener.
-5. Подключитесь к адресу сервера на порту ловушки. Для TCP-banner можно использовать `nc SERVER_IP PORT`.
+5. Подключитесь к адресу сервера на порту ловушки. Для TCP-banner на Linux можно использовать `nc SERVER_IP PORT`. На Windows проверка доступности TCP-порта: `Test-NetConnection -ComputerName localhost -Port 2222` (замените порт на выбранный в профиле). Для локального стенда адрес сервера — `localhost`.
 6. Проверьте раздел «События» и карточку ловушки. Команды остановки и запуска доступны там же.
 
 Для собственного сценария откройте конструктор, добавьте TCP- или HTTP-вход, соедините блоки поведения и нажмите «Развернуть». Доска и работающая ловушка — разные объекты: удаление доски не удаляет созданную ловушку. Подробнее: [README конструктора](constructor/README.md).
+
+Для автоматической проверки полного сценария из корня репозитория (нужен Python с зависимостями конструктора):
+
+```sh
+python -m pip install -r constructor/requirements.txt -r constructor/requirements-test.txt
+python constructor/test_live.py
+```
+
+Проверка рассчитана на стандартный Compose-проект `honey-forge` и `localhost:8443`: создаёт отдельную организацию, развёртывает TCP-ловушку на двух свободных портах, проверяет ответы, сохранённые события, поток конструктора, повторное развёртывание без дубликата и обновление баннера. В конце отправляет остановку; тестовые организация, доска, профиль и ловушка остаются для просмотра. Она не подходит для проверки чужого или production-стенда.
+
+В панели также доступны статистика по выборке событий, карта стран/ASN, экспорт событий, записи SSH и история действий операторов. Геоданные API определяет по локальным базам DB-IP, без передачи IP посетителей во внешний сервис. Форма техподдержки требует отдельно настроенного SMTP: без него остальной стек работает, а отправка обращения возвращает ошибку недоступности. Настройки `SUPPORT_SMTP_*` описаны в [README frontend](frontend/README.md).
 
 ## Архитектура
 
@@ -192,11 +310,15 @@ HTTP-обработчик связывает JSON и вызывает серви
 | `POST /api/registrations` | Создать организацию с администратором либо присоединиться по коду. |
 | `POST /api/sessions` | Войти и получить cookie-сессию. |
 | `GET`, `DELETE /api/session` | Текущая сессия / выход. |
+| `POST /api/session/presence` | Обновить присутствие пользователя. |
 | `GET /api/organization` | Организация текущего пользователя. |
 | `GET /api/organization/join-code`, `POST /api/organization/join-code/rotations` | Получить / перевыпустить код приглашения. |
 | `GET /api/organization/members` | Участники организации. |
+| `DELETE /api/organization/members/{id}` | Удалить участника организации. |
 | `PATCH /api/organization/members/{id}/trap-permission` | Делегировать управление ловушками. |
 | `GET`, `POST`, `DELETE /api/admin-session` | Проверить, подтвердить паролем или закрыть административный доступ. |
+| `POST /api/support/messages` | Отправить обращение через настроенный SMTP. |
+| `GET /healthz` | Проверить доступность API без входа. |
 | `GET`, `POST /api/api-keys`, `DELETE /api/api-keys/{id}` | Список, выпуск и отзыв ключей автоматизации. |
 | `GET /api/trap-types` | Каталог типов. |
 | `GET /api/trap-types/{type_id}/versions/{type_version}` | Дескриптор точной версии. |
@@ -415,7 +537,7 @@ erDiagram
 
 ## Разработка и проверки
 
-Go-модуль: `src/backend` (точные версии Go и зависимостей — в [go.mod](src/backend/go.mod)). Основные библиотеки: Gin, pgx/v5, Goose, validator/v10, gorilla/websocket и franz-go. Панель — React/TypeScript/Vite; конструктор — Python/FastAPI. PostgreSQL 17, Kafka и Redis задаются в Compose.
+Go-модуль: `src/backend` (минимальная версия Go `1.26.9`, toolchain `go1.27.2` — в [go.mod](src/backend/go.mod); Docker собирает Go `1.27.2`). Основные библиотеки: Gin, pgx/v5, Goose, validator/v10, gorilla/websocket и franz-go. Панель — React/TypeScript/Vite (Docker: Node.js 22); конструктор — Python/FastAPI. PostgreSQL 17, Kafka 4.1.2 и Redis 7.4.6 задаются в Compose.
 
 Проверки backend из `src/backend`:
 
@@ -445,6 +567,16 @@ python -m unittest discover -s constructor/backend -t . -p 'test*.py'
 
 Интеграционные тесты Go запускаются через `go test -tags=integration ./...`. Используйте отдельную тестовую PostgreSQL-базу с правом создавать схемы: `TEST_DATABASE_URL` требует TLS и доверенный CA. Проверки Kafka/Redis используют `TEST_KAFKA_BROKERS`, `TEST_KAFKA_CA_FILE`, `TEST_REDIS_URL` и `TEST_REDIS_CA_FILE`; без нужных зависимостей часть тестов пропускается.
 
-Для запуска API вне Docker нужны PostgreSQL, Kafka и TLS. Задайте `DATABASE_URL`, постоянный `CURSOR_KEY` (32 байта в Base64), `BROWSER_ORIGINS`, `API_PUBLIC_ORIGIN`, `AGENT_WS_URL`, `KAFKA_BROKERS`, `TLS_CERT_FILE`, `TLS_KEY_FILE` и CA соответствующих сервисов. Из `src/backend` выполните `go run ./cmd/api`; рабочая директория нужна для пути `../../migrations`. Агентский хост должен отличаться от операторского. Секреты храните вне Git.
+Запуск API вне Docker — отдельная конфигурация для разработки, а не сокращённый путь запуска полного стенда. Нужны PostgreSQL, Kafka и TLS. Задайте `DATABASE_URL` с проверкой TLS, постоянный `CURSOR_KEY` (32 байта в Base64), `BROWSER_ORIGINS`, `API_PUBLIC_ORIGIN`, `AGENT_WS_URL`, `KAFKA_BROKERS`, `KAFKA_CA_FILE`, `TLS_CERT_FILE`, `TLS_KEY_FILE` и обязательный `AGENT_CLIENT_CA_FILE`. Из `src/backend` выполните `go run ./cmd/api`; рабочая директория нужна для пути `../../migrations`. Агентский хост должен отличаться от операторского. Для автоматических ловушек дополнительно нужны Redis, Docker Swarm, образы, оркестратор и `AUTO_DEPLOY_TRAPS=true`. Основной Compose не публикует порты PostgreSQL/Kafka/Redis на хост; команды `go run` без доступных зависимостей недостаточно. Секреты храните вне Git.
+
+### Что проверено локально
+
+16 октября 2026 года на Windows с Docker Desktop (Linux-контейнеры), Docker Engine 29.8.2 и Compose 5.5.1:
+
+- `docker compose config --quiet` и `docker compose up --build -d` завершились успешно; PostgreSQL/Kafka/Redis/TLS — `healthy`, управляющие сервисы — `Up`.
+- `/healthz` вернул `200` и `{"status":"ok"}`, `/api/session` без сессии — `401`; HTTPS проверен с CA стека.
+- `python constructor/test_live.py` прошёл: ответы двух TCP-портов, 7 сохранённых событий, live-поток обоих входов, отсутствие дубликата, остановка и применение обновлённого баннера.
+- `go fmt ./...`, `go vet ./...`, `go test ./...`, `go build ./...` прошли. Frontend: 168 тестов и сборка в Docker; конструктор: 46 unit-тестов.
+- Генерация сертификатов и секретов отдельно проверена на пустых томах без `.env`. Полный основной стек запускался с существующими локальными томами и `.env`; полная сборка без кэша на чистой машине и запуск на отдельном Linux-хосте в эту проверку не входили.
 
 Подробности: [бэкенд](src/backend/README.md), [frontend](frontend/README.md), [конструктор](constructor/README.md), [развёртывание ловушек](deploy/decoys/README.md), [агент](src/backend/internal/agent/README.md).

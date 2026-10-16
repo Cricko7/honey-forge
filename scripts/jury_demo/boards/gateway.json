@@ -1,0 +1,752 @@
+{
+  "nodes": [
+    {
+      "id": "gateway",
+      "type": "http/input",
+      "position": {
+        "x": 0.0,
+        "y": 350.0
+      },
+      "label": "POST /gateway — административная приманка",
+      "config": {
+        "name": "web",
+        "port": 32321,
+        "method": "POST",
+        "path": "/gateway"
+      },
+      "notes": "Основной вход для внешних запросов и передачи JSON из другой ловушки. Имя сервиса: web."
+    },
+    {
+      "id": "parse",
+      "type": "http/parse",
+      "position": {
+        "x": 300.0,
+        "y": 350.0
+      },
+      "label": "Разобрать JSON",
+      "config": {
+        "format": "json"
+      },
+      "notes": ""
+    },
+    {
+      "id": "user",
+      "type": "http/extract",
+      "position": {
+        "x": 600.0,
+        "y": 350.0
+      },
+      "label": "Пользователь обязателен",
+      "config": {
+        "source": "json.user",
+        "key": "user",
+        "required": true
+      },
+      "notes": ""
+    },
+    {
+      "id": "score",
+      "type": "http/extract",
+      "position": {
+        "x": 906.0,
+        "y": 339.0
+      },
+      "label": "Оценка риска обязательна",
+      "config": {
+        "source": "json.score",
+        "key": "score",
+        "required": true
+      },
+      "notes": ""
+    },
+    {
+      "id": "risk",
+      "type": "http/condition",
+      "position": {
+        "x": 1200.0,
+        "y": 350.0
+      },
+      "label": "Риск выше 70?",
+      "config": {
+        "source": "vars.score",
+        "operator": "gt",
+        "value": "70"
+      },
+      "notes": ""
+    },
+    {
+      "id": "critical",
+      "type": "http/event",
+      "position": {
+        "x": 1500.0,
+        "y": 0.0
+      },
+      "label": "Высокорисковая активность",
+      "config": {
+        "name": "jury.gateway.high_risk",
+        "severity": "critical",
+        "payload": "{\"user\":\"${json.user}\",\"action\":\"${json.action}\",\"score\":\"${json.score}\",\"file\":\"${json.file}\",\"run\":\"${json.run}\"}"
+      },
+      "notes": ""
+    },
+    {
+      "id": "quarantine",
+      "type": "http/state",
+      "position": {
+        "x": 1800.0,
+        "y": 0.0
+      },
+      "label": "Отметить сессию как quarantined",
+      "config": {
+        "operation": "set",
+        "key": "risk_state",
+        "value": "{\"status\":\"quarantined\",\"run\":\"${json.run}\"}"
+      },
+      "notes": ""
+    },
+    {
+      "id": "locked",
+      "type": "http/response",
+      "position": {
+        "x": 2100.0,
+        "y": 0.0
+      },
+      "label": "423 — демонстрационная блокировка",
+      "config": {
+        "status": 423,
+        "format": "json",
+        "body": "{\"error\": \"demo_session_quarantined\"}",
+        "headers": "{}"
+      },
+      "notes": ""
+    },
+    {
+      "id": "operation",
+      "type": "http/switch",
+      "position": {
+        "x": 1500.0,
+        "y": 500.0
+      },
+      "label": "status / backup / admin",
+      "config": {
+        "source": "json.action",
+        "value1": "status",
+        "value2": "backup",
+        "value3": "admin"
+      },
+      "notes": ""
+    },
+    {
+      "id": "status_call",
+      "type": "http/call",
+      "position": {
+        "x": 1800.0,
+        "y": 300.0
+      },
+      "label": "Вызвать внутреннюю диагностику",
+      "config": {
+        "target": "health",
+        "key": "health",
+        "payload": "{\"user\":\"${vars.user}\",\"run\":\"${json.run}\",\"score\":\"${json.score}\",\"action\":\"status\"}"
+      },
+      "notes": ""
+    },
+    {
+      "id": "status_reply",
+      "type": "http/response",
+      "position": {
+        "x": 2100.0,
+        "y": 300.0
+      },
+      "label": "200 — состояние приманки",
+      "config": {
+        "status": 200,
+        "format": "json",
+        "body": "{\"health\": \"${vars.health}\", \"demo\": true}",
+        "headers": "{}"
+      },
+      "notes": ""
+    },
+    {
+      "id": "fork",
+      "type": "http/fork",
+      "position": {
+        "x": 1800.0,
+        "y": 650.0
+      },
+      "label": "Резервная копия: аудит + сессия + задержка",
+      "config": {},
+      "notes": ""
+    },
+    {
+      "id": "backup_audit",
+      "type": "http/event",
+      "position": {
+        "x": 2100.0,
+        "y": 550.0
+      },
+      "label": "Запрос резервной копии",
+      "config": {
+        "name": "jury.gateway.backup",
+        "severity": "high",
+        "payload": "{\"user\":\"${json.user}\",\"action\":\"${json.action}\",\"score\":\"${json.score}\",\"file\":\"${json.file}\",\"run\":\"${json.run}\"}"
+      },
+      "notes": ""
+    },
+    {
+      "id": "audit_reply",
+      "type": "http/response",
+      "position": {
+        "x": 2400.0,
+        "y": 550.0
+      },
+      "label": "Аудит готов",
+      "config": {
+        "status": 200,
+        "format": "json",
+        "body": "{\"audit\": true}",
+        "headers": "{}"
+      },
+      "notes": ""
+    },
+    {
+      "id": "backup_state",
+      "type": "http/state",
+      "position": {
+        "x": 2100.0,
+        "y": 800.0
+      },
+      "label": "Запомнить запрос backup",
+      "config": {
+        "operation": "set",
+        "key": "backup_requested",
+        "value": "{\"user\":\"${vars.user}\",\"run\":\"${json.run}\"}"
+      },
+      "notes": ""
+    },
+    {
+      "id": "state_reply",
+      "type": "http/response",
+      "position": {
+        "x": 2400.0,
+        "y": 800.0
+      },
+      "label": "Сессия обновлена",
+      "config": {
+        "status": 200,
+        "format": "json",
+        "body": "{\"remembered\": true}",
+        "headers": "{}"
+      },
+      "notes": ""
+    },
+    {
+      "id": "backup_delay",
+      "type": "http/delay",
+      "position": {
+        "x": 2100.0,
+        "y": 1050.0
+      },
+      "label": "Подготовка демонстрационной копии",
+      "config": {
+        "milliseconds": 400
+      },
+      "notes": ""
+    },
+    {
+      "id": "backup_ready",
+      "type": "http/response",
+      "position": {
+        "x": 2400.0,
+        "y": 1050.0
+      },
+      "label": "Копия-приманка готова",
+      "config": {
+        "status": 200,
+        "format": "json",
+        "body": "{\"artifact\": \"demo-backup.tar\", \"demo\": true}",
+        "headers": "{}"
+      },
+      "notes": ""
+    },
+    {
+      "id": "join",
+      "type": "http/join",
+      "position": {
+        "x": 2700.0,
+        "y": 650.0
+      },
+      "label": "Объединить результаты backup",
+      "config": {
+        "key": "results"
+      },
+      "notes": ""
+    },
+    {
+      "id": "backup_reply",
+      "type": "http/response",
+      "position": {
+        "x": 3000.0,
+        "y": 650.0
+      },
+      "label": "202 — результат трёх веток",
+      "config": {
+        "status": 202,
+        "format": "json",
+        "body": "{\"results\": \"${vars.results}\", \"demo\": true}",
+        "headers": "{}"
+      },
+      "notes": ""
+    },
+    {
+      "id": "admin",
+      "type": "http/event",
+      "position": {
+        "x": 1800.0,
+        "y": 1450.0
+      },
+      "label": "Попытка входа в административную зону",
+      "config": {
+        "name": "jury.gateway.admin",
+        "severity": "critical",
+        "payload": "{\"user\":\"${json.user}\",\"action\":\"${json.action}\",\"score\":\"${json.score}\",\"file\":\"${json.file}\",\"run\":\"${json.run}\"}"
+      },
+      "notes": ""
+    },
+    {
+      "id": "admin_reply",
+      "type": "http/response",
+      "position": {
+        "x": 2100.0,
+        "y": 1450.0
+      },
+      "label": "403 — административная приманка",
+      "config": {
+        "status": 403,
+        "format": "json",
+        "body": "{\"error\": \"demo_admin_denied\"}",
+        "headers": "{}"
+      },
+      "notes": ""
+    },
+    {
+      "id": "unknown",
+      "type": "http/response",
+      "position": {
+        "x": 1500.0,
+        "y": 1750.0
+      },
+      "label": "422 — неизвестная операция",
+      "config": {
+        "status": 422,
+        "format": "json",
+        "body": "{\"error\": \"unknown_action\"}",
+        "headers": "{}"
+      },
+      "notes": ""
+    },
+    {
+      "id": "health",
+      "type": "http/input",
+      "position": {
+        "x": 0.0,
+        "y": 1750.0
+      },
+      "label": "Внутренний POST /health-check",
+      "config": {
+        "name": "health",
+        "port": 32322,
+        "method": "POST",
+        "path": "/health-check"
+      },
+      "notes": ""
+    },
+    {
+      "id": "health_event",
+      "type": "http/event",
+      "position": {
+        "x": 300.0,
+        "y": 1750.0
+      },
+      "label": "Обращение к внутренней диагностике",
+      "config": {
+        "name": "jury.gateway.health",
+        "severity": "low",
+        "payload": "{\"user\":\"${json.user}\",\"action\":\"${json.action}\",\"score\":\"${json.score}\",\"file\":\"${json.file}\",\"run\":\"${json.run}\"}"
+      },
+      "notes": ""
+    },
+    {
+      "id": "health_reply",
+      "type": "http/response",
+      "position": {
+        "x": 600.0,
+        "y": 1750.0
+      },
+      "label": "200 — синтетическая диагностика",
+      "config": {
+        "status": 200,
+        "format": "json",
+        "body": "{\"status\": \"ok\", \"environment\": \"demo\"}",
+        "headers": "{}"
+      },
+      "notes": ""
+    },
+    {
+      "id": "error",
+      "type": "http/error",
+      "position": {
+        "x": 250.0,
+        "y": 1200.0
+      },
+      "label": "Ошибки разбора и обработки",
+      "config": {
+        "key": "failure"
+      },
+      "notes": ""
+    },
+    {
+      "id": "invalid",
+      "type": "http/response",
+      "position": {
+        "x": 560.0,
+        "y": 1200.0
+      },
+      "label": "422 — некорректный запрос",
+      "config": {
+        "status": 422,
+        "format": "json",
+        "body": "{\"error\": \"invalid_request\"}",
+        "headers": "{}"
+      },
+      "notes": ""
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "gateway",
+      "source_port": "out",
+      "target": "parse",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e2",
+      "source": "parse",
+      "source_port": "out",
+      "target": "user",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e3",
+      "source": "user",
+      "source_port": "out",
+      "target": "score",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e4",
+      "source": "score",
+      "source_port": "out",
+      "target": "risk",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e5",
+      "source": "risk",
+      "source_port": "yes",
+      "target": "critical",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e6",
+      "source": "critical",
+      "source_port": "out",
+      "target": "quarantine",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e7",
+      "source": "quarantine",
+      "source_port": "out",
+      "target": "locked",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e8",
+      "source": "risk",
+      "source_port": "no",
+      "target": "operation",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e9",
+      "source": "operation",
+      "source_port": "case1",
+      "target": "status_call",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e10",
+      "source": "status_call",
+      "source_port": "out",
+      "target": "status_reply",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e11",
+      "source": "operation",
+      "source_port": "case2",
+      "target": "fork",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e12",
+      "source": "fork",
+      "source_port": "branch1",
+      "target": "backup_audit",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e13",
+      "source": "backup_audit",
+      "source_port": "out",
+      "target": "audit_reply",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e14",
+      "source": "fork",
+      "source_port": "branch2",
+      "target": "backup_state",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e15",
+      "source": "backup_state",
+      "source_port": "out",
+      "target": "state_reply",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e16",
+      "source": "fork",
+      "source_port": "branch3",
+      "target": "backup_delay",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e17",
+      "source": "backup_delay",
+      "source_port": "out",
+      "target": "backup_ready",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e18",
+      "source": "fork",
+      "source_port": "out",
+      "target": "join",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e19",
+      "source": "join",
+      "source_port": "out",
+      "target": "backup_reply",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e20",
+      "source": "operation",
+      "source_port": "case3",
+      "target": "admin",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e21",
+      "source": "admin",
+      "source_port": "out",
+      "target": "admin_reply",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e22",
+      "source": "operation",
+      "source_port": "default",
+      "target": "unknown",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e23",
+      "source": "health",
+      "source_port": "out",
+      "target": "health_event",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e24",
+      "source": "health_event",
+      "source_port": "out",
+      "target": "health_reply",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e25",
+      "source": "error",
+      "source_port": "out",
+      "target": "invalid",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e26",
+      "source": "parse",
+      "source_port": "error",
+      "target": "error",
+      "target_port": "in",
+      "label": "ошибка"
+    },
+    {
+      "id": "e27",
+      "source": "user",
+      "source_port": "error",
+      "target": "error",
+      "target_port": "in",
+      "label": "ошибка"
+    },
+    {
+      "id": "e28",
+      "source": "score",
+      "source_port": "error",
+      "target": "error",
+      "target_port": "in",
+      "label": "ошибка"
+    },
+    {
+      "id": "e29",
+      "source": "risk",
+      "source_port": "error",
+      "target": "error",
+      "target_port": "in",
+      "label": "ошибка"
+    },
+    {
+      "id": "e30",
+      "source": "critical",
+      "source_port": "error",
+      "target": "error",
+      "target_port": "in",
+      "label": "ошибка"
+    },
+    {
+      "id": "e31",
+      "source": "quarantine",
+      "source_port": "error",
+      "target": "error",
+      "target_port": "in",
+      "label": "ошибка"
+    },
+    {
+      "id": "e32",
+      "source": "operation",
+      "source_port": "error",
+      "target": "error",
+      "target_port": "in",
+      "label": "ошибка"
+    },
+    {
+      "id": "e33",
+      "source": "status_call",
+      "source_port": "error",
+      "target": "error",
+      "target_port": "in",
+      "label": "ошибка"
+    },
+    {
+      "id": "e34",
+      "source": "fork",
+      "source_port": "error",
+      "target": "error",
+      "target_port": "in",
+      "label": "ошибка"
+    },
+    {
+      "id": "e35",
+      "source": "backup_audit",
+      "source_port": "error",
+      "target": "error",
+      "target_port": "in",
+      "label": "ошибка"
+    },
+    {
+      "id": "e36",
+      "source": "backup_state",
+      "source_port": "error",
+      "target": "error",
+      "target_port": "in",
+      "label": "ошибка"
+    },
+    {
+      "id": "e37",
+      "source": "backup_delay",
+      "source_port": "error",
+      "target": "error",
+      "target_port": "in",
+      "label": "ошибка"
+    },
+    {
+      "id": "e38",
+      "source": "join",
+      "source_port": "error",
+      "target": "error",
+      "target_port": "in",
+      "label": "ошибка"
+    },
+    {
+      "id": "e39",
+      "source": "admin",
+      "source_port": "error",
+      "target": "error",
+      "target_port": "in",
+      "label": "ошибка"
+    },
+    {
+      "id": "e40",
+      "source": "health_event",
+      "source_port": "error",
+      "target": "error",
+      "target_port": "in",
+      "label": "ошибка"
+    }
+  ],
+  "viewport": {
+    "x": -332.68016986502016,
+    "y": 76.75619996045725,
+    "zoom": 0.9617079615311831
+  }
+}

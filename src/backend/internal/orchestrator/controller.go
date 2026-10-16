@@ -11,6 +11,9 @@ import (
 	"honey-forge/modules/profiles"
 )
 
+// ErrTrapReconciliation means the cycle visited all targets but some traps failed.
+var ErrTrapReconciliation = errors.New("individual trap reconciliation failed")
+
 type Target struct {
 	DeploymentNodeID       string
 	ID                     string
@@ -121,5 +124,9 @@ func (c Controller) Reconcile(ctx context.Context) error {
 		}
 	}
 
-	return errors.Join(failures...)
+	if len(failures) > 0 {
+		return fmt.Errorf("%w: %w", ErrTrapReconciliation, errors.Join(failures...))
+	}
+
+	return nil
 }

@@ -82,9 +82,19 @@ def main():
             with client.stream('GET', '/constructor/api/chains/' + chain['id'] + '/stream', headers=headers) as response:
                 response.raise_for_status()
                 found = set()
+                sent_live = False
+                deadline = time.monotonic() + 40
                 for line in response.iter_lines():
+                    if time.monotonic() >= deadline:
+                        raise RuntimeError('Missing live constructor nodes: ' + json.dumps(sorted(found)))
                     if line.startswith('data: '):
                         item = json.loads(line[6:])
+                        if item['kind'] == 'hello' and not sent_live:
+                            # The first snapshot skips history; generate traffic after subscribing.
+                            for port in ports:
+                                with socket.create_connection(('127.0.0.1', port), timeout=10):
+                                    pass
+                            sent_live = True
                         if item['kind'] == 'hop':
                             found.add(item['node_id'])
                             if {'mail', 'admin'} <= found:

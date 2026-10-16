@@ -13,8 +13,11 @@ Auth/organizations и profiles подключены к общей сборке c
 Миграции: `../../migrations/`; полный OpenAPI: [../../api/openapi.yaml](../../api/openapi.yaml).
 
 Основной запуск с TLS описан в [корневом README](../../README.md):
-`go run ./cmd/api` из `src/backend`. Docker Compose поднимает PostgreSQL и Kafka;
-Goose-миграции применяются при запуске API.
+`docker compose up --build -d` из корня репозитория поднимает панель, API,
+конструктор, PostgreSQL, Kafka, Redis и оркестратор. Goose-миграции применяются
+при запуске API. Для разработки можно отдельно выполнить `go run ./cmd/api`
+из `src/backend`, предварительно настроив TLS, окружение и доступ к зависимостям
+по корневой инструкции; основной Compose не публикует их порты на хост.
 Kafka требует `KAFKA_BROKERS`; подтверждение телеметрии выдаётся после commit
 PostgreSQL, а не после Kafka ACK. Подробности: [events](modules/events/README.md).
 

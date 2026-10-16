@@ -1,0 +1,807 @@
+{
+  "nodes": [
+    {
+      "id": "portal",
+      "type": "http/input",
+      "position": {
+        "x": 0.0,
+        "y": 330.0
+      },
+      "label": "POST /identity — вход в корпоративный портал",
+      "config": {
+        "name": "web",
+        "port": 32301,
+        "method": "POST",
+        "path": "/identity"
+      },
+      "notes": "Основной вход для внешних запросов и передачи JSON из другой ловушки. Имя сервиса: web."
+    },
+    {
+      "id": "parse",
+      "type": "http/parse",
+      "position": {
+        "x": 300.0,
+        "y": 330.0
+      },
+      "label": "Разобрать JSON",
+      "config": {
+        "format": "json"
+      },
+      "notes": ""
+    },
+    {
+      "id": "user",
+      "type": "http/extract",
+      "position": {
+        "x": 600.0,
+        "y": 330.0
+      },
+      "label": "Пользователь обязателен",
+      "config": {
+        "source": "json.user",
+        "key": "user",
+        "required": true
+      },
+      "notes": ""
+    },
+    {
+      "id": "normalize",
+      "type": "http/transform",
+      "position": {
+        "x": 900.0,
+        "y": 330.0
+      },
+      "label": "Нормализовать имя",
+      "config": {
+        "key": "user",
+        "operation": "lower",
+        "value": "\"${vars.user}\""
+      },
+      "notes": ""
+    },
+    {
+      "id": "action",
+      "type": "http/switch",
+      "position": {
+        "x": 1200.0,
+        "y": 330.0
+      },
+      "label": "Выбрать сценарий авторизации",
+      "config": {
+        "source": "json.action",
+        "value1": "login",
+        "value2": "reset",
+        "value3": "service"
+      },
+      "notes": ""
+    },
+    {
+      "id": "parallel",
+      "type": "http/fork",
+      "position": {
+        "x": 1500.0,
+        "y": 30.0
+      },
+      "label": "Три ветки: профиль / аудит / сессия",
+      "config": {},
+      "notes": ""
+    },
+    {
+      "id": "profile_call",
+      "type": "http/call",
+      "position": {
+        "x": 1800.0,
+        "y": -210.0
+      },
+      "label": "Получить профиль из внутренней приманки",
+      "config": {
+        "target": "directory",
+        "key": "profile",
+        "payload": "{\"user\":\"${vars.user}\"}"
+      },
+      "notes": ""
+    },
+    {
+      "id": "profile_result",
+      "type": "http/response",
+      "position": {
+        "x": 2100.0,
+        "y": -210.0
+      },
+      "label": "Результат профиля",
+      "config": {
+        "status": 200,
+        "format": "json",
+        "body": "{\"profile\": \"${vars.profile}\"}",
+        "headers": "{}"
+      },
+      "notes": ""
+    },
+    {
+      "id": "audit",
+      "type": "http/event",
+      "position": {
+        "x": 1800.0,
+        "y": 60.0
+      },
+      "label": "Событие попытки входа",
+      "config": {
+        "name": "jury.identity.login",
+        "severity": "high",
+        "payload": "{\"user\":\"${json.user}\",\"action\":\"${json.action}\",\"score\":\"${json.score}\",\"file\":\"${json.file}\",\"run\":\"${json.run}\"}"
+      },
+      "notes": ""
+    },
+    {
+      "id": "wait",
+      "type": "http/delay",
+      "position": {
+        "x": 2100.0,
+        "y": 60.0
+      },
+      "label": "Задержка аудита 150 мс",
+      "config": {
+        "milliseconds": 150
+      },
+      "notes": ""
+    },
+    {
+      "id": "audit_result",
+      "type": "http/response",
+      "position": {
+        "x": 2400.0,
+        "y": 60.0
+      },
+      "label": "Аудит записан",
+      "config": {
+        "status": 200,
+        "format": "json",
+        "body": "{\"audit\": true}",
+        "headers": "{}"
+      },
+      "notes": ""
+    },
+    {
+      "id": "remember",
+      "type": "http/state",
+      "position": {
+        "x": 1800.0,
+        "y": 330.0
+      },
+      "label": "Запомнить попытку в сессии",
+      "config": {
+        "operation": "set",
+        "key": "identity_attempt",
+        "value": "{\"user\":\"${vars.user}\",\"run\":\"${json.run}\"}"
+      },
+      "notes": ""
+    },
+    {
+      "id": "session_result",
+      "type": "http/response",
+      "position": {
+        "x": 2100.0,
+        "y": 330.0
+      },
+      "label": "Состояние сохранено",
+      "config": {
+        "status": 200,
+        "format": "json",
+        "body": "{\"session\": true}",
+        "headers": "{}"
+      },
+      "notes": ""
+    },
+    {
+      "id": "join",
+      "type": "http/join",
+      "position": {
+        "x": 2700.0,
+        "y": 30.0
+      },
+      "label": "Собрать три результата",
+      "config": {
+        "key": "results"
+      },
+      "notes": ""
+    },
+    {
+      "id": "accepted",
+      "type": "http/response",
+      "position": {
+        "x": 3340.0,
+        "y": 30.0
+      },
+      "label": "202 — JSON принят для следующего этапа",
+      "config": {
+        "status": 202,
+        "format": "json",
+        "body": "{\"queued\":true,\"next_stage\":\"gateway\",\"run\":\"${json.run}\",\"results\":\"${vars.results}\",\"demo\":true}",
+        "headers": "{}"
+      },
+      "notes": ""
+    },
+    {
+      "id": "reset",
+      "type": "http/event",
+      "position": {
+        "x": 1500.0,
+        "y": 620.0
+      },
+      "label": "Попытка восстановления доступа",
+      "config": {
+        "name": "jury.identity.reset",
+        "severity": "medium",
+        "payload": "{\"user\":\"${json.user}\",\"action\":\"${json.action}\",\"score\":\"${json.score}\",\"file\":\"${json.file}\",\"run\":\"${json.run}\"}"
+      },
+      "notes": ""
+    },
+    {
+      "id": "reset_reply",
+      "type": "http/response",
+      "position": {
+        "x": 1800.0,
+        "y": 620.0
+      },
+      "label": "202 — восстановление принято",
+      "config": {
+        "status": 202,
+        "format": "json",
+        "body": "{\"status\": \"reset_requested\", \"demo\": true}",
+        "headers": "{}"
+      },
+      "notes": ""
+    },
+    {
+      "id": "service",
+      "type": "http/event",
+      "position": {
+        "x": 1500.0,
+        "y": 900.0
+      },
+      "label": "Использование сервисной учётной записи",
+      "config": {
+        "name": "jury.identity.service",
+        "severity": "critical",
+        "payload": "{\"user\":\"${json.user}\",\"action\":\"${json.action}\",\"score\":\"${json.score}\",\"file\":\"${json.file}\",\"run\":\"${json.run}\"}"
+      },
+      "notes": ""
+    },
+    {
+      "id": "service_reply",
+      "type": "http/response",
+      "position": {
+        "x": 1800.0,
+        "y": 900.0
+      },
+      "label": "403 — сервисный доступ отклонён",
+      "config": {
+        "status": 403,
+        "format": "json",
+        "body": "{\"error\": \"service_access_denied\"}",
+        "headers": "{}"
+      },
+      "notes": ""
+    },
+    {
+      "id": "unknown",
+      "type": "http/response",
+      "position": {
+        "x": 1200.0,
+        "y": 1200.0
+      },
+      "label": "422 — неизвестное действие",
+      "config": {
+        "status": 422,
+        "format": "json",
+        "body": "{\"error\": \"unknown_action\"}",
+        "headers": "{}"
+      },
+      "notes": ""
+    },
+    {
+      "id": "directory",
+      "type": "http/input",
+      "position": {
+        "x": 900.0,
+        "y": 1550.0
+      },
+      "label": "Внутренняя приманка POST /directory",
+      "config": {
+        "name": "directory",
+        "port": 32302,
+        "method": "POST",
+        "path": "/directory"
+      },
+      "notes": ""
+    },
+    {
+      "id": "directory_user",
+      "type": "http/transform",
+      "position": {
+        "x": 1200.0,
+        "y": 1550.0
+      },
+      "label": "Имя профиля в верхнем регистре",
+      "config": {
+        "key": "display",
+        "operation": "upper",
+        "value": "\"${json.user}\""
+      },
+      "notes": ""
+    },
+    {
+      "id": "directory_event",
+      "type": "http/event",
+      "position": {
+        "x": 1500.0,
+        "y": 1550.0
+      },
+      "label": "Обращение к каталогу сотрудников",
+      "config": {
+        "name": "jury.identity.directory",
+        "severity": "low",
+        "payload": "{\"user\":\"${json.user}\",\"action\":\"${json.action}\",\"score\":\"${json.score}\",\"file\":\"${json.file}\",\"run\":\"${json.run}\"}"
+      },
+      "notes": ""
+    },
+    {
+      "id": "directory_reply",
+      "type": "http/response",
+      "position": {
+        "x": 1800.0,
+        "y": 1550.0
+      },
+      "label": "Синтетический профиль сотрудника",
+      "config": {
+        "status": 200,
+        "format": "json",
+        "body": "{\"user\": \"${vars.display}\", \"department\": \"Demo Research\", \"demo\": true}",
+        "headers": "{}"
+      },
+      "notes": ""
+    },
+    {
+      "id": "error",
+      "type": "http/error",
+      "position": {
+        "x": 250.0,
+        "y": 1200.0
+      },
+      "label": "Ошибки разбора и обработки",
+      "config": {
+        "key": "failure"
+      },
+      "notes": ""
+    },
+    {
+      "id": "invalid",
+      "type": "http/response",
+      "position": {
+        "x": 560.0,
+        "y": 1200.0
+      },
+      "label": "422 — некорректный запрос",
+      "config": {
+        "status": 422,
+        "format": "json",
+        "body": "{\"error\": \"invalid_request\"}",
+        "headers": "{}"
+      },
+      "notes": ""
+    },
+    {
+      "id": "pipeline_score",
+      "type": "http/extract",
+      "position": {
+        "x": 1450.0,
+        "y": -430.0
+      },
+      "label": "Обязательная оценка риска для следующего этапа",
+      "config": {
+        "source": "json.score",
+        "key": "pipeline_score",
+        "required": true
+      },
+      "notes": ""
+    },
+    {
+      "id": "send_next",
+      "type": "http/send",
+      "position": {
+        "x": 3000.0,
+        "y": -180.0
+      },
+      "label": "Передать JSON в связанный шлюз",
+      "config": {
+        "service": "web",
+        "method": "POST",
+        "path": "/gateway",
+        "payload": "{\"action\": \"backup\", \"user\": \"${vars.user}\", \"score\": \"${vars.pipeline_score}\", \"run\": \"${json.run}\"}"
+      },
+      "notes": "Получатель задаётся стрелкой в конструкторе сети: Портал → Шлюз."
+    },
+    {
+      "id": "delivery_failed",
+      "type": "http/event",
+      "position": {
+        "x": 3000.0,
+        "y": -500.0
+      },
+      "label": "Ошибка передачи JSON",
+      "config": {
+        "name": "jury.identity.delivery_failed",
+        "severity": "high",
+        "payload": "{\"run\":\"${json.run}\",\"user\":\"${vars.user}\"}"
+      },
+      "notes": ""
+    },
+    {
+      "id": "delivery_unavailable",
+      "type": "http/response",
+      "position": {
+        "x": 3300.0,
+        "y": -500.0
+      },
+      "label": "503 — передача не принята",
+      "config": {
+        "status": 503,
+        "format": "json",
+        "body": "{\"error\":\"pipeline_handoff_failed\"}",
+        "headers": "{}"
+      },
+      "notes": ""
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "portal",
+      "source_port": "out",
+      "target": "parse",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e2",
+      "source": "parse",
+      "source_port": "out",
+      "target": "user",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e3",
+      "source": "user",
+      "source_port": "out",
+      "target": "normalize",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e4",
+      "source": "normalize",
+      "source_port": "out",
+      "target": "action",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e5",
+      "source": "action",
+      "source_port": "case1",
+      "target": "pipeline_score",
+      "target_port": "in",
+      "label": "login"
+    },
+    {
+      "id": "e6",
+      "source": "parallel",
+      "source_port": "branch1",
+      "target": "profile_call",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e7",
+      "source": "profile_call",
+      "source_port": "out",
+      "target": "profile_result",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e8",
+      "source": "parallel",
+      "source_port": "branch2",
+      "target": "audit",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e9",
+      "source": "audit",
+      "source_port": "out",
+      "target": "wait",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e10",
+      "source": "wait",
+      "source_port": "out",
+      "target": "audit_result",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e11",
+      "source": "parallel",
+      "source_port": "branch3",
+      "target": "remember",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e12",
+      "source": "remember",
+      "source_port": "out",
+      "target": "session_result",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e13",
+      "source": "parallel",
+      "source_port": "out",
+      "target": "join",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e14",
+      "source": "join",
+      "source_port": "out",
+      "target": "send_next",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e15",
+      "source": "action",
+      "source_port": "case2",
+      "target": "reset",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e16",
+      "source": "reset",
+      "source_port": "out",
+      "target": "reset_reply",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e17",
+      "source": "action",
+      "source_port": "case3",
+      "target": "service",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e18",
+      "source": "service",
+      "source_port": "out",
+      "target": "service_reply",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e19",
+      "source": "action",
+      "source_port": "default",
+      "target": "unknown",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e20",
+      "source": "directory",
+      "source_port": "out",
+      "target": "directory_user",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e21",
+      "source": "directory_user",
+      "source_port": "out",
+      "target": "directory_event",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e22",
+      "source": "directory_event",
+      "source_port": "out",
+      "target": "directory_reply",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e23",
+      "source": "error",
+      "source_port": "out",
+      "target": "invalid",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "e24",
+      "source": "parse",
+      "source_port": "error",
+      "target": "error",
+      "target_port": "in",
+      "label": "ошибка"
+    },
+    {
+      "id": "e25",
+      "source": "user",
+      "source_port": "error",
+      "target": "error",
+      "target_port": "in",
+      "label": "ошибка"
+    },
+    {
+      "id": "e26",
+      "source": "normalize",
+      "source_port": "error",
+      "target": "error",
+      "target_port": "in",
+      "label": "ошибка"
+    },
+    {
+      "id": "e27",
+      "source": "action",
+      "source_port": "error",
+      "target": "error",
+      "target_port": "in",
+      "label": "ошибка"
+    },
+    {
+      "id": "e28",
+      "source": "parallel",
+      "source_port": "error",
+      "target": "error",
+      "target_port": "in",
+      "label": "ошибка"
+    },
+    {
+      "id": "e29",
+      "source": "profile_call",
+      "source_port": "error",
+      "target": "error",
+      "target_port": "in",
+      "label": "ошибка"
+    },
+    {
+      "id": "e30",
+      "source": "audit",
+      "source_port": "error",
+      "target": "error",
+      "target_port": "in",
+      "label": "ошибка"
+    },
+    {
+      "id": "e31",
+      "source": "wait",
+      "source_port": "error",
+      "target": "error",
+      "target_port": "in",
+      "label": "ошибка"
+    },
+    {
+      "id": "e32",
+      "source": "remember",
+      "source_port": "error",
+      "target": "error",
+      "target_port": "in",
+      "label": "ошибка"
+    },
+    {
+      "id": "e33",
+      "source": "join",
+      "source_port": "error",
+      "target": "error",
+      "target_port": "in",
+      "label": "ошибка"
+    },
+    {
+      "id": "e34",
+      "source": "reset",
+      "source_port": "error",
+      "target": "error",
+      "target_port": "in",
+      "label": "ошибка"
+    },
+    {
+      "id": "e35",
+      "source": "service",
+      "source_port": "error",
+      "target": "error",
+      "target_port": "in",
+      "label": "ошибка"
+    },
+    {
+      "id": "e36",
+      "source": "directory_user",
+      "source_port": "error",
+      "target": "error",
+      "target_port": "in",
+      "label": "ошибка"
+    },
+    {
+      "id": "e37",
+      "source": "directory_event",
+      "source_port": "error",
+      "target": "error",
+      "target_port": "in",
+      "label": "ошибка"
+    },
+    {
+      "id": "net_37",
+      "source": "pipeline_score",
+      "source_port": "out",
+      "target": "parallel",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "net_38",
+      "source": "pipeline_score",
+      "source_port": "error",
+      "target": "error",
+      "target_port": "in",
+      "label": "нет score"
+    },
+    {
+      "id": "net_39",
+      "source": "send_next",
+      "source_port": "out",
+      "target": "accepted",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "net_40",
+      "source": "send_next",
+      "source_port": "error",
+      "target": "delivery_failed",
+      "target_port": "in",
+      "label": "ошибка отправки"
+    },
+    {
+      "id": "net_41",
+      "source": "delivery_failed",
+      "source_port": "out",
+      "target": "delivery_unavailable",
+      "target_port": "in",
+      "label": ""
+    },
+    {
+      "id": "net_42",
+      "source": "delivery_failed",
+      "source_port": "error",
+      "target": "delivery_unavailable",
+      "target_port": "in",
+      "label": ""
+    }
+  ],
+  "viewport": {
+    "x": 35.0,
+    "y": 80.0,
+    "zoom": 0.29
+  }
+}

@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
+
+	"honey-forge/internal/orchestrator"
 )
 
 func runLoop(ctx context.Context, prepare, reconcile, cleanup func(context.Context) error) error {
@@ -33,6 +36,8 @@ func runLoop(ctx context.Context, prepare, reconcile, cleanup func(context.Conte
 		wait := 3 * time.Second
 		if err != nil && ctx.Err() == nil {
 			slog.ErrorContext(ctx, "deployment reconciliation failed", "error", err)
+		}
+		if err != nil && ctx.Err() == nil && !errors.Is(err, orchestrator.ErrTrapReconciliation) {
 			preparedAt = time.Time{}
 			wait = delay
 			delay = min(delay*2, time.Minute)

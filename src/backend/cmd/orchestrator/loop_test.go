@@ -3,10 +3,62 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"testing/synctest"
 	"time"
+
+	"honey-forge/internal/orchestrator"
 )
+
+func TestLoopKeepsNormalCadenceWhenIndividualTrapsFail(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		started := time.Now()
+		prepares, cycles, cleanups := 0, 0, 0
+		err := runLoop(ctx, func(context.Context) error {
+			prepares++
+			return nil
+		}, func(context.Context) error {
+			cycles++
+			if cycles == 10 {
+				cancel()
+			}
+			return fmt.Errorf("missing Tetragon: %w", orchestrator.ErrTrapReconciliation)
+		}, func(context.Context) error {
+			cleanups++
+			return nil
+		})
+		if err != nil || prepares != 1 || cleanups != 1 || time.Since(started) != 27*time.Second {
+			t.Fatalf("prepare=%d cleanup=%d elapsed=%v err=%v", prepares, cleanups, time.Since(started), err)
+		}
+	})
+}
+
+func TestLoopBacksOffGlobalReconciliationFailures(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		started := time.Now()
+		prepares, cycles := 0, 0
+		err := runLoop(ctx, func(context.Context) error {
+			prepares++
+			return nil
+		}, func(context.Context) error {
+			cycles++
+			if cycles == 4 {
+				cancel()
+			}
+			return errors.New("database unavailable")
+		}, func(context.Context) error { return nil })
+		if err != nil || prepares != 4 || time.Since(started) != 21*time.Second {
+			t.Fatalf("prepare=%d elapsed=%v err=%v", prepares, time.Since(started), err)
+		}
+	})
+}
 
 func TestLoopDoesNotPrepareDockerEveryCycle(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {

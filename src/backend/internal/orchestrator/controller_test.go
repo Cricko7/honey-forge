@@ -30,13 +30,14 @@ func TestReconcileReplacesLegacySharedNetworkDeployment(t *testing.T) {
 }
 
 type fakeStore struct {
+	listErr  error
 	targets  []Target
 	issued   []string
 	advanced []string
 }
 
 func (f *fakeStore) List(context.Context) ([]Target, error) {
-	return f.targets, nil
+	return f.targets, f.listErr
 }
 
 func (f *fakeStore) Issue(_ context.Context, target Target) (string, int64, error) {
@@ -56,10 +57,11 @@ func (f *fakeStore) Advance(_ context.Context, target Target) error {
 }
 
 type fakeDocker struct {
-	current  map[string]ServiceState
-	deployed []string
-	removed  []string
-	failID   string
+	statesErr error
+	current   map[string]ServiceState
+	deployed  []string
+	removed   []string
+	failID    string
 }
 
 func (f *fakeDocker) Current(_ context.Context, id string) (ServiceState, error) {
@@ -67,7 +69,7 @@ func (f *fakeDocker) Current(_ context.Context, id string) (ServiceState, error)
 }
 
 func (f *fakeDocker) States(context.Context, []string) (map[string]ServiceState, error) {
-	return f.current, nil
+	return f.current, f.statesErr
 }
 
 func (f *fakeDocker) Remove(_ context.Context, id string) error {
@@ -150,8 +152,27 @@ func TestReconcileContinuesAfterOneDeploymentFails(t *testing.T) {
 			return []int{2222}, nil
 		},
 	}
-	if err := c.Reconcile(t.Context()); err == nil || !reflect.DeepEqual(docker.deployed, []string{"good"}) {
+	if err := c.Reconcile(t.Context()); !errors.Is(err, ErrTrapReconciliation) || !reflect.DeepEqual(docker.deployed, []string{"good"}) {
 		t.Fatalf("error=%v deployed=%v", err, docker.deployed)
+	}
+}
+
+func TestReconcileKeepsInfrastructureErrorsDistinct(t *testing.T) {
+	failure := errors.New("infrastructure unavailable")
+	for _, tc := range []struct {
+		name                string
+		storeErr, dockerErr error
+	}{
+		{name: "database", storeErr: failure},
+		{name: "Docker inspection", dockerErr: failure},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := Controller{Store: &fakeStore{listErr: tc.storeErr}, Docker: &fakeDocker{statesErr: tc.dockerErr}}
+			err := c.Reconcile(t.Context())
+			if !errors.Is(err, failure) || errors.Is(err, ErrTrapReconciliation) {
+				t.Fatalf("global error was misclassified: %v", err)
+			}
+		})
 	}
 }
 

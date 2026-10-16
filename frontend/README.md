@@ -1,7 +1,7 @@
 # HoneyForge Frontend
 
 Фронтенд веб-конструктора ловушек (honeypot) для платформы HoneyForge.
-Построен строго под контракт `../файлы/api/openapi.yaml`.
+HTTP-контракт: [api/openapi.yaml](../api/openapi.yaml).
 
 ## Стек
 
@@ -19,17 +19,17 @@
 ## Разработка фронтенда
 
 ```powershell
-npm install
+npm ci
 npm run dev
 ```
 
-Откроется на http://127.0.0.1:3000 (совпадает с `BROWSER_ORIGINS` backend).
+Откройте http://127.0.0.1:3000. Это отдельный сервер разработки; основной Compose разрешает Origin `https://localhost:8443`. Для работы dev-сервера с реальным API нужно отдельно согласовать `BROWSER_ORIGINS`, HTTPS и cookie-сессию; для полного рабочего стенда используйте общий запуск выше.
 
 ## Режимы данных
 
 - **Demo (по умолчанию)** — `VITE_API_BASE` пустой. Работает in-memory mock-слой
   (`src/api/mock.ts`) с генератором live-атак: дашборд, конструктор и события
-  наполняются реальными данными без backend.
+  наполняются демонстрационными данными без backend. Это проверка интерфейса, а не настоящих ловушек и телеметрии.
 - **Реальный backend** — задайте `VITE_API_BASE=https://api.example.org`
   в `.env`. Клиент (`src/api/client.ts`) переключится на fetch + WSS `/api/stream`.
 
